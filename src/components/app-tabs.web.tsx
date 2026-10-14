@@ -22,11 +22,16 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton>Trang chủ</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+            <TabButton>Khám phá</TabButton>
           </TabTrigger>
+          <TabTrigger name="profile" href="/profile" asChild>
+            <TabButton>Tài khoản</TabButton>
+          </TabTrigger>
+          <TabTrigger name="login" href="/login" style={{ display: 'none' }} />
+          <TabTrigger name="register" href="/register" style={{ display: 'none' }} />
         </CustomTabList>
       </TabList>
     </Tabs>
@@ -55,7 +60,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          🎬 CineMax Theater
         </ThemedText>
 
         {props.children}
