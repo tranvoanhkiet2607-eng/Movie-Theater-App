@@ -41,6 +41,18 @@ const INITIAL_MOCK_USERS: User[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
     createdAt: '2024-11-01T10:00:00Z',
   },
+  {
+    id: 'usr_demo_admin',
+    fullName: 'Quản Lý Rạp CineMax',
+    email: 'admin@cinema.com',
+    phone: '0912345678',
+    password: 'password123',
+    role: 'admin',
+    membershipTier: 'VIP',
+    loyaltyPoints: 9999,
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
 ];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

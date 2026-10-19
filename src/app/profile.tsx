@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { useAuth } from '@/context/auth-context';
 import {
@@ -983,6 +984,29 @@ export default function ProfileScreen() {
             onPress={() => setSessionModalVisible(true)}>
             <Ionicons name="shield-checkmark-outline" size={16} color="#9CA3AF" />
             <Text style={styles.sessionDetailButtonText}>Xem chi tiết kỹ thuật phiên đăng nhập</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Cinema Management Services */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Dịch vụ & Quản lý rạp</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.fnbProfileBtn}
+            onPress={() => router.push('/food')}
+            activeOpacity={0.85}>
+            <View style={styles.fnbProfileIconWrap}>
+              <Ionicons name="fast-food" size={20} color="#E50914" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fnbProfileTitle}>Quản lý Bắp Nước (UC37)</Text>
+              <Text style={styles.fnbProfileSubtitle}>
+                Thêm, xem, sửa và xóa thực đơn bắp rang, nước ngọt & combo
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
 
@@ -2198,5 +2222,34 @@ const styles = StyleSheet.create({
   guestCriteriaText: {
     fontSize: 11,
     color: '#6B7280',
+  },
+  fnbProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E2028',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2D3039',
+    gap: 12,
+  },
+  fnbProfileIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(229, 9, 20, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fnbProfileTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  fnbProfileSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+    lineHeight: 16,
   },
 });

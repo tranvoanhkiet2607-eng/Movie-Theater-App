@@ -177,6 +177,29 @@ export default function HomeScreen() {
             </View>
           )}
 
+          {/* UC37 Food & Drinks Promo Card */}
+          <View style={styles.fnbPromoCard}>
+            <View style={styles.fnbPromoLeft}>
+              <View style={styles.fnbBadge}>
+                <Ionicons name="fast-food" size={13} color="#F59E0B" />
+                <Text style={styles.fnbBadgeText}>QUẢN LÝ BẮP NƯỚC • UC37</Text>
+              </View>
+              <Text style={styles.fnbPromoTitle}>Thực Đơn Bắp Nước & Combo Rạp</Text>
+              <Text style={styles.fnbPromoDesc}>
+                Khám phá bắp rang bơ giòn rụm, nước ngọt mát lạnh & combo ưu đãi hoặc quản lý menu F&B.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.fnbPromoBtn}
+                onPress={() => router.push('/food')}
+                activeOpacity={0.85}>
+                <Ionicons name="fast-food-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.fnbPromoBtnText}>Quản Lý & Xem Thực Đơn</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Now Showing Section */}
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleBlock}>
@@ -676,5 +699,71 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 10.5,
     textAlign: 'center',
+  },
+  fnbPromoCard: {
+    backgroundColor: '#181A22',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2A2E3B',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  fnbPromoLeft: {
+    gap: 8,
+  },
+  fnbBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    gap: 5,
+  },
+  fnbBadgeText: {
+    color: '#F59E0B',
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  fnbPromoTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  fnbPromoDesc: {
+    fontSize: 12.5,
+    color: '#9CA3AF',
+    lineHeight: 18,
+  },
+  fnbPromoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#E50914',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 4,
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fnbPromoBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
