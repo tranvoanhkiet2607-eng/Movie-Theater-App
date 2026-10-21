@@ -23,6 +23,8 @@ import {
 } from '@/utils/validation';
 
 import { LoginFormData, RegisterFormData } from '@/types/auth';
+import { ForgotPasswordModal } from '@/components/forgot-password-modal';
+
 
 interface GuestAuthProps {
   login: (data: LoginFormData) => Promise<{ success: boolean; message: string }>;
@@ -53,13 +55,9 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
 
-  // Forgot Password State
+  // Forgot Password Modal State (UC04)
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotNewPassword, setForgotNewPassword] = useState('');
-  const [forgotError, setForgotError] = useState<string | null>(null);
-  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
-  const [forgotLoading, setForgotLoading] = useState(false);
+
 
 
   const handleQuickFillDemo = () => {
@@ -143,41 +141,12 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
     }
   };
 
-  const handleForgotSubmit = async () => {
-    setForgotError(null);
-    setForgotSuccess(null);
-
-    if (!forgotEmail || !forgotEmail.includes('@')) {
-      setForgotError('Vui lòng nhập địa chỉ email hợp lệ.');
-      return;
-    }
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      setForgotError('Mật khẩu mới phải có ít nhất 6 ký tự.');
-      return;
-    }
-
-    setForgotLoading(true);
-    try {
-      const res = await resetPassword(forgotEmail.trim(), forgotNewPassword);
-      if (res.success) {
-        setForgotSuccess(res.message);
-        setLoginId(forgotEmail.trim());
-        setLoginPassword(forgotNewPassword);
-        setTimeout(() => {
-          setForgotModalVisible(false);
-          setForgotEmail('');
-          setForgotNewPassword('');
-          setForgotSuccess(null);
-        }, 1500);
-      } else {
-        setForgotError(res.message);
-      }
-    } catch {
-      setForgotError('Lỗi đặt lại mật khẩu.');
-    } finally {
-      setForgotLoading(false);
-    }
+  const handleResetSuccess = (resetId: string, resetPass: string) => {
+    setLoginId(resetId);
+    setLoginPassword(resetPass);
+    setLoginSuccess('Khôi phục mật khẩu thành công! Hãy nhấn Đăng Nhập để vào rạp.');
   };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -556,79 +525,15 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
           </View>
         </View>
 
-        {/* Forgot Password Modal */}
-        <Modal
+        {/* UC04: Forgot Password Modal with Identity Verification */}
+        <ForgotPasswordModal
           visible={forgotModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setForgotModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Khôi phục mật khẩu</Text>
-                <TouchableOpacity onPress={() => setForgotModalVisible(false)}>
-                  <Ionicons name="close" size={24} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-
-              {forgotError && (
-                <View style={styles.guestAlertError}>
-                  <Ionicons name="alert-circle" size={16} color="#EF4444" />
-                  <Text style={styles.guestAlertErrorText}>{forgotError}</Text>
-                </View>
-              )}
-
-              {forgotSuccess && (
-                <View style={styles.guestAlertSuccess}>
-                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                  <Text style={styles.guestAlertSuccessText}>{forgotSuccess}</Text>
-                </View>
-              )}
-
-              <Text style={styles.guestLabel}>Email đã đăng ký</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="customer@cinema.com"
-                placeholderTextColor="#6B7280"
-                value={forgotEmail}
-                onChangeText={setForgotEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-
-              <Text style={styles.guestLabel}>Mật khẩu mới (tối thiểu 6 ký tự)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Nhập mật khẩu mới"
-                placeholderTextColor="#6B7280"
-                value={forgotNewPassword}
-                onChangeText={setForgotNewPassword}
-                secureTextEntry
-                autoCapitalize="none"
-              />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setForgotModalVisible(false)}>
-                  <Text style={styles.modalCancelText}>Hủy</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.modalSaveBtn}
-                  onPress={handleForgotSubmit}
-                  disabled={forgotLoading}>
-                  {forgotLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.modalSaveText}>Đặt Lại</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          initialIdentifier={loginId}
+          onClose={() => setForgotModalVisible(false)}
+          onSuccess={handleResetSuccess}
+        />
       </ScrollView>
+
     </SafeAreaView>
   );
 }

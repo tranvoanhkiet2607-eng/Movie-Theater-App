@@ -54,6 +54,13 @@ export interface LoginErrors {
   general?: string;
 }
 
+export interface ResetPasswordRequestResult {
+  success: boolean;
+  message: string;
+  demoOtp?: string;
+  maskedTarget?: string;
+}
+
 export interface AuthContextType {
   user: User | null;
   session: AuthSession | null;
@@ -65,6 +72,10 @@ export interface AuthContextType {
   updateProfile: (updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl'>>) => Promise<{ success: boolean; message: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  requestPasswordReset: (identifier: string) => Promise<ResetPasswordRequestResult>;
+  verifyResetOtp: (identifier: string, code: string) => Promise<{ success: boolean; message: string }>;
+  completePasswordReset: (identifier: string, code: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   deleteAccount: () => Promise<{ success: boolean; message: string }>;
   savedIdentifier: string | null;
 }
+

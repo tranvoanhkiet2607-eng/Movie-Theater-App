@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -10,38 +9,11 @@ import {
   AuthContextType,
 } from '@/types/auth';
 import { validateLoginForm, validateRegisterForm } from '@/utils/validation';
+import { AuthAPI } from '@/services/api';
 
-const USERS_STORAGE_KEY = '@movie_theater_users_v1';
-const SESSION_STORAGE_KEY = '@movie_theater_session_v1';
+// ─── AsyncStorage keys (chỉ lưu token & remember-me, không lưu user data) ───
+const TOKEN_STORAGE_KEY = '@movie_theater_token_v2';
 const REMEMBERED_ID_KEY = '@movie_theater_remembered_id';
-
-// Default mock accounts for immediate testing
-const INITIAL_MOCK_USERS: User[] = [
-  {
-    id: 'usr_demo_01',
-    fullName: 'Nguyễn Văn A',
-    email: 'customer@cinema.com',
-    phone: '0901234567',
-    password: 'password123',
-    role: 'customer',
-    membershipTier: 'Gold',
-    loyaltyPoints: 350,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    createdAt: '2025-01-10T08:30:00Z',
-  },
-  {
-    id: 'usr_demo_02',
-    fullName: 'Trần Thị Bích Ngọc',
-    email: 'vip@cinema.com',
-    phone: '0987654321',
-    password: 'password123',
-    role: 'customer',
-    membershipTier: 'VIP',
-    loyaltyPoints: 1250,
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-    createdAt: '2024-11-01T10:00:00Z',
-  },
-];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -51,379 +23,284 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [savedIdentifier, setSavedIdentifier] = useState<string | null>(null);
 
-  // Initialize storage & restore session
+  // ─── Khôi phục session từ token đã lưu ─────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
 
     async function initializeAuth() {
       try {
-        // 1. Ensure mock database exists
-        const storedUsers = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-        if (!storedUsers) {
-          await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(INITIAL_MOCK_USERS));
-        }
-
-        // 2. Load saved remember-me identifier
+        // Load remember-me identifier
         const remembered = await AsyncStorage.getItem(REMEMBERED_ID_KEY);
-        if (isMounted && remembered) {
-          setSavedIdentifier(remembered);
-        }
+        if (isMounted && remembered) setSavedIdentifier(remembered);
 
-        // 3. Check for existing active session
-        const rawSession = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
-        if (rawSession) {
-          const parsedSession: AuthSession = JSON.parse(rawSession);
-          const now = new Date().getTime();
-          const expiresAt = new Date(parsedSession.expiresAt).getTime();
-
-          if (now < expiresAt) {
-            // Session is still valid, fetch user
-            const usersData = storedUsers ? JSON.parse(storedUsers) : INITIAL_MOCK_USERS;
-            const currentUser = usersData.find((u: User) => u.id === parsedSession.userId);
-
-            if (currentUser && isMounted) {
-              setUser(currentUser);
-              setSession(parsedSession);
-            }
+        // Kiểm tra token còn hiệu lực không
+        const storedToken = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+        if (storedToken) {
+          const result = await AuthAPI.getMe(storedToken);
+          if (result.success && result.user && isMounted) {
+            setUser(result.user as User);
+            setSession({
+              token: storedToken,
+              userId: result.user.id,
+              createdAt: new Date().toISOString(),
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              rememberMe: true,
+              devicePlatform: 'restored',
+            });
           } else {
-            // Session expired, remove it
-            await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+            // Token hết hạn → xóa đi
+            await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
           }
         }
-      } catch (err) {
-        console.error('Error initializing auth:', err);
+      } catch {
+        // Token không hợp lệ hoặc server offline → xóa token
+        await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     }
 
     initializeAuth();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
-  /**
-   * Helper to load all stored users
-   */
-  async function getAllUsers(): Promise<User[]> {
-    const raw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) {
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(INITIAL_MOCK_USERS));
-      return INITIAL_MOCK_USERS;
-    }
-    return JSON.parse(raw);
+  // ─── Helper: lấy token hiện tại ────────────────────────────────────────────
+  async function getToken(): Promise<string | null> {
+    return session?.token ?? AsyncStorage.getItem(TOKEN_STORAGE_KEY);
   }
 
   /**
-   * UC01: Customer Registration with Input Validation and Duplicate Checking
+   * UC01: Đăng ký tài khoản
    */
-  async function register(data: RegisterFormData): Promise<{ success: boolean; message: string; user?: User }> {
+  async function register(
+    data: RegisterFormData
+  ): Promise<{ success: boolean; message: string; user?: User }> {
+    // Validate phía client trước
+    const validation = validateRegisterForm(data);
+    if (!validation.isValid) {
+      const firstKey = Object.keys(validation.errors)[0] as keyof typeof validation.errors;
+      return { success: false, message: validation.errors[firstKey] || 'Dữ liệu không hợp lệ' };
+    }
+
     try {
-      // 1. Input Validation
-      const validation = validateRegisterForm(data);
-      if (!validation.isValid) {
-        const firstErrorKey = Object.keys(validation.errors)[0] as keyof typeof validation.errors;
-        return {
-          success: false,
-          message: validation.errors[firstErrorKey] || 'Dữ liệu không hợp lệ',
-        };
-      }
-
-      const users = await getAllUsers();
-      const normalizedEmail = data.email.trim().toLowerCase();
-      const normalizedPhone = data.phone.trim();
-
-      // 2. Duplicate Check: Email
-      const emailExists = users.some(
-        (u) => u.email.toLowerCase() === normalizedEmail
-      );
-      if (emailExists) {
-        return {
-          success: false,
-          message: 'Email này đã được đăng ký tài khoản. Vui lòng sử dụng Email khác hoặc Đăng nhập.',
-        };
-      }
-
-      // 3. Duplicate Check: Phone
-      const phoneExists = users.some((u) => u.phone === normalizedPhone);
-      if (phoneExists) {
-        return {
-          success: false,
-          message: 'Số điện thoại này đã được liên kết với một tài khoản khác.',
-        };
-      }
-
-      // 4. Create new customer user
-      const newUser: User = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      const result = await AuthAPI.register({
         fullName: data.fullName.trim(),
-        email: normalizedEmail,
-        phone: normalizedPhone,
+        email: data.email.trim(),
+        phone: data.phone.trim(),
         password: data.password,
-        role: 'customer',
-        membershipTier: 'Standard',
-        loyaltyPoints: 50, // Welcome gift
-        avatarUrl: `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(data.fullName.trim())}`,
-        createdAt: new Date().toISOString(),
-      };
+      });
 
-      // 5. Save into storage
-      users.push(newUser);
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      if (result.success && result.token && result.user) {
+        await AsyncStorage.setItem(TOKEN_STORAGE_KEY, result.token);
+        const newSession: AuthSession = {
+          token: result.token,
+          userId: result.user.id,
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          rememberMe: true,
+          devicePlatform: 'register',
+        };
+        setUser(result.user as User);
+        setSession(newSession);
+        return { success: true, message: result.message, user: result.user as User };
+      }
 
-      // 6. Create active session for instant login
-      const newSession: AuthSession = {
-        token: `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-        userId: newUser.id,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-        rememberMe: true,
-        devicePlatform: Platform.OS,
-      };
-
-      await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newSession));
-      setUser(newUser);
-      setSession(newSession);
-
-      return {
-        success: true,
-        message: 'Đăng ký tài khoản khách hàng thành công! Bạn nhận được 50 điểm thưởng chào mừng.',
-        user: newUser,
-      };
-    } catch (err) {
-      console.error('Registration error:', err);
-      return {
-        success: false,
-        message: 'Có lỗi xảy ra trong quá trình đăng ký. Vui lòng thử lại.',
-      };
+      return { success: false, message: result.message || 'Đăng ký thất bại.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Có lỗi xảy ra trong quá trình đăng ký. Vui lòng thử lại.' };
     }
   }
 
   /**
-   * UC02: Customer Login & Session Management
+   * UC02: Đăng nhập
    */
-  async function login(data: LoginFormData): Promise<{ success: boolean; message: string }> {
+  async function login(
+    data: LoginFormData
+  ): Promise<{ success: boolean; message: string }> {
+    const validation = validateLoginForm(data);
+    if (!validation.isValid) {
+      const firstKey = Object.keys(validation.errors)[0] as keyof typeof validation.errors;
+      return { success: false, message: validation.errors[firstKey] || 'Dữ liệu không hợp lệ' };
+    }
+
     try {
-      // 1. Validate inputs
-      const validation = validateLoginForm(data);
-      if (!validation.isValid) {
-        const firstErrorKey = Object.keys(validation.errors)[0] as keyof typeof validation.errors;
-        return {
-          success: false,
-          message: validation.errors[firstErrorKey] || 'Dữ liệu không hợp lệ',
-        };
-      }
-
-      const users = await getAllUsers();
-      const searchTarget = data.identifier.trim().toLowerCase();
-
-      // 2. Find customer by Email OR Phone
-      const foundUser = users.find(
-        (u) =>
-          u.email.toLowerCase() === searchTarget ||
-          u.phone === data.identifier.trim()
-      );
-
-      if (!foundUser) {
-        return {
-          success: false,
-          message: 'Không tìm thấy tài khoản với Email hoặc Số điện thoại này.',
-        };
-      }
-
-      // 3. Verify password
-      if (foundUser.password !== data.password) {
-        return {
-          success: false,
-          message: 'Mật khẩu không chính xác. Vui lòng kiểm tra lại.',
-        };
-      }
-
-      // 4. Session validity (30 days if rememberMe, 24 hours otherwise)
-      const durationHours = data.rememberMe ? 30 * 24 : 24;
-      const newSession: AuthSession = {
-        token: `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-        userId: foundUser.id,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString(),
+      const result = await AuthAPI.login({
+        identifier: data.identifier.trim(),
+        password: data.password,
         rememberMe: data.rememberMe,
-        devicePlatform: Platform.OS,
-      };
+      });
 
-      // 5. Persist Session & Remembered identifier
-      await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newSession));
+      if (result.success && result.token && result.user) {
+        await AsyncStorage.setItem(TOKEN_STORAGE_KEY, result.token);
 
-      if (data.rememberMe) {
-        await AsyncStorage.setItem(REMEMBERED_ID_KEY, data.identifier.trim());
-        setSavedIdentifier(data.identifier.trim());
-      } else {
-        await AsyncStorage.removeItem(REMEMBERED_ID_KEY);
-        setSavedIdentifier(null);
+        if (data.rememberMe) {
+          await AsyncStorage.setItem(REMEMBERED_ID_KEY, data.identifier.trim());
+          setSavedIdentifier(data.identifier.trim());
+        } else {
+          await AsyncStorage.removeItem(REMEMBERED_ID_KEY);
+          setSavedIdentifier(null);
+        }
+
+        const durationHours = data.rememberMe ? 30 * 24 : 24;
+        const newSession: AuthSession = {
+          token: result.token,
+          userId: result.user.id,
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString(),
+          rememberMe: data.rememberMe,
+          devicePlatform: 'login',
+        };
+
+        setUser(result.user as User);
+        setSession(newSession);
+        return { success: true, message: result.message };
       }
 
-      // Update State
-      setUser(foundUser);
-      setSession(newSession);
-
-      return {
-        success: true,
-        message: `Chào mừng ${foundUser.fullName} quay trở lại!`,
-      };
-    } catch (err) {
-      console.error('Login error:', err);
-      return {
-        success: false,
-        message: 'Đăng nhập không thành công do lỗi hệ thống. Vui lòng thử lại.',
-      };
+      return { success: false, message: result.message || 'Đăng nhập thất bại.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Đăng nhập không thành công. Vui lòng thử lại.' };
     }
   }
 
   /**
-   * UC02: Terminate Session (Logout)
+   * UC02: Đăng xuất
    */
   async function logout(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
-      setUser(null);
-      setSession(null);
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
+    await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
+    setUser(null);
+    setSession(null);
   }
 
   /**
-   * Update Profile data
+   * Cập nhật hồ sơ
    */
   async function updateProfile(
     updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl'>>
   ): Promise<{ success: boolean; message: string }> {
+    if (!user) return { success: false, message: 'Bạn chưa đăng nhập.' };
+
     try {
-      if (!user) {
-        return { success: false, message: 'Bạn chưa đăng nhập.' };
+      const token = await getToken();
+      if (!token) return { success: false, message: 'Phiên đăng nhập đã hết hạn.' };
+
+      const result = await AuthAPI.updateProfile(token, updatedData);
+      if (result.success && result.user) {
+        setUser(result.user as User);
+        return { success: true, message: result.message };
       }
-
-      const users = await getAllUsers();
-      const updatedUser: User = {
-        ...user,
-        ...updatedData,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedUsersList = users.map((u) => (u.id === user.id ? updatedUser : u));
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsersList));
-
-      setUser(updatedUser);
-      return { success: true, message: 'Cập nhật thông tin thành công!' };
-    } catch (err) {
-      console.error('Update profile error:', err);
-      return { success: false, message: 'Cập nhật thất bại. Vui lòng thử lại.' };
+      return { success: false, message: result.message || 'Cập nhật thất bại.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Cập nhật thất bại. Vui lòng thử lại.' };
     }
   }
 
   /**
-   * UC02: Change Password
+   * UC02: Đổi mật khẩu
    */
   async function changePassword(
     oldPassword: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string }> {
+    if (!user) return { success: false, message: 'Bạn chưa đăng nhập.' };
+
     try {
-      if (!user) {
-        return { success: false, message: 'Bạn chưa đăng nhập.' };
-      }
+      const token = await getToken();
+      if (!token) return { success: false, message: 'Phiên đăng nhập đã hết hạn.' };
 
-      if (user.password !== oldPassword) {
-        return { success: false, message: 'Mật khẩu hiện tại không chính xác.' };
-      }
-
-      if (!newPassword || newPassword.length < 6) {
-        return { success: false, message: 'Mật khẩu mới phải có tối thiểu 6 ký tự.' };
-      }
-
-      if (oldPassword === newPassword) {
-        return { success: false, message: 'Mật khẩu mới không được trùng với mật khẩu cũ.' };
-      }
-
-      const users = await getAllUsers();
-      const updatedUser: User = {
-        ...user,
-        password: newPassword,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedUsersList = users.map((u) => (u.id === user.id ? updatedUser : u));
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsersList));
-
-      setUser(updatedUser);
-      return { success: true, message: 'Đổi mật khẩu thành công!' };
-    } catch (err) {
-      console.error('Change password error:', err);
-      return { success: false, message: 'Đổi mật khẩu thất bại. Vui lòng thử lại.' };
+      const result = await AuthAPI.changePassword(token, oldPassword, newPassword);
+      return { success: result.success, message: result.message };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Đổi mật khẩu thất bại. Vui lòng thử lại.' };
     }
   }
 
   /**
-   * UC02: Reset / Forgot Password
+   * UC04: Yêu cầu OTP reset mật khẩu
+   */
+  async function requestPasswordReset(identifier: string): Promise<{
+    success: boolean;
+    message: string;
+    demoOtp?: string;
+    maskedTarget?: string;
+  }> {
+    try {
+      const result = await AuthAPI.forgotPassword(identifier.trim());
+      return {
+        success: result.success,
+        message: result.message,
+        demoOtp: result.demoOtp,
+        maskedTarget: result.maskedTarget,
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Đã xảy ra lỗi khi yêu cầu đặt lại mật khẩu.' };
+    }
+  }
+
+  /**
+   * UC04: Xác minh OTP
+   */
+  async function verifyResetOtp(
+    identifier: string,
+    code: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await AuthAPI.verifyOtp(identifier.trim(), code.trim());
+      return { success: result.success, message: result.message };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Đã xảy ra sự cố trong quá trình xác minh danh tính.' };
+    }
+  }
+
+  /**
+   * UC04: Hoàn tất đặt lại mật khẩu
+   */
+  async function completePasswordReset(
+    identifier: string,
+    code: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await AuthAPI.resetPassword(identifier.trim(), code.trim(), newPassword);
+      return { success: result.success, message: result.message };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Không thể cập nhật mật khẩu mới do lỗi hệ thống.' };
+    }
+  }
+
+  /**
+   * Legacy reset (giữ tương thích ngược)
    */
   async function resetPassword(
     email: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const users = await getAllUsers();
-      const userIndex = users.findIndex(
-        (u) => u.email.toLowerCase() === normalizedEmail
-      );
-
-      if (userIndex === -1) {
-        return {
-          success: false,
-          message: 'Không tìm thấy tài khoản nào khớp với Email này.',
-        };
-      }
-
-      if (!newPassword || newPassword.length < 6) {
-        return { success: false, message: 'Mật khẩu mới phải có ít nhất 6 ký tự.' };
-      }
-
-      users[userIndex].password = newPassword;
-      users[userIndex].updatedAt = new Date().toISOString();
-
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-
-      return {
-        success: true,
-        message: 'Khôi phục mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới ngay bây giờ.',
-      };
-    } catch (err) {
-      console.error('Reset password error:', err);
-      return { success: false, message: 'Có lỗi xảy ra khi đặt lại mật khẩu.' };
+      // Dùng luồng mới: yêu cầu OTP → bỏ qua verify (legacy flow)
+      const result = await AuthAPI.resetPassword(email.trim(), '', newPassword);
+      return { success: result.success, message: result.message };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Có lỗi xảy ra khi đặt lại mật khẩu.' };
     }
   }
 
   /**
-   * UC02: Delete Account / Clear Session
+   * UC02: Xóa tài khoản
    */
   async function deleteAccount(): Promise<{ success: boolean; message: string }> {
+    if (!user) return { success: false, message: 'Bạn chưa đăng nhập.' };
+
     try {
-      if (!user) {
-        return { success: false, message: 'Bạn chưa đăng nhập.' };
+      const token = await getToken();
+      if (!token) return { success: false, message: 'Phiên đăng nhập đã hết hạn.' };
+
+      const result = await AuthAPI.deleteAccount(token);
+      if (result.success) {
+        await logout();
+        return { success: true, message: result.message };
       }
-
-      const users = await getAllUsers();
-      const remainingUsers = users.filter((u) => u.id !== user.id);
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(remainingUsers));
-      await logout();
-
-      return { success: true, message: 'Tài khoản của bạn đã được xóa thành công.' };
-    } catch (err) {
-      console.error('Delete account error:', err);
-      return { success: false, message: 'Xóa tài khoản thất bại.' };
+      return { success: false, message: result.message || 'Xóa tài khoản thất bại.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Xóa tài khoản thất bại.' };
     }
   }
 
@@ -440,6 +317,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateProfile,
         changePassword,
         resetPassword,
+        requestPasswordReset,
+        verifyResetOtp,
+        completePasswordReset,
         deleteAccount,
         savedIdentifier,
       }}>

@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
 import { validateLoginForm } from '@/utils/validation';
 import { LoginErrors } from '@/types/auth';
+import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 
 export default function LoginScreen() {
-  const { login, savedIdentifier, user, isAuthenticated, resetPassword } = useAuth();
+  const { login, logout, savedIdentifier, user, isAuthenticated } = useAuth();
 
   const [rawIdentifier, setRawIdentifier] = useState<string | null>(null);
   const identifier = rawIdentifier ?? (savedIdentifier || '');
@@ -34,12 +34,9 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modal for Forgot Password
+  // Modal for Forgot Password (UC04)
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotNewPassword, setForgotNewPassword] = useState('');
-  const [forgotError, setForgotError] = useState<string | null>(null);
-  const [forgotSent, setForgotSent] = useState(false);
+
 
   // If already logged in, show quick switch or redirect
   if (isAuthenticated && user) {
@@ -67,6 +64,15 @@ export default function LoginScreen() {
               style={styles.secondaryButton}
               onPress={() => router.replace('/')}>
               <Text style={styles.secondaryButtonText}>Về trang chủ</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.secondaryButton, { marginTop: 12, borderColor: 'rgba(239, 68, 68, 0.5)' }]}
+              onPress={async () => {
+                await logout();
+              }}>
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" style={{ marginRight: 8 }} />
+              <Text style={[styles.secondaryButtonText, { color: '#EF4444' }]}>Đăng xuất tài khoản này</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -123,42 +129,12 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSendResetPassword = async () => {
-    setForgotError(null);
-    const trimmedEmail = forgotEmail.trim();
-
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setForgotError('Vui lòng nhập địa chỉ email hợp lệ.');
-      return;
-    }
-
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      setForgotError('Mật khẩu mới phải có tối thiểu 6 ký tự.');
-      return;
-    }
-
-    setForgotSent(true);
-
-    try {
-      const result = await resetPassword(trimmedEmail, forgotNewPassword);
-
-      if (result.success) {
-        setIdentifier(trimmedEmail);
-        setPassword(forgotNewPassword);
-        setForgotSent(false);
-        setForgotModalVisible(false);
-        setForgotEmail('');
-        setForgotNewPassword('');
-        setSuccessMessage(result.message);
-      } else {
-        setForgotError(result.message);
-        setForgotSent(false);
-      }
-    } catch {
-      setForgotError('Không thể hoàn tất khôi phục mật khẩu. Vui lòng thử lại.');
-      setForgotSent(false);
-    }
+  const handleResetPasswordSuccess = (resetIdentifier: string, resetPass: string) => {
+    setIdentifier(resetIdentifier);
+    setPassword(resetPass);
+    setSuccessMessage('Khôi phục mật khẩu thành công! Bạn có thể nhấn Đăng nhập ngay.');
   };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -397,69 +373,17 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Forgot Password Modal */}
-      <Modal
+      {/* UC04: Forgot Password Modal with Identity Verification */}
+      <ForgotPasswordModal
         visible={forgotModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setForgotModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Khôi phục mật khẩu</Text>
-              <TouchableOpacity onPress={() => setForgotModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalDesc}>
-              Nhập email tài khoản và đặt mật khẩu mới để khôi phục quyền truy cập vào rạp phim.
-            </Text>
-
-            {forgotError && (
-              <View style={styles.modalErrorBox}>
-                <Ionicons name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.modalErrorText}>{forgotError}</Text>
-              </View>
-            )}
-
-            <Text style={styles.modalInputLabel}>Email tài khoản:</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="customer@cinema.com"
-              placeholderTextColor="#6B7280"
-              value={forgotEmail}
-              onChangeText={setForgotEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-
-            <Text style={styles.modalInputLabel}>Mật khẩu mới (tối thiểu 6 ký tự):</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Nhập mật khẩu mới"
-              placeholderTextColor="#6B7280"
-              value={forgotNewPassword}
-              onChangeText={setForgotNewPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={handleSendResetPassword}
-              disabled={forgotSent}>
-              {forgotSent ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.modalButtonText}>Đặt Lại Mật Khẩu</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        initialIdentifier={identifier}
+        onClose={() => setForgotModalVisible(false)}
+        onSuccess={handleResetPasswordSuccess}
+      />
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {
