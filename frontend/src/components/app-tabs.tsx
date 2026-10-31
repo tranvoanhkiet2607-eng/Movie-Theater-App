@@ -38,9 +38,9 @@ export default function AppTabs() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Khám phá',
+          title: 'Lịch chiếu',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'film' : 'film-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -73,4 +73,3 @@ export default function AppTabs() {
     </Tabs>
   );
 }
-

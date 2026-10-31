@@ -25,7 +25,7 @@ export default function AppTabs() {
             <TabButton>Trang chủ</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Khám phá</TabButton>
+            <TabButton>Lịch chiếu</TabButton>
           </TabTrigger>
           <TabTrigger name="profile" href="/profile" asChild>
             <TabButton>Tài khoản</TabButton>
