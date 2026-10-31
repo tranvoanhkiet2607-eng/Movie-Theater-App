@@ -97,3 +97,22 @@ export interface ShowtimesResponse {
   showtimes: ShowtimeItem[];
 }
 
+// UC22: Payload Thêm / Sửa Suất chiếu
+export interface ShowtimeFormPayload {
+  movieId: string;
+  theaterId: string;
+  dateKey: string;
+  startTime: string;
+  room: string;
+  format: ShowtimeFormat;
+  price: number;
+  totalSeats: number;
+  availableSeats: number;
+}
+
+export interface ShowtimeMutationResponse {
+  success: boolean;
+  message: string;
+  showtime?: ShowtimeItem;
+  deletedId?: string;
+}

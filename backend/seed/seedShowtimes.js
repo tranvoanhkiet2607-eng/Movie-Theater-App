@@ -424,22 +424,17 @@ async function seedShowtimesData() {
   const movieCount = await Movie.countDocuments();
   if (movieCount === 0) {
     await Movie.insertMany(INITIAL_MOVIES);
-    console.log(`🎬 Đã push ${INITIAL_MOVIES.length} bộ phim lên MongoDB Atlas (collection "movies")`);
   }
 
   const theaterCount = await Theater.countDocuments();
   if (theaterCount === 0) {
     await Theater.insertMany(INITIAL_THEATERS);
-    console.log(`🏢 Đã push ${INITIAL_THEATERS.length} cụm rạp lên MongoDB Atlas (collection "theaters")`);
   }
 
   const showtimeCount = await Showtime.countDocuments();
   if (showtimeCount === 0) {
     const initialShowtimes = buildInitialShowtimes();
     await Showtime.insertMany(initialShowtimes);
-    console.log(`🎟️ Đã push ${initialShowtimes.length} suất chiếu lên MongoDB Atlas (collection "showtimes")`);
-  } else {
-    console.log(`📅 Đã có sẵn ${movieCount} phim, ${theaterCount} rạp, ${showtimeCount} suất chiếu trên MongoDB Atlas`);
   }
 }
 

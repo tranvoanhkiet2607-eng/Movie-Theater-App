@@ -192,7 +192,21 @@ export default function LoginScreen() {
             activeOpacity={0.8}>
             <Ionicons name="flash" size={16} color="#F59E0B" />
             <Text style={styles.demoBannerText}>
-              Bấm vào đây để điền nhanh tài khoản mẫu: <Text style={styles.demoBold}>customer@cinema.com</Text>
+              Điền nhanh Khách hàng: <Text style={styles.demoBold}>customer@cinema.com</Text>
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.demoBanner, { marginTop: -8 }]}
+            onPress={() => {
+              setIdentifier('admin@cinema.com');
+              setPassword('password123');
+              setErrors({});
+              setErrorMessage(null);
+            }}
+            activeOpacity={0.8}>
+            <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+            <Text style={styles.demoBannerText}>
+              Điền nhanh Quản trị viên: <Text style={styles.demoBold}>admin@cinema.com</Text>
             </Text>
           </TouchableOpacity>
 

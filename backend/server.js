@@ -99,20 +99,29 @@ mongoose
           avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
         },
       ]);
-      console.log('🌱 Đã seed 2 tài khoản mẫu vào MongoDB');
-    } else {
-      console.log(`📦 Đã tìm thấy ${count} tài khoản trong collection "users"`);
+      console.log('🌱 Đã seed 2 tài khoản khách hàng mẫu vào MongoDB');
     }
 
-    // UC21: Tự động push dữ liệu Phim, Cụm rạp và Lịch chiếu lên MongoDB Atlas nếu chưa có
+    // Đảm bảo luôn có tài khoản Admin trên MongoDB Atlas
+    const adminExists = await User.findOne({ email: 'admin@cinema.com' });
+    if (!adminExists) {
+      await User.create({
+        fullName: 'Quản Trị Viên CineMax (Admin)',
+        email: 'admin@cinema.com',
+        phone: '0909999999',
+        password: 'password123',
+        role: 'admin',
+        membershipTier: 'VIP',
+        loyaltyPoints: 9999,
+        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      });
+    }
+
+    // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
     await seedShowtimesData();
 
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend đang chạy tại http://localhost:${PORT}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-      console.log(`🎬 UC21 Showtimes API: http://localhost:${PORT}/api/showtimes`);
-    });
+    app.listen(PORT, '0.0.0.0');
   })
   .catch((err) => {
     console.error('❌ Kết nối MongoDB thất bại:', err.message);

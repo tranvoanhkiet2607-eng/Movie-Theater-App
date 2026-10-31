@@ -16,12 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { ShowtimeAPI } from '@/services/api';
-import { ShowtimeMovie, ShowtimeTheater } from '@/types/showtime';
+import { ShowtimeMovie } from '@/types/showtime';
 
 export default function HomeScreen() {
   const { user, isAuthenticated } = useAuth();
   const [movies, setMovies] = useState<ShowtimeMovie[]>([]);
-  const [theaters, setTheaters] = useState<ShowtimeTheater[]>([]);
   const [loadingMovies, setLoadingMovies] = useState<boolean>(true);
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export default function HomeScreen() {
       .then((res) => {
         if (!mounted) return;
         setMovies(res.movies || []);
-        setTheaters(res.theaters || []);
       })
       .catch(() => {})
       .finally(() => {
@@ -93,28 +91,7 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* UC21 Quick Showtimes Lookup Card */}
-          <TouchableOpacity
-            style={styles.quickShowtimeCard}
-            onPress={() => router.push('/explore')}
-            activeOpacity={0.88}>
-            <View style={styles.quickShowtimeLeft}>
-              <View style={styles.quickShowtimeIconWrap}>
-                <Ionicons name="calendar" size={22} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.quickShowtimeTitle}>
-                  Tra Cứu Lịch Chiếu Phim & Rạp (UC21)
-                </Text>
-                <Text style={styles.quickShowtimeDesc}>
-                  Xem lịch chiếu theo {movies.length || 6} Phim, {theaters.length || 5} Cụm rạp và 7 Ngày chiếu từ MongoDB Atlas
-                </Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#E50914" />
-          </TouchableOpacity>
-
-          {/* Authentication Banner (UC01 / UC02 Promotion) */}
+          {/* Authentication Banner */}
           {!isAuthenticated || !user ? (
             <View style={styles.authBannerCard}>
               <View style={styles.authBannerContent}>
@@ -174,7 +151,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>PHIM ĐANG CHIẾU</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/explore')}>
-              <Text style={styles.seeAllText}>Xem tất cả lịch chiếu</Text>
+              <Text style={styles.seeAllText}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>
 
@@ -218,19 +195,19 @@ export default function HomeScreen() {
                       })
                     }
                     activeOpacity={0.85}>
-                    <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.bookTicketText}>Xem lịch chiếu</Text>
+                    <Ionicons name="ticket-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.bookTicketText}>Đặt vé</Text>
                   </TouchableOpacity>
                 </View>
               ))}
             </ScrollView>
           )}
 
-          {/* Coming Soon / Sneak Show Section */}
+          {/* Coming Soon Section */}
           <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
             <View style={styles.sectionTitleBlock}>
               <View style={[styles.redPill, { backgroundColor: '#F59E0B' }]} />
-              <Text style={styles.sectionTitle}>SUẤT CHIẾU ĐẶC BIỆT & SẮP CHIẾU</Text>
+              <Text style={styles.sectionTitle}>PHIM SẮP CHIẾU</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/explore')}>
               <Text style={styles.seeAllText}>Xem tất cả</Text>
@@ -274,8 +251,8 @@ export default function HomeScreen() {
                     })
                   }
                   activeOpacity={0.85}>
-                  <Ionicons name="time-outline" size={16} color="#E5E7EB" />
-                  <Text style={styles.remindBtnText}>Suất Sneak Show</Text>
+                  <Ionicons name="calendar-outline" size={16} color="#E5E7EB" />
+                  <Text style={styles.remindBtnText}>Xem lịch chiếu</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -325,7 +302,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1F2430',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   brandRow: {
     flexDirection: 'row',
@@ -396,41 +373,6 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontSize: 10.5,
     fontWeight: '600',
-  },
-  quickShowtimeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#151821',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E50914',
-    marginBottom: 16,
-  },
-  quickShowtimeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  quickShowtimeIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: '#E50914',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickShowtimeTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  quickShowtimeDesc: {
-    color: '#9CA3AF',
-    fontSize: 11.5,
-    marginTop: 2,
   },
   authBannerCard: {
     backgroundColor: '#151821',

@@ -10,7 +10,12 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-import { ShowtimeFilterParams, ShowtimesResponse } from '@/types/showtime';
+import {
+  ShowtimeFilterParams,
+  ShowtimeFormPayload,
+  ShowtimeMutationResponse,
+  ShowtimesResponse,
+} from '@/types/showtime';
 
 function getBaseUrl(): string {
   // Tự động lấy IP mạng LAN của máy tính khi chạy trên Expo Go / thiết bị thật
@@ -142,12 +147,12 @@ export const AuthAPI = {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// UC21: SHOWTIME ENDPOINTS — Nguyễn Minh Quân - CE180048
-// Truy vấn trực tiếp dữ liệu lịch chiếu từ MongoDB Atlas qua Express API
+// UC21 & UC22: SHOWTIME ENDPOINTS — Nguyễn Minh Quân - CE180048
+// Truy vấn & Quản lý (Thêm, Xem, Sửa, Xóa) lịch chiếu trực tiếp trên MongoDB Atlas
 // ════════════════════════════════════════════════════════════════════════════
 
 export const ShowtimeAPI = {
-  /** Lấy danh sách phim, cụm rạp, ngày chiếu và các suất chiếu đã lọc từ MongoDB Atlas */
+  /** UC21 & UC22: Lấy danh sách phim, cụm rạp, ngày chiếu và các suất chiếu đã lọc từ MongoDB Atlas */
   getShowtimes: (params: ShowtimeFilterParams = {}): Promise<ShowtimesResponse> => {
     const query = new URLSearchParams();
     if (params.dateKey) query.append('dateKey', params.dateKey);
@@ -164,4 +169,27 @@ export const ShowtimeAPI = {
 
   /** Lấy chi tiết một suất chiếu cụ thể theo mã suất chiếu */
   getShowtimeById: (id: string) => apiRequest(`/showtimes/${encodeURIComponent(id)}`),
+
+  /** UC22: Thêm mới một suất chiếu lên MongoDB Atlas */
+  createShowtime: (payload: ShowtimeFormPayload): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>('/showtimes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC22: Cập nhật (Sửa) một suất chiếu trên MongoDB Atlas */
+  updateShowtime: (
+    id: string,
+    payload: Partial<ShowtimeFormPayload>
+  ): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC22: Xóa một suất chiếu khỏi MongoDB Atlas */
+  deleteShowtime: (id: string): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 };

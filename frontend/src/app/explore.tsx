@@ -23,6 +23,7 @@ import {
   SeatAvailabilityStatus,
   ShowtimeDateOption,
   ShowtimeFormat,
+  ShowtimeFormPayload,
   ShowtimeItem,
   ShowtimeMovie,
   ShowtimeTheater,
@@ -42,6 +43,30 @@ const TIME_PERIOD_OPTIONS: {
   { key: 'evening', label: 'Buổi tối', subLabel: '17:00 - 21:00', icon: 'moon-outline' },
   { key: 'late', label: 'Suất khuya', subLabel: 'Sau 21:00', icon: 'sparkles-outline' },
 ];
+
+const QUICK_ROOMS = [
+  'Rạp 01',
+  'Rạp 02',
+  'Rạp 03 (IMAX)',
+  'Rạp 04',
+  'Rạp 05',
+  'Rạp 4DX',
+  'Rạp Gold Class',
+];
+
+const QUICK_START_TIMES = [
+  '09:00',
+  '10:30',
+  '12:15',
+  '14:00',
+  '16:15',
+  '18:00',
+  '19:30',
+  '21:15',
+  '22:45',
+];
+
+const QUICK_PRICES = [85000, 95000, 110000, 135000, 185000, 250000];
 
 function getAgeBadgeColor(ageRating: AgeRating): { bg: string; text: string } {
   switch (ageRating) {
@@ -91,11 +116,25 @@ function getStatusInfo(status: SeatAvailabilityStatus): {
   }
 }
 
+function previewEndTime(startTime: string, durationMinutes: number): string {
+  const parts = startTime.trim().split(':');
+  if (parts.length !== 2) return '--:--';
+  const hh = Number(parts[0]);
+  const mm = Number(parts[1]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+    return '--:--';
+  }
+  const total = hh * 60 + mm + (durationMinutes || 120);
+  const endH = Math.floor(total / 60) % 24;
+  const endM = total % 60;
+  return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+}
+
 export default function ExploreScreen() {
   const { isAuthenticated, user } = useAuth();
   const params = useLocalSearchParams<{ movieId?: string; theaterId?: string }>();
 
-  // ─── Dữ liệu tải trực tiếp từ MongoDB Atlas qua Express API ─────────────────
+  // ─── Dữ liệu lịch chiếu từ Backend API ───────────────────────────────────────
   const [dates, setDates] = useState<ShowtimeDateOption[]>([]);
   const [formats, setFormats] = useState<ShowtimeFormat[]>([]);
   const [movies, setMovies] = useState<ShowtimeMovie[]>([]);
@@ -104,7 +143,7 @@ export default function ExploreScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // ─── UC21 Filter States (Theo Phim, Rạp, Ngày chiếu, Định dạng, Khung giờ) ───
+  // ─── Bộ lọc Lịch chiếu (Theo Phim, Rạp, Ngày chiếu, Định dạng, Khung giờ) ────
   const [userViewMode, setViewMode] = useState<ShowtimeViewMode | null>(null);
   const viewMode: ShowtimeViewMode =
     userViewMode ?? (params.theaterId ? 'by_theater' : 'by_movie');
@@ -121,13 +160,37 @@ export default function ExploreScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<TimeSlotPeriod>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // ─── Modals State ───────────────────────────────────────────────────────────
+  // ─── Tự động bật chế độ Quản lý khi đăng nhập bằng tài khoản Admin ──────────
+  const isManageMode = Boolean(isAuthenticated && user?.role === 'admin');
+  const [crudSuccessBanner, setCrudSuccessBanner] = useState<string | null>(null);
+
+  // Form Modal State (Thêm mới hoặc Sửa suất chiếu)
+  const [formModalVisible, setFormModalVisible] = useState<boolean>(false);
+  const [editingSlot, setEditingSlot] = useState<ShowtimeItem | null>(null);
+  const [formMovieId, setFormMovieId] = useState<string>('m1');
+  const [formTheaterId, setFormTheaterId] = useState<string>('t1');
+  const [formDateKey, setFormDateKey] = useState<string>('d0');
+  const [formStartTime, setFormStartTime] = useState<string>('19:30');
+  const [formRoom, setFormRoom] = useState<string>('Rạp 01');
+  const [formFormat, setFormFormat] = useState<ShowtimeFormat>('2D Phụ đề');
+  const [formPrice, setFormPrice] = useState<string>('105000');
+  const [formTotalSeats, setFormTotalSeats] = useState<string>('140');
+  const [formAvailableSeats, setFormAvailableSeats] = useState<string>('140');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState<boolean>(false);
+
+  // Delete Confirmation Modal State
+  const [deletingSlot, setDeletingSlot] = useState<ShowtimeItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // ─── Modals State (Chi tiết suất chiếu & Chi tiết phim) ─────────────────────
   const [selectedShowtime, setSelectedShowtime] = useState<ShowtimeItem | null>(null);
   const [detailMovie, setDetailMovie] = useState<ShowtimeMovie | null>(null);
   const [bookingNotice, setBookingNotice] = useState<string | null>(null);
 
-  // ─── Gọi REST API lấy dữ liệu từ MongoDB Atlas ──────────────────────────────
-  const fetchShowtimesFromMongo = useCallback(async () => {
+  // ─── Gọi REST API lấy dữ liệu lịch chiếu ────────────────────────────────────
+  const fetchShowtimes = useCallback(async () => {
     try {
       setIsLoading(true);
       setApiError(null);
@@ -149,7 +212,7 @@ export default function ExploreScreen() {
     } catch (err: any) {
       setApiError(
         err?.message ||
-          'Không thể kết nối đến máy chủ Backend (MongoDB Atlas). Hãy kiểm tra lại terminal Backend.'
+          'Không thể tải lịch chiếu lúc này. Vui lòng kiểm tra kết nối mạng và thử lại.'
       );
     } finally {
       setIsLoading(false);
@@ -165,8 +228,135 @@ export default function ExploreScreen() {
   ]);
 
   useEffect(() => {
-    fetchShowtimesFromMongo();
-  }, [fetchShowtimesFromMongo]);
+    fetchShowtimes();
+  }, [fetchShowtimes]);
+
+  // ─── Handlers Quản lý Lịch chiếu (Thêm mới / Sửa / Xóa) ────────────────────
+  const handleOpenCreateModal = (presetMovieId?: string, presetTheaterId?: string) => {
+    setEditingSlot(null);
+    setFormMovieId(
+      presetMovieId && presetMovieId !== 'all'
+        ? presetMovieId
+        : selectedMovieId !== 'all'
+          ? selectedMovieId
+          : movies[0]?.id || 'm1'
+    );
+    setFormTheaterId(
+      presetTheaterId && presetTheaterId !== 'all'
+        ? presetTheaterId
+        : selectedTheaterId !== 'all'
+          ? selectedTheaterId
+          : theaters[0]?.id || 't1'
+    );
+    setFormDateKey(selectedDateKey || 'd0');
+    setFormStartTime('19:30');
+    setFormRoom('Rạp 01');
+    setFormFormat(selectedFormat !== 'all' ? selectedFormat : '2D Phụ đề');
+    setFormPrice('105000');
+    setFormTotalSeats('140');
+    setFormAvailableSeats('140');
+    setFormError(null);
+    setFormModalVisible(true);
+  };
+
+  const handleOpenEditModal = (slot: ShowtimeItem) => {
+    setSelectedShowtime(null);
+    setEditingSlot(slot);
+    setFormMovieId(slot.movieId);
+    setFormTheaterId(slot.theaterId);
+    setFormDateKey(slot.dateKey);
+    setFormStartTime(slot.startTime);
+    setFormRoom(slot.room);
+    setFormFormat(slot.format);
+    setFormPrice(String(slot.price));
+    setFormTotalSeats(String(slot.totalSeats));
+    setFormAvailableSeats(String(slot.availableSeats));
+    setFormError(null);
+    setFormModalVisible(true);
+  };
+
+  const handleSaveShowtimeForm = async () => {
+    setFormError(null);
+
+    const trimmedRoom = formRoom.trim();
+    const trimmedTime = formStartTime.trim();
+    const numPrice = Number(formPrice.replace(/\./g, '').trim());
+    const numTotal = Number(formTotalSeats);
+    const numAvail = Number(formAvailableSeats);
+
+    if (!trimmedTime || !/^\d{1,2}:\d{2}$/.test(trimmedTime)) {
+      setFormError('Giờ bắt đầu phải theo định dạng HH:mm (ví dụ: 09:30 hoặc 19:45).');
+      return;
+    }
+    const [hh, mm] = trimmedTime.split(':').map(Number);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+      setFormError('Giờ bắt đầu không hợp lệ (Giờ từ 00-23, Phút từ 00-59).');
+      return;
+    }
+    if (!trimmedRoom) {
+      setFormError('Vui lòng chọn hoặc nhập tên phòng chiếu.');
+      return;
+    }
+    if (Number.isNaN(numPrice) || numPrice < 10000) {
+      setFormError('Giá vé phải từ 10.000đ trở lên.');
+      return;
+    }
+    if (Number.isNaN(numTotal) || numTotal < 10) {
+      setFormError('Tổng số ghế phải từ 10 ghế trở lên.');
+      return;
+    }
+    if (Number.isNaN(numAvail) || numAvail < 0 || numAvail > numTotal) {
+      setFormError(`Số ghế trống phải từ 0 đến ${numTotal} ghế.`);
+      return;
+    }
+
+    const payload: ShowtimeFormPayload = {
+      movieId: formMovieId,
+      theaterId: formTheaterId,
+      dateKey: formDateKey,
+      startTime: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+      room: trimmedRoom,
+      format: formFormat,
+      price: numPrice,
+      totalSeats: numTotal,
+      availableSeats: numAvail,
+    };
+
+    try {
+      setIsSubmittingForm(true);
+      if (editingSlot) {
+        const res = await ShowtimeAPI.updateShowtime(editingSlot.id, payload);
+        setCrudSuccessBanner(res.message);
+      } else {
+        const res = await ShowtimeAPI.createShowtime(payload);
+        setCrudSuccessBanner(res.message);
+      }
+      setFormModalVisible(false);
+      setSelectedDateKey(formDateKey);
+      await fetchShowtimes();
+    } catch (err: any) {
+      setFormError(err?.message || 'Không thể lưu thông tin suất chiếu.');
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
+
+  const handleConfirmDeleteShowtime = async () => {
+    if (!deletingSlot) return;
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      const res = await ShowtimeAPI.deleteShowtime(deletingSlot.id);
+      setCrudSuccessBanner(res.message);
+      setDeletingSlot(null);
+      setSelectedShowtime(null);
+      await fetchShowtimes();
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Xóa suất chiếu thất bại.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const theaterAreas = useMemo(() => {
     const distinct = Array.from(new Set(theaters.map((t) => t.area)));
@@ -190,6 +380,17 @@ export default function ExploreScreen() {
     if (selectedArea === 'all') return theaters;
     return theaters.filter((t) => t.area === selectedArea);
   }, [theaters, selectedArea]);
+
+  // Thống kê nhanh cho thanh công cụ Quản trị viên
+  const statsSummary = useMemo(() => {
+    const total = showtimes.length;
+    const soldOut = showtimes.filter((s) => s.status === 'sold_out').length;
+    const filling = showtimes.filter(
+      (s) => s.status === 'filling_fast' || s.status === 'almost_full'
+    ).length;
+    const available = total - soldOut;
+    return { total, available, filling, soldOut };
+  }, [showtimes]);
 
   // Nhóm kết quả theo Phim -> Rạp (Chế độ Xem theo Phim)
   const groupedByMovie = useMemo(() => {
@@ -288,47 +489,96 @@ export default function ExploreScreen() {
     [theaters, selectedShowtime]
   );
 
+  const formSelectedMovieObj = useMemo(
+    () => movies.find((m) => m.id === formMovieId) || movies[0] || null,
+    [movies, formMovieId]
+  );
+
+  const deletingSlotMovie = useMemo(
+    () =>
+      deletingSlot ? movies.find((m) => m.id === deletingSlot.movieId) || null : null,
+    [movies, deletingSlot]
+  );
+
+  const deletingSlotTheater = useMemo(
+    () =>
+      deletingSlot
+        ? theaters.find((t) => t.id === deletingSlot.theaterId) || null
+        : null,
+    [theaters, deletingSlot]
+  );
+
   const renderShowtimeSlotButton = (slot: ShowtimeItem) => {
     const isSoldOut = slot.status === 'sold_out';
     const statusInfo = getStatusInfo(slot.status);
 
     return (
-      <TouchableOpacity
+      <View
         key={slot.id}
-        style={[styles.slotCard, isSoldOut && styles.slotCardSoldOut]}
-        disabled={isSoldOut}
-        onPress={() => {
-          setBookingNotice(null);
-          setSelectedShowtime(slot);
-        }}
-        activeOpacity={0.8}>
-        <View style={styles.slotTimeRow}>
-          <Text style={[styles.slotStartTime, isSoldOut && styles.slotTextSoldOut]}>
-            {slot.startTime}
-          </Text>
-          <Text style={styles.slotEndTime}>~{slot.endTime}</Text>
-        </View>
+        style={[
+          styles.slotCard,
+          isSoldOut && !isManageMode && styles.slotCardSoldOut,
+          isManageMode && styles.slotCardManageActive,
+        ]}>
+        <TouchableOpacity
+          disabled={isSoldOut && !isManageMode}
+          onPress={() => {
+            setBookingNotice(null);
+            setSelectedShowtime(slot);
+          }}
+          activeOpacity={0.8}>
+          <View style={styles.slotTimeRow}>
+            <Text style={[styles.slotStartTime, isSoldOut && styles.slotTextSoldOut]}>
+              {slot.startTime}
+            </Text>
+            <Text style={styles.slotEndTime}>~{slot.endTime}</Text>
+          </View>
 
-        <View style={styles.slotFormatBadge}>
-          <Text style={styles.slotFormatText} numberOfLines={1}>
-            {slot.format}
-          </Text>
-        </View>
-
-        <Text style={styles.slotRoomText} numberOfLines={1}>
-          {slot.room}
-        </Text>
-
-        <View style={styles.slotFooterRow}>
-          <Text style={styles.slotPriceText}>{slot.priceFormatted}</Text>
-          <View style={styles.slotSeatBadge}>
-            <View style={[styles.seatDot, { backgroundColor: statusInfo.color }]} />
-            <Text style={[styles.slotSeatText, { color: statusInfo.color }]}>
-              {isSoldOut ? 'Hết vé' : `${slot.availableSeats} ghế`}
+          <View style={styles.slotFormatBadge}>
+            <Text style={styles.slotFormatText} numberOfLines={1}>
+              {slot.format}
             </Text>
           </View>
-        </View>
-      </TouchableOpacity>
+
+          <Text style={styles.slotRoomText} numberOfLines={1}>
+            {slot.room}
+          </Text>
+
+          <View style={styles.slotFooterRow}>
+            <Text style={styles.slotPriceText}>{slot.priceFormatted}</Text>
+            <View style={styles.slotSeatBadge}>
+              <View style={[styles.seatDot, { backgroundColor: statusInfo.color }]} />
+              <Text style={[styles.slotSeatText, { color: statusInfo.color }]}>
+                {isSoldOut ? 'Hết vé' : `${slot.availableSeats} ghế`}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Nút Sửa / Xóa trực tiếp trên thẻ suất chiếu khi đăng nhập Admin */}
+        {isManageMode && (
+          <View style={styles.slotAdminActionRow}>
+            <TouchableOpacity
+              style={styles.slotEditBtn}
+              onPress={() => handleOpenEditModal(slot)}
+              activeOpacity={0.8}>
+              <Ionicons name="create-outline" size={13} color="#3B82F6" />
+              <Text style={styles.slotEditBtnText}>Sửa</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.slotDeleteBtn}
+              onPress={() => {
+                setDeleteError(null);
+                setDeletingSlot(slot);
+              }}
+              activeOpacity={0.8}>
+              <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              <Text style={styles.slotDeleteBtnText}>Xóa</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -345,22 +595,81 @@ export default function ExploreScreen() {
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <View style={styles.headerBadgeRow}>
-                <View style={styles.headerBadgesInline}>
-                  <View style={styles.ucBadge}>
-                    <Ionicons name="calendar" size={14} color="#FFFFFF" />
-                    <Text style={styles.ucBadgeText}>UC21 • LỊCH CHIẾU</Text>
-                  </View>
-                  <View style={styles.mongoBadge}>
-                    <Ionicons name="cloud-done" size={13} color="#10B981" />
-                    <Text style={styles.mongoBadgeText}>MongoDB Atlas Live</Text>
-                  </View>
-                </View>
-                <Text style={styles.headerTitle}>Xem Lịch Chiếu Phim & Rạp</Text>
+                <Text style={styles.headerTitle}>
+                  Hệ Thống Cụm Rạp & Lịch Chiếu
+                </Text>
                 <Text style={styles.headerSubtitle}>
-                  Tra cứu suất chiếu theo Phim, Cụm rạp và Ngày chiếu trực tiếp từ MongoDB Atlas
+                  Chọn ngày chiếu, bộ phim và cụm rạp gần bạn nhất để đặt vé
                 </Text>
               </View>
             </View>
+
+            {/* ─── BẢNG QUẢN LÝ LỊCH CHIẾU (TỰ ĐỘNG HIỆN KHI ĐĂNG NHẬP ADMIN) ─── */}
+            {isManageMode && (
+              <View style={styles.adminToolbarCard}>
+                <View style={styles.adminToolbarHeader}>
+                  <View style={styles.adminToolbarLeft}>
+                    <View style={styles.adminIconBadge}>
+                      <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.adminToolbarTitle}>
+                        QUẢN LÝ LỊCH CHIẾU
+                      </Text>
+                      <Text style={styles.adminToolbarSub}>
+                        Quản trị viên: {user?.fullName}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.addShowtimePrimaryBtn}
+                    onPress={() => handleOpenCreateModal()}
+                    activeOpacity={0.85}>
+                    <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                    <Text style={styles.addShowtimePrimaryText}>
+                      Thêm suất chiếu
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Thống kê số lượng suất chiếu */}
+                <View style={styles.adminStatsRow}>
+                  <View style={styles.adminStatBox}>
+                    <Text style={styles.adminStatNum}>{statsSummary.total}</Text>
+                    <Text style={styles.adminStatLabel}>Tổng suất</Text>
+                  </View>
+                  <View style={styles.adminStatBox}>
+                    <Text style={[styles.adminStatNum, { color: '#10B981' }]}>
+                      {statsSummary.available}
+                    </Text>
+                    <Text style={styles.adminStatLabel}>Đang mở bán</Text>
+                  </View>
+                  <View style={styles.adminStatBox}>
+                    <Text style={[styles.adminStatNum, { color: '#F59E0B' }]}>
+                      {statsSummary.filling}
+                    </Text>
+                    <Text style={styles.adminStatLabel}>Sắp đầy</Text>
+                  </View>
+                  <View style={styles.adminStatBox}>
+                    <Text style={[styles.adminStatNum, { color: '#EF4444' }]}>
+                      {statsSummary.soldOut}
+                    </Text>
+                    <Text style={styles.adminStatLabel}>Hết vé</Text>
+                  </View>
+                </View>
+
+                {crudSuccessBanner && (
+                  <View style={styles.crudBannerBox}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                    <Text style={styles.crudBannerText}>{crudSuccessBanner}</Text>
+                    <TouchableOpacity onPress={() => setCrudSuccessBanner(null)}>
+                      <Ionicons name="close" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Chuyển đổi chế độ xem: Theo Phim vs Theo Rạp */}
             <View style={styles.viewModeSwitch}>
@@ -407,12 +716,12 @@ export default function ExploreScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Thanh tìm kiếm nhanh Phim / Cụm rạp */}
+            {/* Thanh tìm kiếm nhanh Phim / Cụm rạp / Phòng chiếu */}
             <View style={styles.searchBar}>
               <Ionicons name="search-outline" size={18} color="#9CA3AF" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Tìm tên phim (Dune, Godzilla...) hoặc tên rạp, quận..."
+                placeholder="Tìm tên phim, tên rạp, quận, phòng chiếu hoặc giờ chiếu..."
                 placeholderTextColor="#6B7280"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -509,7 +818,7 @@ export default function ExploreScreen() {
                 ]}>
                 Tất cả phim
               </Text>
-              <Text style={styles.movieSelectorSub}>{movies.length} phim trên DB</Text>
+              <Text style={styles.movieSelectorSub}>{movies.length} phim đang chiếu</Text>
             </TouchableOpacity>
 
             {movies.map((movie) => {
@@ -782,14 +1091,25 @@ export default function ExploreScreen() {
               </Text>
             </View>
 
-            {hasActiveFilters && (
-              <TouchableOpacity
-                style={styles.resetFilterBtn}
-                onPress={handleResetFilters}>
-                <Ionicons name="refresh" size={14} color="#F59E0B" />
-                <Text style={styles.resetFilterText}>Xóa bộ lọc</Text>
-              </TouchableOpacity>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {hasActiveFilters && (
+                <TouchableOpacity
+                  style={styles.resetFilterBtn}
+                  onPress={handleResetFilters}>
+                  <Ionicons name="refresh" size={14} color="#F59E0B" />
+                  <Text style={styles.resetFilterText}>Xóa bộ lọc</Text>
+                </TouchableOpacity>
+              )}
+
+              {isManageMode && (
+                <TouchableOpacity
+                  style={styles.quickAddMiniBtn}
+                  onPress={() => handleOpenCreateModal()}>
+                  <Ionicons name="add" size={15} color="#FFFFFF" />
+                  <Text style={styles.quickAddMiniText}>Thêm suất</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Chú thích trạng thái ghế */}
@@ -812,15 +1132,15 @@ export default function ExploreScreen() {
             </View>
           </View>
 
-          {/* ─── HIỂN THỊ KẾT QUẢ LỊCH CHIẾU TỪ MONGODB ATLAS ─────────────── */}
+          {/* ─── HIỂN THỊ KẾT QUẢ LỊCH CHIẾU ───────────────────────────────── */}
           {isLoading ? (
             <View style={styles.loadingStateCard}>
               <ActivityIndicator size="large" color="#E50914" />
               <Text style={styles.loadingStateTitle}>
-                Đang tải dữ liệu lịch chiếu từ MongoDB Atlas...
+                Đang tải lịch chiếu...
               </Text>
               <Text style={styles.loadingStateSub}>
-                Đang truy vấn collections: movies, theaters, showtimes
+                Vui lòng đợi trong giây lát
               </Text>
             </View>
           ) : apiError ? (
@@ -828,13 +1148,13 @@ export default function ExploreScreen() {
               <View style={styles.emptyIconCircle}>
                 <Ionicons name="cloud-offline-outline" size={36} color="#EF4444" />
               </View>
-              <Text style={styles.emptyTitle}>Lỗi kết nối máy chủ Backend</Text>
+              <Text style={styles.emptyTitle}>Không thể tải lịch chiếu</Text>
               <Text style={styles.emptyDesc}>{apiError}</Text>
               <TouchableOpacity
                 style={styles.emptyResetBtn}
-                onPress={fetchShowtimesFromMongo}>
+                onPress={fetchShowtimes}>
                 <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.emptyResetBtnText}>Thử tải lại từ MongoDB</Text>
+                <Text style={styles.emptyResetBtnText}>Thử lại</Text>
               </TouchableOpacity>
             </View>
           ) : showtimes.length === 0 ? (
@@ -850,12 +1170,23 @@ export default function ExploreScreen() {
                 {currentDateObj.dateDisplay}. Bạn hãy thử đổi ngày chiếu, chọn định
                 dạng khác hoặc đặt lại bộ lọc.
               </Text>
-              <TouchableOpacity
-                style={styles.emptyResetBtn}
-                onPress={handleResetFilters}>
-                <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.emptyResetBtnText}>Xem toàn bộ lịch chiếu</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                <TouchableOpacity
+                  style={styles.emptyResetBtn}
+                  onPress={handleResetFilters}>
+                  <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.emptyResetBtnText}>Xem toàn bộ lịch chiếu</Text>
+                </TouchableOpacity>
+
+                {isManageMode && (
+                  <TouchableOpacity
+                    style={[styles.emptyResetBtn, { backgroundColor: '#10B981' }]}
+                    onPress={() => handleOpenCreateModal()}>
+                    <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.emptyResetBtnText}>+ Thêm suất chiếu mới</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           ) : viewMode === 'by_movie' ? (
             /* ═══ CHẾ ĐỘ 1: XEM LỊCH CHIẾU THEO PHIM ═══ */
@@ -917,18 +1248,31 @@ export default function ExploreScreen() {
                           </View>
                         </View>
 
-                        <TouchableOpacity
-                          style={styles.movieDetailBtn}
-                          onPress={() => setDetailMovie(movie)}>
-                          <Ionicons
-                            name="information-circle-outline"
-                            size={15}
-                            color="#E50914"
-                          />
-                          <Text style={styles.movieDetailBtnText}>
-                            Chi tiết phim & Nội dung
-                          </Text>
-                        </TouchableOpacity>
+                        <View style={styles.movieCardBottomActions}>
+                          <TouchableOpacity
+                            style={styles.movieDetailBtn}
+                            onPress={() => setDetailMovie(movie)}>
+                            <Ionicons
+                              name="information-circle-outline"
+                              size={15}
+                              color="#E50914"
+                            />
+                            <Text style={styles.movieDetailBtnText}>
+                              Chi tiết phim
+                            </Text>
+                          </TouchableOpacity>
+
+                          {isManageMode && (
+                            <TouchableOpacity
+                              style={styles.addSlotForMovieBtn}
+                              onPress={() => handleOpenCreateModal(movie.id)}>
+                              <Ionicons name="add-circle-outline" size={14} color="#10B981" />
+                              <Text style={styles.addSlotForMovieText}>
+                                + Thêm suất phim này
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                     </View>
 
@@ -988,12 +1332,21 @@ export default function ExploreScreen() {
                           {theater.address}
                         </Text>
                       </View>
-                      <View style={styles.theaterDistanceBadgeBig}>
-                        <Ionicons name="navigate" size={11} color="#F59E0B" />
-                        <Text style={styles.theaterDistanceBigText}>
-                          {theater.distance}
-                        </Text>
-                      </View>
+                      {isManageMode ? (
+                        <TouchableOpacity
+                          style={styles.addSlotForMovieBtn}
+                          onPress={() => handleOpenCreateModal(undefined, theater.id)}>
+                          <Ionicons name="add-circle-outline" size={14} color="#10B981" />
+                          <Text style={styles.addSlotForMovieText}>+ Thêm suất</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.theaterDistanceBadgeBig}>
+                          <Ionicons name="navigate" size={11} color="#F59E0B" />
+                          <Text style={styles.theaterDistanceBigText}>
+                            {theater.distance}
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     {/* Tiện ích rạp */}
@@ -1073,7 +1426,7 @@ export default function ExploreScreen() {
       </ScrollView>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          MODAL 1: CHI TIẾT SUẤT CHIẾU & XÁC NHẬN CHỌN SUẤT (UC21)
+          MODAL 1: CHI TIẾT SUẤT CHIẾU
          ═══════════════════════════════════════════════════════════════════════ */}
       <Modal
         visible={Boolean(selectedShowtime)}
@@ -1215,7 +1568,33 @@ export default function ExploreScreen() {
                   </View>
                 ) : null}
 
-                {/* Nút hành động */}
+                {/* Nút Quản lý trong Modal chi tiết khi là Admin */}
+                {isManageMode && (
+                  <View style={styles.modalAdminActionsRow}>
+                    <TouchableOpacity
+                      style={styles.modalAdminEditBtn}
+                      onPress={() => handleOpenEditModal(selectedShowtime)}>
+                      <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                      <Text style={styles.modalAdminEditText}>
+                        Chỉnh sửa suất chiếu
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalAdminDeleteBtn}
+                      onPress={() => {
+                        const target = selectedShowtime;
+                        setSelectedShowtime(null);
+                        setDeleteError(null);
+                        setDeletingSlot(target);
+                      }}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      <Text style={styles.modalAdminDeleteText}>Xóa suất</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Nút hành động Đặt vé */}
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
                     style={styles.modalCancelBtn}
@@ -1250,7 +1629,7 @@ export default function ExploreScreen() {
       </Modal>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          MODAL 2: CHI TIẾT BỘ PHIM & LỌC NHANH LỊCH CHIẾU CỦA PHIM
+          MODAL 2: CHI TIẾT BỘ PHIM
          ═══════════════════════════════════════════════════════════════════════ */}
       <Modal
         visible={Boolean(detailMovie)}
@@ -1327,8 +1706,467 @@ export default function ExploreScreen() {
                     }}>
                     <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
                     <Text style={styles.modalPrimaryText}>
-                      Lọc suất chiếu phim này
+                      Xem suất chiếu phim này
                     </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL 3: THÊM MỚI / CHỈNH SỬA SUẤT CHIẾU
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={formModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFormModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: '92%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderBadge}>
+                <Ionicons
+                  name={editingSlot ? 'create' : 'add-circle'}
+                  size={18}
+                  color="#F59E0B"
+                />
+                <Text style={[styles.modalHeaderBadgeText, { color: '#F59E0B' }]}>
+                  {editingSlot ? 'CHỈNH SỬA SUẤT CHIẾU' : 'THÊM SUẤT CHIẾU MỚI'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setFormModalVisible(false)}>
+                <Ionicons name="close" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+              {formError && (
+                <View style={styles.formErrorBanner}>
+                  <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                  <Text style={styles.formErrorText}>{formError}</Text>
+                </View>
+              )}
+
+              {/* 1. Chọn Phim */}
+              <View>
+                <Text style={styles.formFieldLabel}>1. CHỌN PHIM CHIẾU *</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.formChipsScroll}>
+                  {movies.map((m) => {
+                    const active = formMovieId === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          styles.formSelectChip,
+                          active && styles.formSelectChipActive,
+                        ]}
+                        onPress={() => setFormMovieId(m.id)}>
+                        <Text
+                          style={[
+                            styles.formSelectChipText,
+                            active && styles.formSelectChipTextActive,
+                          ]}>
+                          {m.title} ({m.durationLabel})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 2. Chọn Cụm Rạp */}
+              <View>
+                <Text style={styles.formFieldLabel}>2. CHỌN CỤM RẠP *</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.formChipsScroll}>
+                  {theaters.map((t) => {
+                    const active = formTheaterId === t.id;
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        style={[
+                          styles.formSelectChip,
+                          active && styles.formSelectChipActive,
+                        ]}
+                        onPress={() => setFormTheaterId(t.id)}>
+                        <Text
+                          style={[
+                            styles.formSelectChipText,
+                            active && styles.formSelectChipTextActive,
+                          ]}>
+                          {t.shortName} ({t.area})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 3. Chọn Ngày Chiếu */}
+              <View>
+                <Text style={styles.formFieldLabel}>3. CHỌN NGÀY CHIẾU *</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.formChipsScroll}>
+                  {dates.map((d) => {
+                    const active = formDateKey === d.dateKey;
+                    return (
+                      <TouchableOpacity
+                        key={d.dateKey}
+                        style={[
+                          styles.formSelectChip,
+                          active && styles.formSelectChipActive,
+                        ]}
+                        onPress={() => setFormDateKey(d.dateKey)}>
+                        <Text
+                          style={[
+                            styles.formSelectChipText,
+                            active && styles.formSelectChipTextActive,
+                          ]}>
+                          {d.dayLabel} ({d.dateDisplay})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 4. Chọn Giờ Bắt Đầu & Tự động tính Giờ Kết Thúc */}
+              <View>
+                <View style={styles.formLabelBetween}>
+                  <Text style={styles.formFieldLabel}>
+                    4. GIỜ BẮT ĐẦU (HH:mm) *
+                  </Text>
+                  <Text style={styles.formPreviewEndText}>
+                    Giờ kết thúc dự kiến:{' '}
+                    <Text style={{ color: '#10B981', fontWeight: '800' }}>
+                      ~
+                      {previewEndTime(
+                        formStartTime,
+                        formSelectedMovieObj?.durationMinutes || 120
+                      )}
+                    </Text>
+                  </Text>
+                </View>
+
+                <TextInput
+                  style={styles.formTextInput}
+                  value={formStartTime}
+                  onChangeText={setFormStartTime}
+                  placeholder="VD: 19:30"
+                  placeholderTextColor="#6B7280"
+                />
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.formChipsScroll, { marginTop: 6 }]}>
+                  {QUICK_START_TIMES.map((timeStr) => {
+                    const active = formStartTime.trim() === timeStr;
+                    return (
+                      <TouchableOpacity
+                        key={timeStr}
+                        style={[
+                          styles.formMiniChip,
+                          active && styles.formMiniChipActive,
+                        ]}
+                        onPress={() => setFormStartTime(timeStr)}>
+                        <Text
+                          style={[
+                            styles.formMiniChipText,
+                            active && styles.formMiniChipTextActive,
+                          ]}>
+                          {timeStr}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 5. Phòng Chiếu */}
+              <View>
+                <Text style={styles.formFieldLabel}>5. PHÒNG CHIẾU *</Text>
+                <TextInput
+                  style={styles.formTextInput}
+                  value={formRoom}
+                  onChangeText={setFormRoom}
+                  placeholder="VD: Rạp 01, Rạp 03 (IMAX)..."
+                  placeholderTextColor="#6B7280"
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.formChipsScroll, { marginTop: 6 }]}>
+                  {QUICK_ROOMS.map((roomName) => {
+                    const active = formRoom.trim() === roomName;
+                    return (
+                      <TouchableOpacity
+                        key={roomName}
+                        style={[
+                          styles.formMiniChip,
+                          active && styles.formMiniChipActive,
+                        ]}
+                        onPress={() => setFormRoom(roomName)}>
+                        <Text
+                          style={[
+                            styles.formMiniChipText,
+                            active && styles.formMiniChipTextActive,
+                          ]}>
+                          {roomName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 6. Định Dạng Chiếu */}
+              <View>
+                <Text style={styles.formFieldLabel}>6. ĐỊNH DẠNG PHÒNG CHIẾU *</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.formChipsScroll}>
+                  {(formats.length ? formats : (['2D Phụ đề', '2D Lồng tiếng', '3D Phụ đề', 'IMAX 3D', '4DX', 'Gold Class VIP'] as ShowtimeFormat[])).map(
+                    (fmt) => {
+                      const active = formFormat === fmt;
+                      return (
+                        <TouchableOpacity
+                          key={fmt}
+                          style={[
+                            styles.formSelectChip,
+                            active && styles.formSelectChipActive,
+                          ]}
+                          onPress={() => setFormFormat(fmt)}>
+                          <Text
+                            style={[
+                              styles.formSelectChipText,
+                              active && styles.formSelectChipTextActive,
+                            ]}>
+                            {fmt}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </ScrollView>
+              </View>
+
+              {/* 7. Giá Vé */}
+              <View>
+                <Text style={styles.formFieldLabel}>7. GIÁ VÉ (VNĐ) *</Text>
+                <TextInput
+                  style={styles.formTextInput}
+                  value={formPrice}
+                  onChangeText={setFormPrice}
+                  keyboardType="numeric"
+                  placeholder="VD: 105000"
+                  placeholderTextColor="#6B7280"
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.formChipsScroll, { marginTop: 6 }]}>
+                  {QUICK_PRICES.map((p) => {
+                    const active = Number(formPrice) === p;
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        style={[
+                          styles.formMiniChip,
+                          active && styles.formMiniChipActive,
+                        ]}
+                        onPress={() => setFormPrice(String(p))}>
+                        <Text
+                          style={[
+                            styles.formMiniChipText,
+                            active && styles.formMiniChipTextActive,
+                          ]}>
+                          {p.toLocaleString('vi-VN')}đ
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* 8. Tổng Số Ghế & Ghế Trống */}
+              <View style={styles.formTwoColRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>TỔNG SỐ GHẾ *</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={formTotalSeats}
+                    onChangeText={setFormTotalSeats}
+                    keyboardType="numeric"
+                    placeholder="140"
+                    placeholderTextColor="#6B7280"
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>GHẾ CÒN TRỐNG *</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={formAvailableSeats}
+                    onChangeText={setFormAvailableSeats}
+                    keyboardType="numeric"
+                    placeholder="140"
+                    placeholderTextColor="#6B7280"
+                  />
+                </View>
+              </View>
+
+              {/* Nút chọn nhanh tình trạng ghế */}
+              <View style={styles.quickSeatsRow}>
+                <TouchableOpacity
+                  style={styles.quickSeatBtn}
+                  onPress={() => setFormAvailableSeats(formTotalSeats || '140')}>
+                  <Text style={styles.quickSeatBtnText}>Còn đủ ghế</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickSeatBtn}
+                  onPress={() => setFormAvailableSeats('25')}>
+                  <Text style={styles.quickSeatBtnText}>Sắp đầy (25)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickSeatBtn}
+                  onPress={() => setFormAvailableSeats('8')}>
+                  <Text style={styles.quickSeatBtnText}>Còn ít (8)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickSeatBtn}
+                  onPress={() => setFormAvailableSeats('0')}>
+                  <Text style={styles.quickSeatBtnText}>Hết vé (0)</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+
+            <View style={[styles.modalActionsRow, { marginTop: 12 }]}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                disabled={isSubmittingForm}
+                onPress={() => setFormModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalPrimaryBtn, isSubmittingForm && { opacity: 0.7 }]}
+                disabled={isSubmittingForm}
+                onPress={handleSaveShowtimeForm}>
+                {isSubmittingForm ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.modalPrimaryText}>
+                      {editingSlot ? 'Lưu thay đổi' : 'Thêm suất chiếu'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL 4: XÁC NHẬN XÓA SUẤT CHIẾU
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={Boolean(deletingSlot)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeletingSlot(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            {deletingSlot && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHeaderBadge}>
+                    <Ionicons name="warning-outline" size={18} color="#EF4444" />
+                    <Text style={[styles.modalHeaderBadgeText, { color: '#EF4444' }]}>
+                      XÁC NHẬN XÓA SUẤT CHIẾU
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.modalCloseBtn}
+                    onPress={() => setDeletingSlot(null)}>
+                    <Ionicons name="close" size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.deleteConfirmDesc}>
+                  Bạn có chắc chắn muốn xóa suất chiếu này khỏi hệ thống không?
+                </Text>
+
+                <View style={styles.deleteSummaryCard}>
+                  <Text style={styles.deleteSummaryTitle}>
+                    🎬 {deletingSlotMovie?.title || deletingSlot.movieId}
+                  </Text>
+                  <Text style={styles.deleteSummaryMeta}>
+                    🏢 Rạp: {deletingSlotTheater?.name || deletingSlot.theaterId}
+                  </Text>
+                  <Text style={styles.deleteSummaryMeta}>
+                    📅 Ngày: {deletingSlot.dateStr} • ⏰ Giờ:{' '}
+                    <Text style={{ color: '#F59E0B', fontWeight: '800' }}>
+                      {deletingSlot.startTime} ~ {deletingSlot.endTime}
+                    </Text>
+                  </Text>
+                  <Text style={styles.deleteSummaryMeta}>
+                    💺 {deletingSlot.room} • {deletingSlot.format} •{' '}
+                    {deletingSlot.priceFormatted}
+                  </Text>
+                </View>
+
+                {deleteError && (
+                  <View style={styles.formErrorBanner}>
+                    <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                    <Text style={styles.formErrorText}>{deleteError}</Text>
+                  </View>
+                )}
+
+                <View style={styles.modalActionsRow}>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtn}
+                    disabled={isDeleting}
+                    onPress={() => setDeletingSlot(null)}>
+                    <Text style={styles.modalCancelText}>Giữ lại</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalPrimaryBtn,
+                      { backgroundColor: '#EF4444' },
+                      isDeleting && { opacity: 0.7 },
+                    ]}
+                    disabled={isDeleting}
+                    onPress={handleConfirmDeleteShowtime}>
+                    {isDeleting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="trash" size={16} color="#FFFFFF" />
+                        <Text style={styles.modalPrimaryText}>
+                          Xóa suất chiếu
+                        </Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
               </>
@@ -1368,44 +2206,6 @@ const styles = StyleSheet.create({
   headerBadgeRow: {
     flex: 1,
   },
-  headerBadgesInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-    flexWrap: 'wrap',
-  },
-  ucBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E50914',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 5,
-  },
-  ucBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  mongoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 6,
-    gap: 5,
-  },
-  mongoBadgeText: {
-    color: '#10B981',
-    fontSize: 10.5,
-    fontWeight: '700',
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1415,6 +2215,101 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#9CA3AF',
     marginTop: 3,
+  },
+  adminToolbarCard: {
+    backgroundColor: '#161924',
+    borderRadius: 14,
+    padding: 13,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245, 158, 11, 0.45)',
+    gap: 12,
+  },
+  adminToolbarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  adminToolbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  adminIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminToolbarTitle: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  adminToolbarSub: {
+    color: '#D1D5DB',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  addShowtimePrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 9,
+    gap: 5,
+  },
+  addShowtimePrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  adminStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adminStatBox: {
+    flex: 1,
+    backgroundColor: '#10131C',
+    borderRadius: 9,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#22283A',
+  },
+  adminStatNum: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  adminStatLabel: {
+    color: '#9CA3AF',
+    fontSize: 10.5,
+    marginTop: 2,
+  },
+  crudBannerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  crudBannerText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
   },
   viewModeSwitch: {
     flexDirection: 'row',
@@ -1780,6 +2675,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   summaryText: {
     color: '#D1D5DB',
@@ -1802,6 +2698,20 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontSize: 11.5,
     fontWeight: '700',
+  },
+  quickAddMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+  },
+  quickAddMiniText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
   },
   legendRow: {
     flexDirection: 'row',
@@ -1932,15 +2842,38 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
   },
+  movieCardBottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   movieDetailBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 8,
   },
   movieDetailBtnText: {
     color: '#E50914',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  addSlotForMovieBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  addSlotForMovieText: {
+    color: '#10B981',
+    fontSize: 11,
     fontWeight: '700',
   },
   theaterSubGroupsWrap: {
@@ -2006,6 +2939,9 @@ const styles = StyleSheet.create({
     opacity: 0.48,
     borderColor: '#232733',
   },
+  slotCardManageActive: {
+    borderColor: '#333D58',
+  },
   slotTimeRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -2069,6 +3005,48 @@ const styles = StyleSheet.create({
   },
   slotSeatText: {
     fontSize: 10.5,
+    fontWeight: '700',
+  },
+  slotAdminActionRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 7,
+    borderTopWidth: 1,
+    borderTopColor: '#242B3D',
+  },
+  slotEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    paddingVertical: 4.5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  slotEditBtnText: {
+    color: '#3B82F6',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  slotDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    paddingVertical: 4.5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  slotDeleteBtnText: {
+    color: '#EF4444',
+    fontSize: 11,
     fontWeight: '700',
   },
   theaterShowtimeCard: {
@@ -2233,7 +3211,7 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    maxWidth: 460,
+    maxWidth: 480,
     backgroundColor: '#151821',
     borderRadius: 18,
     padding: 18,
@@ -2387,6 +3365,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  modalAdminActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  modalAdminEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.14)',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  modalAdminEditText: {
+    color: '#3B82F6',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  modalAdminDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.14)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 5,
+  },
+  modalAdminDeleteText: {
+    color: '#EF4444',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
   synopsisBox: {
     backgroundColor: '#10131B',
     borderRadius: 12,
@@ -2437,5 +3454,139 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  formErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.14)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  formErrorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  formFieldLabel: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  formLabelBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  formPreviewEndText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  formTextInput: {
+    backgroundColor: '#10131B',
+    borderWidth: 1,
+    borderColor: '#283044',
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    height: 42,
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  formChipsScroll: {
+    gap: 7,
+  },
+  formSelectChip: {
+    backgroundColor: '#10131B',
+    borderWidth: 1,
+    borderColor: '#283044',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  formSelectChipActive: {
+    backgroundColor: '#E50914',
+    borderColor: '#E50914',
+  },
+  formSelectChipText: {
+    color: '#D1D5DB',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  formSelectChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  formMiniChip: {
+    backgroundColor: '#10131B',
+    borderWidth: 1,
+    borderColor: '#252C3F',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  formMiniChipActive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: '#F59E0B',
+  },
+  formMiniChipText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  formMiniChipTextActive: {
+    color: '#F59E0B',
+  },
+  formTwoColRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickSeatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  quickSeatBtn: {
+    backgroundColor: '#191E2B',
+    borderWidth: 1,
+    borderColor: '#2A3145',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  quickSeatBtnText: {
+    color: '#D1D5DB',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  deleteConfirmDesc: {
+    color: '#D1D5DB',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  deleteSummaryCard: {
+    backgroundColor: '#10131B',
+    borderRadius: 12,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: '#262D40',
+    gap: 5,
+    marginBottom: 14,
+  },
+  deleteSummaryTitle: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '800',
+  },
+  deleteSummaryMeta: {
+    color: '#9CA3AF',
+    fontSize: 12,
   },
 });
