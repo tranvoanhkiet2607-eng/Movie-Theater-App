@@ -46,6 +46,7 @@ export default function AppTabs() {
 
       <NativeTabs.Trigger name="login" hidden />
       <NativeTabs.Trigger name="register" hidden />
+      <NativeTabs.Trigger name="booking" hidden />
     </NativeTabs>
   );
 }

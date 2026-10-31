@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { useAuth } from '@/context/auth-context';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 
 interface Theater {
@@ -58,7 +57,6 @@ const SHOWTIMES = [
 ];
 
 export default function ExploreScreen() {
-  const { isAuthenticated } = useAuth();
   const [selectedTheater, setSelectedTheater] = useState<string>('t1');
   const [selectedDateIndex, setSelectedDateIndex] = useState<number>(0);
 
@@ -181,13 +179,11 @@ export default function ExploreScreen() {
               <TouchableOpacity
                 key={i}
                 style={styles.showtimeSlot}
-                onPress={() => {
-                  if (!isAuthenticated) {
-                    router.push('/login');
-                  } else {
-                    router.push('/profile');
-                  }
-                }}
+                onPress={() =>
+                  router.push(
+                    `/booking?movieId=m1&theaterId=${selectedTheater}&showtime=${st.time}`
+                  )
+                }
                 activeOpacity={0.8}>
                 <Text style={styles.slotTime}>{st.time}</Text>
                 <Text style={styles.slotType}>{st.type}</Text>

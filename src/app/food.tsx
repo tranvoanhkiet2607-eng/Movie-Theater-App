@@ -95,6 +95,10 @@ export default function FoodManagementScreen() {
   const [resetModalVisible, setResetModalVisible] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
 
+  // Customer F&B Selection & Booking Order Cart
+  const [customerCart, setCustomerCart] = useState<Record<string, { item: FoodItem; quantity: number }>>({});
+  const [cartModalVisible, setCartModalVisible] = useState<boolean>(false);
+
   // Feedback Notification Toast/Banner
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(
     null
@@ -385,6 +389,67 @@ export default function FoodManagementScreen() {
       category: prev.name === '' ? cat : prev.category,
     }));
     setFormErrors((prev) => ({ ...prev, imageUrl: undefined }));
+  };
+
+  // Customer Cart & Add to Ticket Booking Handlers
+  const handleCartAdd = (item: FoodItem) => {
+    if (!item.isAvailable) {
+      showToast(`Món "${item.name}" hiện đang tạm hết hàng.`, 'error');
+      return;
+    }
+    setCustomerCart((prev) => {
+      const currentQty = prev[item.id]?.quantity || 0;
+      return {
+        ...prev,
+        [item.id]: { item, quantity: currentQty + 1 },
+      };
+    });
+    showToast(`Đã thêm 1 "${item.name}" vào đơn bắp nước!`);
+  };
+
+  const handleCartRemove = (item: FoodItem) => {
+    setCustomerCart((prev) => {
+      const currentQty = prev[item.id]?.quantity || 0;
+      if (currentQty <= 1) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [item.id]: { item, quantity: currentQty - 1 },
+      };
+    });
+  };
+
+  const cartItemsList = useMemo(() => {
+    return Object.values(customerCart).filter((c) => c.quantity > 0);
+  }, [customerCart]);
+
+  const cartTotalCount = useMemo(() => {
+    return cartItemsList.reduce((sum, c) => sum + c.quantity, 0);
+  }, [cartItemsList]);
+
+  const cartTotalPrice = useMemo(() => {
+    return cartItemsList.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
+  }, [cartItemsList]);
+
+  const handleProceedToBooking = () => {
+    const prefilled = cartItemsList.map((c) => ({
+      foodId: c.item.id,
+      name: c.item.name,
+      category: c.item.category,
+      price: c.item.price,
+      originalPrice: c.item.originalPrice,
+      quantity: c.quantity,
+      imageUrl: c.item.imageUrl,
+      size: c.item.size,
+    }));
+    router.push(
+      `/booking?step=food&prefilledFood=${encodeURIComponent(
+        JSON.stringify(prefilled)
+      )}`
+    );
   };
 
   if (loading) {
@@ -901,26 +966,55 @@ export default function FoodManagementScreen() {
                   ) : (
                     /* CUSTOMER ORDER ACTION */
                     <View style={styles.cardCustomerActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.customerOrderBtn,
-                          !item.isAvailable && styles.customerOrderBtnDisabled,
-                        ]}
-                        disabled={!item.isAvailable}
-                        onPress={() => {
-                          showToast(`Đã chọn thêm món "${item.name}" vào đơn bắp nước!`);
-                        }}
-                        activeOpacity={0.85}>
-                        <Ionicons
-                          name="cart-outline"
-                          size={18}
-                          color="#FFFFFF"
-                          style={{ marginRight: 6 }}
-                        />
-                        <Text style={styles.customerOrderBtnText}>
-                          {item.isAvailable ? 'Thêm Vào Combo' : 'Tạm Hết Món'}
-                        </Text>
-                      </TouchableOpacity>
+                      {(customerCart[item.id]?.quantity || 0) === 0 ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.customerOrderBtn,
+                            !item.isAvailable && styles.customerOrderBtnDisabled,
+                          ]}
+                          disabled={!item.isAvailable}
+                          onPress={() => handleCartAdd(item)}
+                          activeOpacity={0.85}>
+                          <Ionicons
+                            name="cart-outline"
+                            size={18}
+                            color="#FFFFFF"
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text style={styles.customerOrderBtnText}>
+                            {item.isAvailable ? 'Thêm Vào Đơn' : 'Tạm Hết Món'}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.foodCustomerStepper}>
+                          <TouchableOpacity
+                            style={styles.foodCustomerStepBtn}
+                            onPress={() => handleCartRemove(item)}>
+                            <Ionicons
+                              name={
+                                (customerCart[item.id]?.quantity || 0) === 1
+                                  ? 'trash-outline'
+                                  : 'remove'
+                              }
+                              size={15}
+                              color="#EF4444"
+                            />
+                          </TouchableOpacity>
+                          <View style={styles.foodCustomerStepQtyWrap}>
+                            <Text style={styles.foodCustomerStepQty}>
+                              {customerCart[item.id]?.quantity || 0}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.foodCustomerStepBtn,
+                              styles.foodCustomerStepBtnPlus,
+                            ]}
+                            onPress={() => handleCartAdd(item)}>
+                            <Ionicons name="add" size={15} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
 
                       <TouchableOpacity
                         style={styles.customerDetailBtn}
@@ -1437,6 +1531,52 @@ export default function FoodManagementScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+
+                {/* Customer Direct Order in Detail Modal */}
+                {viewMode === 'customer' && (
+                  <View style={styles.detailCustomerOrderBox}>
+                    <View style={styles.detailCustomerQtyRow}>
+                      <Text style={styles.detailCustomerQtyLabel}>Số lượng đính kèm đơn vé:</Text>
+                      <View style={styles.foodCustomerStepper}>
+                        <TouchableOpacity
+                          style={styles.foodCustomerStepBtn}
+                          onPress={() => handleCartRemove(selectedItem)}>
+                          <Ionicons name="remove" size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                        <View style={styles.foodCustomerStepQtyWrap}>
+                          <Text style={styles.foodCustomerStepQty}>
+                            {customerCart[selectedItem.id]?.quantity || 0}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.foodCustomerStepBtn, styles.foodCustomerStepBtnPlus]}
+                          onPress={() => handleCartAdd(selectedItem)}
+                          disabled={!selectedItem.isAvailable}>
+                          <Ionicons name="add" size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.detailAddToBookingBtn,
+                        !selectedItem.isAvailable && styles.customerOrderBtnDisabled,
+                      ]}
+                      disabled={!selectedItem.isAvailable}
+                      onPress={() => {
+                        if ((customerCart[selectedItem.id]?.quantity || 0) === 0) {
+                          handleCartAdd(selectedItem);
+                        }
+                        setDetailModalVisible(false);
+                      }}
+                      activeOpacity={0.85}>
+                      <Ionicons name="cart" size={18} color="#FFFFFF" />
+                      <Text style={styles.detailAddToBookingBtnText}>
+                        {selectedItem.isAvailable ? 'Thêm Món Này Vào Đơn Vé' : 'Tạm Hết Hàng'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </ScrollView>
             </View>
           )}
@@ -1531,6 +1671,121 @@ export default function FoodManagementScreen() {
                   <Text style={styles.confirmDeleteText}>Khôi Phục Ngay</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Floating Bottom Cart Bar (Customer Mode when items selected) */}
+      {viewMode === 'customer' && cartTotalCount > 0 && (
+        <View style={styles.floatingCartBar}>
+          <TouchableOpacity
+            style={styles.floatingCartLeft}
+            onPress={() => setCartModalVisible(true)}
+            activeOpacity={0.85}>
+            <View style={styles.floatingCartIconCircle}>
+              <Ionicons name="fast-food" size={20} color="#F59E0B" />
+              <View style={styles.floatingCartBadge}>
+                <Text style={styles.floatingCartBadgeText}>{cartTotalCount}</Text>
+              </View>
+            </View>
+            <View>
+              <Text style={styles.floatingCartTitle}>
+                {cartTotalCount} món bắp nước đã chọn
+              </Text>
+              <Text style={styles.floatingCartPrice}>
+                {formatVND(cartTotalPrice)}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.floatingCartActionBtn}
+            onPress={handleProceedToBooking}
+            activeOpacity={0.85}>
+            <Text style={styles.floatingCartActionText}>Đặt Kèm Vé</Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* MODAL 5: CUSTOMER CART REVIEW MODAL */}
+      <Modal
+        visible={cartModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCartModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.cartModalCard}>
+            <View style={styles.cartModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="fast-food" size={22} color="#F59E0B" />
+                <Text style={styles.cartModalTitle}>Đồ Ăn & Thức Uống Đã Chọn</Text>
+              </View>
+              <TouchableOpacity onPress={() => setCartModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.cartModalList} showsVerticalScrollIndicator={false}>
+              {cartItemsList.map(({ item, quantity }) => (
+                <View key={item.id} style={styles.cartModalRow}>
+                  <Image source={{ uri: item.imageUrl }} style={styles.cartModalThumb} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cartModalItemName}>{item.name}</Text>
+                    <Text style={styles.cartModalItemPrice}>{formatVND(item.price)}</Text>
+                  </View>
+                  <View style={styles.foodCustomerStepper}>
+                    <TouchableOpacity
+                      style={styles.foodCustomerStepBtn}
+                      onPress={() => handleCartRemove(item)}>
+                      <Ionicons
+                        name={quantity === 1 ? 'trash-outline' : 'remove'}
+                        size={15}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.foodCustomerStepQtyWrap}>
+                      <Text style={styles.foodCustomerStepQty}>{quantity}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.foodCustomerStepBtn, styles.foodCustomerStepBtnPlus]}
+                      onPress={() => handleCartAdd(item)}>
+                      <Ionicons name="add" size={15} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.cartModalFooter}>
+              <View style={styles.cartModalTotalRow}>
+                <Text style={styles.cartModalTotalLabel}>Tổng tiền bắp nước:</Text>
+                <Text style={styles.cartModalTotalValue}>{formatVND(cartTotalPrice)}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={styles.cartModalClearBtn}
+                  onPress={() => {
+                    setCustomerCart({});
+                    setCartModalVisible(false);
+                    showToast('Đã xóa toàn bộ giỏ bắp nước');
+                  }}>
+                  <Text style={styles.cartModalClearText}>Xóa tất cả</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cartModalProceedBtn}
+                  onPress={() => {
+                    setCartModalVisible(false);
+                    handleProceedToBooking();
+                  }}
+                  activeOpacity={0.85}>
+                  <Text style={styles.cartModalProceedText}>Thêm Vào Đơn Đặt Vé</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -2747,5 +3002,241 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13.5,
+  },
+  foodCustomerStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E2330',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2E3547',
+  },
+  foodCustomerStepBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodCustomerStepBtnPlus: {
+    backgroundColor: '#E50914',
+    borderRadius: 6,
+  },
+  foodCustomerStepQtyWrap: {
+    paddingHorizontal: 8,
+  },
+  foodCustomerStepQty: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  detailCustomerOrderBox: {
+    marginTop: 14,
+    backgroundColor: '#181A22',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2D3345',
+  },
+  detailCustomerQtyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  detailCustomerQtyLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detailAddToBookingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E50914',
+    borderRadius: 10,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  detailAddToBookingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  floatingCartBar: {
+    position: 'absolute',
+    bottom: BottomTabInset + 10,
+    left: 16,
+    right: 16,
+    backgroundColor: '#181B24',
+    borderRadius: 16,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  floatingCartLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  floatingCartIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  floatingCartBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#E50914',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  floatingCartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  floatingCartTitle: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  floatingCartPrice: {
+    color: '#F59E0B',
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  floatingCartActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E50914',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  floatingCartActionText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  cartModalCard: {
+    width: '92%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    backgroundColor: '#151821',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#2E3547',
+  },
+  cartModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#232838',
+  },
+  cartModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  cartModalList: {
+    maxHeight: 280,
+    marginBottom: 12,
+  },
+  cartModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1F2430',
+  },
+  cartModalThumb: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: '#1F2430',
+  },
+  cartModalItemName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  cartModalItemPrice: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cartModalFooter: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#232838',
+  },
+  cartModalTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cartModalTotalLabel: {
+    color: '#9CA3AF',
+    fontSize: 13,
+  },
+  cartModalTotalValue: {
+    color: '#F59E0B',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  cartModalClearBtn: {
+    flex: 1,
+    backgroundColor: '#1F2430',
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  cartModalClearText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cartModalProceedBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E50914',
+    borderRadius: 10,
+    paddingVertical: 11,
+    gap: 6,
+  },
+  cartModalProceedText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

@@ -311,7 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Update Profile data
    */
   async function updateProfile(
-    updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl'>>
+    updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl' | 'loyaltyPoints'>>
   ): Promise<{ success: boolean; message: string }> {
     try {
       if (!user) {

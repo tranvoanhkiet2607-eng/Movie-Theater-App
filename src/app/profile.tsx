@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,9 @@ import {
 } from '@/utils/validation';
 
 import { LoginFormData, RegisterFormData } from '@/types/auth';
+import { TicketBookingOrder } from '@/types/booking';
+import { getAllTicketOrders, toggleFnbPickupStatus } from '@/services/booking-service';
+import { formatVND } from '@/utils/food-helpers';
 
 interface GuestAuthProps {
   login: (data: LoginFormData) => Promise<{ success: boolean; message: string }>;
@@ -678,6 +681,50 @@ export default function ProfileScreen() {
   // Session Info Modal
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
+  // Booked Tickets & Attached Food Orders for this customer
+  const [bookedTickets, setBookedTickets] = useState<TicketBookingOrder[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState<boolean>(true);
+  const [selectedTicketDetail, setSelectedTicketDetail] = useState<TicketBookingOrder | null>(null);
+  const [ticketModalVisible, setTicketModalVisible] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getAllTicketOrders()
+      .then((orders) => {
+        if (isMounted) {
+          setBookedTickets(orders);
+          setLoadingTickets(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load booked tickets:', err);
+        if (isMounted) setLoadingTickets(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const handleTogglePickup = async (orderId: string) => {
+    try {
+      const updated = await toggleFnbPickupStatus(orderId);
+      setBookedTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t))
+      );
+      if (selectedTicketDetail?.id === updated.id) {
+        setSelectedTicketDetail(updated);
+      }
+      Alert.alert(
+        'Đã cập nhật',
+        updated.fnbPickupStatus === 'picked_up'
+          ? 'Đã xác nhận nhận bắp nước tại quầy Concession!'
+          : 'Đã hoàn tác trạng thái nhận bắp nước thành Chưa nhận.'
+      );
+    } catch {
+      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái nhận bắp nước.');
+    }
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -801,18 +848,6 @@ export default function ProfileScreen() {
       Alert.alert('Lỗi', res.message);
     }
   };
-
-  // Mock booked tickets for this customer
-  const sampleTickets = [
-    {
-      id: 'TCK-8821',
-      movieTitle: 'Dune: Part Two (Hành Tinh Cát)',
-      theater: 'CineMax Vincom Đồng Khởi - Rạp 03',
-      showtime: '20:15 - Hôm nay',
-      seats: 'F08, F09 (VIP)',
-      status: 'Đã xác nhận',
-    },
-  ];
 
   // Current avatar icon determination
   const currentAvatarIcon = user.avatarUrl?.startsWith('cinema_avatar_')
@@ -1010,26 +1045,167 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tickets Demo */}
+        {/* Booked Tickets with Food & Drinks Orders */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vé xem phim của bạn</Text>
-            <Text style={styles.ticketCount}>{sampleTickets.length} vé</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="ticket" size={18} color="#E50914" />
+              <Text style={styles.sectionTitle}>Vé xem phim & Đơn bắp nước</Text>
+            </View>
+            <Text style={styles.ticketCount}>{bookedTickets.length} đơn</Text>
           </View>
 
-          {sampleTickets.map((ticket) => (
-            <View key={ticket.id} style={styles.ticketItem}>
-              <View style={styles.ticketHeader}>
-                <Ionicons name="film-outline" size={18} color="#E50914" />
-                <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
-              </View>
-              <Text style={styles.ticketTheater}>{ticket.theater}</Text>
-              <View style={styles.ticketFooter}>
-                <Text style={styles.ticketShowtime}>🕒 {ticket.showtime}</Text>
-                <Text style={styles.ticketSeats}>Ghế: {ticket.seats}</Text>
-              </View>
+          {loadingTickets ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator color="#E50914" size="small" />
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 6 }}>
+                Đang tải lịch sử đặt vé...
+              </Text>
             </View>
-          ))}
+          ) : bookedTickets.length === 0 ? (
+            <View style={styles.emptyTicketsBox}>
+              <Ionicons name="film-outline" size={36} color="#6B7280" />
+              <Text style={styles.emptyTicketsTitle}>Bạn chưa có đơn đặt vé nào</Text>
+              <Text style={styles.emptyTicketsSubtitle}>
+                Hãy chọn phim và thêm bắp nước yêu thích để nhận ưu đãi!
+              </Text>
+              <TouchableOpacity
+                style={styles.bookNowProfileBtn}
+                onPress={() => router.push('/booking')}
+                activeOpacity={0.85}>
+                <Ionicons name="ticket-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.bookNowProfileBtnText}>Đặt Vé & Bắp Nước Ngay</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            bookedTickets.map((ticket) => {
+              const hasFood = ticket.foodItems && ticket.foodItems.length > 0;
+              const isPickedUp = ticket.fnbPickupStatus === 'picked_up';
+
+              return (
+                <View key={ticket.id} style={styles.ticketItemRich}>
+                  {/* Top Bar: Order Code & Status */}
+                  <View style={styles.ticketTopRow}>
+                    <View style={styles.ticketCodeBadge}>
+                      <Ionicons name="barcode-outline" size={14} color="#E50914" />
+                      <Text style={styles.ticketCodeText}>{ticket.orderCode || ticket.id}</Text>
+                    </View>
+                    <View style={styles.ticketStatusBadge}>
+                      <Text style={styles.ticketStatusText}>Đã xác nhận</Text>
+                    </View>
+                  </View>
+
+                  {/* Movie Info */}
+                  <View style={styles.ticketHeader}>
+                    <Ionicons name="film-outline" size={18} color="#E50914" />
+                    <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
+                  </View>
+
+                  <Text style={styles.ticketTheater}>
+                    {ticket.theaterName} • {ticket.roomName} ({ticket.format})
+                  </Text>
+
+                  <View style={styles.ticketFooter}>
+                    <Text style={styles.ticketShowtime}>
+                      🕒 {ticket.showtimeTime} - {ticket.showtimeDate}
+                    </Text>
+                    <Text style={styles.ticketSeats}>
+                      Ghế: <Text style={{ color: '#E50914', fontWeight: '800' }}>{ticket.seats.join(', ')}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Attached Food & Drinks Section (Core Feature Highlight) */}
+                  <View style={styles.ticketFnbSection}>
+                    <View style={styles.ticketFnbHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="fast-food" size={15} color="#F59E0B" />
+                        <Text style={styles.ticketFnbTitle}>
+                          Bắp Nước Kèm Theo {hasFood ? `(${ticket.foodItems.length} món)` : ''}:
+                        </Text>
+                      </View>
+
+                      {hasFood && (
+                        <View
+                          style={[
+                            styles.fnbPickupBadge,
+                            isPickedUp
+                              ? styles.fnbPickupBadgeDone
+                              : styles.fnbPickupBadgePending,
+                          ]}>
+                          <Text
+                            style={[
+                              styles.fnbPickupBadgeText,
+                              isPickedUp
+                                ? styles.fnbPickupBadgeTextDone
+                                : styles.fnbPickupBadgeTextPending,
+                            ]}>
+                            {isPickedUp ? '✓ Đã nhận tại quầy' : '• Chưa nhận quầy'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {hasFood ? (
+                      <View style={styles.ticketFnbList}>
+                        {ticket.foodItems.map((fi) => (
+                          <View key={fi.foodId} style={styles.ticketFnbRow}>
+                            <Text style={styles.ticketFnbItemName}>
+                              🍿 {fi.name} {fi.size ? `(${fi.size})` : ''}
+                            </Text>
+                            <Text style={styles.ticketFnbItemQty}>x{fi.quantity}</Text>
+                          </View>
+                        ))}
+
+                        <View style={styles.ticketFnbTotalRow}>
+                          <Text style={styles.ticketFnbTotalLabel}>Tiền bắp nước:</Text>
+                          <Text style={styles.ticketFnbTotalValue}>
+                            {formatVND(ticket.foodPriceTotal)}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.ticketNoFnbText}>
+                        (Không có bắp nước đính kèm trong đơn này)
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Grand total & action buttons */}
+                  <View style={styles.ticketActionBottomRow}>
+                    <View>
+                      <Text style={styles.ticketTotalLabel}>Tổng thanh toán:</Text>
+                      <Text style={styles.ticketTotalValue}>
+                        {formatVND(ticket.totalAmount)}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {hasFood && !isPickedUp && (
+                        <TouchableOpacity
+                          style={styles.confirmPickupBtn}
+                          onPress={() => handleTogglePickup(ticket.id)}
+                          activeOpacity={0.8}>
+                          <Ionicons name="checkmark-circle-outline" size={15} color="#10B981" />
+                          <Text style={styles.confirmPickupBtnText}>Nhận bắp</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.viewQrVoucherBtn}
+                        onPress={() => {
+                          setSelectedTicketDetail(ticket);
+                          setTicketModalVisible(true);
+                        }}
+                        activeOpacity={0.85}>
+                        <Ionicons name="qr-code-outline" size={15} color="#FFFFFF" />
+                        <Text style={styles.viewQrVoucherBtnText}>Xem Vé & QR</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
 
         {/* Logout Button */}
@@ -1362,6 +1538,149 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Ticket E-Voucher & Concession Food Pickup Modal */}
+      <Modal
+        visible={ticketModalVisible && selectedTicketDetail !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTicketModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          {selectedTicketDetail && (
+            <View style={styles.ticketDetailModalCard}>
+              <View style={styles.ticketDetailModalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="ticket" size={22} color="#E50914" />
+                  <Text style={styles.ticketDetailModalTitle}>Vé Điện Tử & Mã Bắp Nước</Text>
+                </View>
+                <TouchableOpacity onPress={() => setTicketModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#9CA3AF" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+                {/* Barcode box */}
+                <View style={styles.modalBarcodeBox}>
+                  <Text style={styles.modalBarcodeGuide}>
+                    Quét tại Cổng Rạp & Quầy Bắp Nước Concession
+                  </Text>
+                  <View style={styles.barcodeLinesRow}>
+                    {Array.from({ length: 32 }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.barcodeLine,
+                          {
+                            width: i % 3 === 0 ? 3 : i % 5 === 0 ? 4 : 2,
+                            backgroundColor: i % 4 === 1 ? '#000000' : '#222222',
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.modalBarcodeDigits}>
+                    {selectedTicketDetail.orderCode || selectedTicketDetail.id}
+                  </Text>
+                </View>
+
+                {/* Movie info */}
+                <View style={styles.modalTicketInfoCard}>
+                  <Text style={styles.modalMovieName}>{selectedTicketDetail.movieTitle}</Text>
+                  <Text style={styles.modalMovieMeta}>
+                    📍 {selectedTicketDetail.theaterName} • {selectedTicketDetail.roomName}
+                  </Text>
+                  <Text style={styles.modalMovieMeta}>
+                    🕒 {selectedTicketDetail.showtimeTime} - {selectedTicketDetail.showtimeDate}
+                  </Text>
+                  <Text style={styles.modalMovieMeta}>
+                    🪑 Ghế ngồi: <Text style={{ color: '#E50914', fontWeight: '800' }}>{selectedTicketDetail.seats.join(', ')}</Text>
+                  </Text>
+                </View>
+
+                {/* Attached Food & Drinks Concession Details */}
+                <View style={styles.modalConcessionCard}>
+                  <View style={styles.modalConcessionHeader}>
+                    <Ionicons name="fast-food" size={20} color="#F59E0B" />
+                    <Text style={styles.modalConcessionTitle}>Đồ Ăn & Thức Uống Kèm Theo</Text>
+                  </View>
+
+                  {selectedTicketDetail.foodItems && selectedTicketDetail.foodItems.length > 0 ? (
+                    <View style={styles.modalFnbItemsWrap}>
+                      {selectedTicketDetail.foodItems.map((fi) => (
+                        <View key={fi.foodId} style={styles.modalFnbRow}>
+                          <Text style={styles.modalFnbName}>
+                            🍿 {fi.name} {fi.size ? `(${fi.size})` : ''}
+                          </Text>
+                          <Text style={styles.modalFnbQty}>x{fi.quantity}</Text>
+                          <Text style={styles.modalFnbPrice}>
+                            {formatVND(fi.price * fi.quantity)}
+                          </Text>
+                        </View>
+                      ))}
+
+                      <View style={styles.modalFnbDivider} />
+
+                      <View style={styles.modalPickupStatusRow}>
+                        <Text style={styles.modalPickupStatusLabel}>Trạng thái nhận bắp nước:</Text>
+                        <Text
+                          style={[
+                            styles.modalPickupStatusVal,
+                            {
+                              color:
+                                selectedTicketDetail.fnbPickupStatus === 'picked_up'
+                                  ? '#10B981'
+                                  : '#F59E0B',
+                            },
+                          ]}>
+                          {selectedTicketDetail.fnbPickupStatus === 'picked_up'
+                            ? '✓ Đã nhận tại quầy'
+                            : '• Chưa nhận tại quầy'}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.modalTogglePickupBtn,
+                          selectedTicketDetail.fnbPickupStatus === 'picked_up' &&
+                            styles.modalTogglePickupBtnDone,
+                        ]}
+                        onPress={() => handleTogglePickup(selectedTicketDetail.id)}
+                        activeOpacity={0.85}>
+                        <Ionicons
+                          name={
+                            selectedTicketDetail.fnbPickupStatus === 'picked_up'
+                              ? 'refresh'
+                              : 'checkmark-circle'
+                          }
+                          size={16}
+                          color="#FFFFFF"
+                        />
+                        <Text style={styles.modalTogglePickupBtnText}>
+                          {selectedTicketDetail.fnbPickupStatus === 'picked_up'
+                            ? 'Đổi sang Chưa Nhận'
+                            : 'Xác Nhận Đã Nhận Bắp Nước'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={styles.modalNoFnbNotice}>
+                      (Đơn này không có đồ ăn, thức uống đính kèm)
+                    </Text>
+                  )}
+                </View>
+
+                {/* Total amount */}
+                <View style={styles.modalTotalRow}>
+                  <Text style={styles.modalTotalLabel}>Tổng thanh toán:</Text>
+                  <Text style={styles.modalTotalVal}>
+                    {formatVND(selectedTicketDetail.totalAmount)}
+                  </Text>
+                </View>
+              </ScrollView>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -2251,5 +2570,380 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 2,
     lineHeight: 16,
+  },
+  ticketItemRich: {
+    backgroundColor: '#111319',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#232838',
+    marginBottom: 14,
+  },
+  ticketTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  ticketCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(229, 9, 20, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  ticketCodeText: {
+    color: '#E50914',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ticketStatusBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ticketStatusText: {
+    color: '#10B981',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  ticketFnbSection: {
+    marginTop: 10,
+    backgroundColor: '#181A22',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#262A36',
+  },
+  ticketFnbHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  ticketFnbTitle: {
+    color: '#F59E0B',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  fnbPickupBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  fnbPickupBadgePending: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+  },
+  fnbPickupBadgeDone: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  fnbPickupBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  fnbPickupBadgeTextPending: {
+    color: '#F59E0B',
+  },
+  fnbPickupBadgeTextDone: {
+    color: '#10B981',
+  },
+  ticketFnbList: {
+    gap: 4,
+  },
+  ticketFnbRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ticketFnbItemName: {
+    color: '#D1D5DB',
+    fontSize: 12,
+  },
+  ticketFnbItemQty: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  ticketFnbTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 6,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#252936',
+  },
+  ticketFnbTotalLabel: {
+    color: '#9CA3AF',
+    fontSize: 11,
+  },
+  ticketFnbTotalValue: {
+    color: '#F59E0B',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  ticketNoFnbText: {
+    color: '#6B7280',
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  ticketActionBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#1F2430',
+  },
+  ticketTotalLabel: {
+    color: '#9CA3AF',
+    fontSize: 11,
+  },
+  ticketTotalValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  confirmPickupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    gap: 4,
+  },
+  confirmPickupBtnText: {
+    color: '#10B981',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  viewQrVoucherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E50914',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  viewQrVoucherBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  emptyTicketsBox: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyTicketsTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyTicketsSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    textAlign: 'center',
+    maxWidth: 260,
+  },
+  bookNowProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E50914',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 6,
+  },
+  bookNowProfileBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  ticketDetailModalCard: {
+    width: '92%',
+    maxWidth: 480,
+    maxHeight: '85%',
+    backgroundColor: '#151821',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#2E3547',
+  },
+  ticketDetailModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#232838',
+  },
+  ticketDetailModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modalBarcodeBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  modalBarcodeGuide: {
+    color: '#4B5563',
+    fontSize: 10.5,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  barcodeLinesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    height: 40,
+  },
+  barcodeLine: {
+    height: '100%',
+    borderRadius: 1,
+  },
+  modalBarcodeDigits: {
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginTop: 6,
+  },
+  modalTicketInfoCard: {
+    backgroundColor: '#111319',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#232838',
+    marginBottom: 12,
+  },
+  modalMovieName: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  modalMovieMeta: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalConcessionCard: {
+    backgroundColor: '#1A1813',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    marginBottom: 12,
+  },
+  modalConcessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modalConcessionTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  modalFnbItemsWrap: {
+    gap: 6,
+  },
+  modalFnbRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalFnbName: {
+    flex: 1,
+    color: '#D1D5DB',
+    fontSize: 12,
+  },
+  modalFnbQty: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+    marginRight: 10,
+  },
+  modalFnbPrice: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalFnbDivider: {
+    height: 1,
+    backgroundColor: '#2D281E',
+    marginVertical: 8,
+  },
+  modalPickupStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalPickupStatusLabel: {
+    color: '#9CA3AF',
+    fontSize: 11.5,
+  },
+  modalPickupStatusVal: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  modalTogglePickupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    paddingVertical: 9,
+    gap: 6,
+  },
+  modalTogglePickupBtnDone: {
+    backgroundColor: '#374151',
+  },
+  modalTogglePickupBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalNoFnbNotice: {
+    color: '#9CA3AF',
+    fontSize: 11.5,
+    fontStyle: 'italic',
+  },
+  modalTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#232838',
+  },
+  modalTotalLabel: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalTotalVal: {
+    color: '#10B981',
+    fontSize: 16,
+    fontWeight: '900',
   },
 });

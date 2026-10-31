@@ -62,7 +62,7 @@ export interface AuthContextType {
   login: (data: LoginFormData) => Promise<{ success: boolean; message: string }>;
   register: (data: RegisterFormData) => Promise<{ success: boolean; message: string; user?: User }>;
   logout: () => Promise<void>;
-  updateProfile: (updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl'>>) => Promise<{ success: boolean; message: string }>;
+  updateProfile: (updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl' | 'loyaltyPoints'>>) => Promise<{ success: boolean; message: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   deleteAccount: () => Promise<{ success: boolean; message: string }>;

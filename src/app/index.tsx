@@ -189,14 +189,24 @@ export default function HomeScreen() {
                 Khám phá bắp rang bơ giòn rụm, nước ngọt mát lạnh & combo ưu đãi hoặc quản lý menu F&B.
               </Text>
 
-              <TouchableOpacity
-                style={styles.fnbPromoBtn}
-                onPress={() => router.push('/food')}
-                activeOpacity={0.85}>
-                <Ionicons name="fast-food-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.fnbPromoBtnText}>Quản Lý & Xem Thực Đơn</Text>
-                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                <TouchableOpacity
+                  style={styles.fnbPromoBtn}
+                  onPress={() => router.push('/food')}
+                  activeOpacity={0.85}>
+                  <Ionicons name="fast-food-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.fnbPromoBtnText}>Quản Lý & Menu F&B</Text>
+                  <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.fnbPromoBtn, { backgroundColor: '#F59E0B' }]}
+                  onPress={() => router.push('/booking?step=food')}
+                  activeOpacity={0.85}>
+                  <Ionicons name="cart-outline" size={16} color="#000000" />
+                  <Text style={[styles.fnbPromoBtnText, { color: '#000000' }]}>Chọn Bắp Nước Kèm Vé</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -242,13 +252,7 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   style={styles.bookTicketBtn}
-                  onPress={() => {
-                    if (!isAuthenticated) {
-                      router.push('/login');
-                    } else {
-                      router.push('/profile');
-                    }
-                  }}
+                  onPress={() => router.push(`/booking?movieId=${movie.id}`)}
                   activeOpacity={0.85}>
                   <Ionicons name="ticket-outline" size={16} color="#FFFFFF" />
                   <Text style={styles.bookTicketText}>Mua vé</Text>
