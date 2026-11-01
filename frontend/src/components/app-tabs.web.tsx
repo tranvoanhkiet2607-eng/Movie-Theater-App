@@ -24,6 +24,9 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Trang chủ</TabButton>
           </TabTrigger>
+          <TabTrigger name="movies" href="/movies" asChild>
+            <TabButton>Phim</TabButton>
+          </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Lịch chiếu</TabButton>
           </TabTrigger>
