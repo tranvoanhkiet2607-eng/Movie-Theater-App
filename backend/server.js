@@ -12,6 +12,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const authRoutes = require('./routes/auth');
 const showtimeRoutes = require('./routes/showtimes');
+const movieRoutes = require('./routes/movies');
 const { seedShowtimesData } = require('./seed/seedShowtimes');
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(express.json());
 // ─── Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/showtimes', showtimeRoutes);
+app.use('/api/movies', movieRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
