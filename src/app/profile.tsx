@@ -786,12 +786,18 @@ export default function ProfileScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
             <View style={styles.headerActionRow}>
-              <TouchableOpacity onPress={handleOpenChangePassword} style={styles.headerActionBtn}>
-                <Ionicons name="key-outline" size={14} color="#F59E0B" />
+              <TouchableOpacity
+                onPress={handleOpenChangePassword}
+                style={styles.headerActionBtn}
+                activeOpacity={0.75}>
+                <Ionicons name="key-outline" size={13} color="#F59E0B" />
                 <Text style={styles.headerActionTextKey}>Đổi mật khẩu</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleOpenEdit} style={styles.editBtn}>
-                <Ionicons name="pencil" size={14} color="#E50914" />
+              <TouchableOpacity
+                onPress={handleOpenEdit}
+                style={styles.editBtn}
+                activeOpacity={0.75}>
+                <Ionicons name="pencil" size={13} color="#E50914" />
                 <Text style={styles.editBtnText}>Chỉnh sửa</Text>
               </TouchableOpacity>
             </View>
@@ -847,7 +853,9 @@ export default function ProfileScreen() {
         {/* Session Management Details (UC02) */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Quản lý phiên đăng nhập (Session)</Text>
+            <Text style={[styles.sectionTitle, styles.sessionHeaderTitle]}>
+              Quản lý phiên đăng nhập (Session)
+            </Text>
             <View style={styles.activeTag}>
               <Text style={styles.activeTagText}>Đang hoạt động</Text>
             </View>
@@ -1256,7 +1264,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B0C10',
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 40,
   },
   loadingContainer: {
@@ -1273,13 +1281,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
+    gap: 8,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+    flexShrink: 1,
   },
   sessionStatusBadge: {
     flexDirection: 'row',
@@ -1291,6 +1301,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.3)',
     gap: 6,
+    flexShrink: 0,
   },
   statusDot: {
     width: 6,
@@ -1391,45 +1402,67 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: '#151821',
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#232838',
-    marginBottom: 16,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 8,
+    columnGap: 8,
     marginBottom: 14,
   },
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+    flexShrink: 1,
+  },
+  sessionHeaderTitle: {
+    flex: 1,
+    marginRight: 8,
   },
   headerActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   headerActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
   },
   headerActionTextKey: {
     color: '#F59E0B',
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
   },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(229, 9, 20, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(229, 9, 20, 0.25)',
   },
   editBtnText: {
     color: '#E50914',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   avatarRowContainer: {
@@ -1501,8 +1534,12 @@ const styles = StyleSheet.create({
   activeTag: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    flexShrink: 0,
+    alignSelf: 'center',
   },
   activeTagText: {
     color: '#10B981',
