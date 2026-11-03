@@ -1605,20 +1605,30 @@ export default function ExploreScreen() {
                   <TouchableOpacity
                     style={styles.modalPrimaryBtn}
                     onPress={() => {
-                      if (!isAuthenticated) {
-                        setSelectedShowtime(null);
-                        router.push('/login');
-                      } else {
-                        setBookingNotice(
-                          `Đã ghi nhận lựa chọn suất ${selectedShowtime.startTime} (${selectedShowtime.room} - ${selectedSlotTheater.shortName}) cho ${user?.fullName || 'bạn'}!`
-                        );
-                      }
+                      const targetSlot = selectedShowtime;
+                      const targetMovie = selectedSlotMovie;
+                      const targetTheater = selectedSlotTheater;
+                      setSelectedShowtime(null);
+                      router.push({
+                        pathname: '/booking',
+                        params: {
+                          showtimeId: targetSlot.id,
+                          movieId: targetSlot.movieId,
+                          movieTitle: targetMovie?.title || '',
+                          moviePoster: targetMovie?.poster || '',
+                          theaterId: targetSlot.theaterId,
+                          theaterName: targetTheater?.name || '',
+                          roomName: targetSlot.room,
+                          showtimeDate: targetSlot.dateStr,
+                          showtimeTime: targetSlot.startTime,
+                          format: targetSlot.format,
+                          price: String(targetSlot.price),
+                        },
+                      });
                     }}>
                     <Ionicons name="ticket" size={16} color="#FFFFFF" />
                     <Text style={styles.modalPrimaryText}>
-                      {isAuthenticated
-                        ? 'Chọn suất chiếu này'
-                        : 'Đăng nhập để đặt vé'}
+                      Đặt vé suất này ngay
                     </Text>
                   </TouchableOpacity>
                 </View>

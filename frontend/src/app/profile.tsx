@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,12 @@ import {
 
 import { LoginFormData, RegisterFormData } from '@/types/auth';
 import { ForgotPasswordModal } from '@/components/forgot-password-modal';
+import { TicketBooking } from '@/features/booking/types/booking.types';
+import { BookingAPI } from '@/features/booking/services/bookingApi';
+import BookingDetailModal from '@/features/booking/components/BookingDetailModal';
+import ETicketModal from '@/features/booking/components/ETicketModal';
+import AdminBookingModal from '@/features/booking/components/AdminBookingModal';
+
 
 
 interface GuestAuthProps {
@@ -534,6 +540,8 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
         />
       </ScrollView>
 
+
+
     </SafeAreaView>
   );
 }
@@ -581,6 +589,31 @@ export default function ProfileScreen() {
 
   // Session Info Modal
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
+
+  // ─── Booking Management States (UC30, UC34, UC35, UC36) ───────────────────
+  const [myTickets, setMyTickets] = useState<TicketBooking[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<TicketBooking | null>(null);
+  const [detailTicketModalVisible, setDetailTicketModalVisible] = useState(false);
+  const [eTicketModalVisible, setETicketModalVisible] = useState(false);
+  const [adminBookingModalVisible, setAdminBookingModalVisible] = useState(false);
+
+  const fetchMyTickets = useCallback(async () => {
+    if (!user) return;
+    try {
+      setLoadingTickets(true);
+      const tickets = await BookingAPI.getMyTickets(user.id, user.phone);
+      setMyTickets(tickets);
+    } catch (err) {
+      console.warn('Lỗi tải vé cá nhân:', err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchMyTickets();
+  }, [fetchMyTickets]);
 
   if (isLoading) {
     return (
@@ -706,17 +739,6 @@ export default function ProfileScreen() {
     }
   };
 
-  // Mock booked tickets for this customer
-  const sampleTickets = [
-    {
-      id: 'TCK-8821',
-      movieTitle: 'Dune: Part Two (Hành Tinh Cát)',
-      theater: 'CineMax Vincom Đồng Khởi - Rạp 03',
-      showtime: '20:15 - Hôm nay',
-      seats: 'F08, F09 (VIP)',
-      status: 'Đã xác nhận',
-    },
-  ];
 
   // Current avatar icon determination
   const currentAvatarIcon = user.avatarUrl?.startsWith('cinema_avatar_')
@@ -891,26 +913,89 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tickets Demo */}
+        {/* Admin Booking Administration (UC36) */}
+        {user.role === 'admin' && (
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={styles.adminBookingBtn}
+              onPress={() => setAdminBookingModalVisible(true)}
+              activeOpacity={0.85}>
+              <View style={styles.adminIconBox}>
+                <Ionicons name="shield-checkmark" size={24} color="#F59E0B" />
+              </View>
+              <View style={styles.adminTextCol}>
+                <Text style={styles.adminBookingTitle}>Bảng Quản Trị Đặt Vé (UC36)</Text>
+                <Text style={styles.adminBookingSub}>
+                  Tra cứu, tìm kiếm, soát vé và quản lý đơn đặt vé toàn rạp
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Vé xem phim của bạn (UC30, UC34, UC35) */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vé xem phim của bạn</Text>
-            <Text style={styles.ticketCount}>{sampleTickets.length} vé</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="ticket" size={18} color="#E50914" />
+              <Text style={styles.sectionTitle}>Vé xem phim của bạn (UC30)</Text>
+            </View>
+            <TouchableOpacity onPress={fetchMyTickets} style={{ padding: 4 }}>
+              <Ionicons name="refresh" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
           </View>
 
-          {sampleTickets.map((ticket) => (
-            <View key={ticket.id} style={styles.ticketItem}>
-              <View style={styles.ticketHeader}>
-                <Ionicons name="film-outline" size={18} color="#E50914" />
-                <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
-              </View>
-              <Text style={styles.ticketTheater}>{ticket.theater}</Text>
-              <View style={styles.ticketFooter}>
-                <Text style={styles.ticketShowtime}>🕒 {ticket.showtime}</Text>
-                <Text style={styles.ticketSeats}>Ghế: {ticket.seats}</Text>
-              </View>
+          {loadingTickets ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#E50914" />
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 6 }}>Đang tải danh sách vé...</Text>
             </View>
-          ))}
+          ) : myTickets.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 4 }}>Bạn chưa có vé xem phim nào.</Text>
+              <Text style={{ color: '#6B7280', fontSize: 11 }}>Hãy chọn phim và đặt vé ngay tại tab &quot;Lịch chiếu&quot; hoặc &quot;Phim&quot;.</Text>
+            </View>
+          ) : (
+            myTickets.map((ticket) => {
+              const isCancelled = ticket.status === 'cancelled';
+              const isCompleted = ticket.status === 'completed';
+
+              return (
+                <TouchableOpacity
+                  key={ticket.id || ticket.bookingCode}
+                  style={[styles.ticketItem, isCancelled && { opacity: 0.6 }]}
+                  onPress={() => {
+                    setSelectedTicket(ticket);
+                    setDetailTicketModalVisible(true);
+                  }}
+                  activeOpacity={0.8}>
+                  <View style={styles.ticketHeader}>
+                    <Ionicons name="film-outline" size={18} color="#E50914" />
+                    <Text style={styles.ticketMovieTitle} numberOfLines={1}>{ticket.movieTitle}</Text>
+                    <View
+                      style={[
+                        styles.ticketStatusTag,
+                        isCancelled
+                          ? { backgroundColor: '#7F1D1D' }
+                          : isCompleted
+                          ? { backgroundColor: '#1E3A8A' }
+                          : { backgroundColor: '#064E3B' },
+                      ]}>
+                      <Text style={styles.ticketStatusTagText}>
+                        {isCancelled ? 'ĐÃ HỦY' : isCompleted ? 'HOÀN TẤT' : 'HỢP LỆ'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.ticketTheater}>{ticket.theaterName} • {ticket.roomName}</Text>
+                  <View style={styles.ticketFooter}>
+                    <Text style={styles.ticketShowtime}>🕒 {ticket.showtimeTime} - {ticket.showtimeDate}</Text>
+                    <Text style={styles.ticketSeats}>Ghế: {ticket.seats.join(', ')}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         {/* Logout Button */}
@@ -1246,6 +1331,36 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      {/* Modal Chi Tiết Đơn Vé (UC30, UC34) */}
+      <BookingDetailModal
+        visible={detailTicketModalVisible}
+        booking={selectedTicket}
+        onClose={() => setDetailTicketModalVisible(false)}
+        onOpenETicket={(b) => {
+          setSelectedTicket(b);
+          setETicketModalVisible(true);
+        }}
+        onBookingCancelled={(updated) => {
+          setSelectedTicket(updated);
+          fetchMyTickets();
+        }}
+      />
+
+      {/* Modal Vé Điện Tử & QR (UC35) */}
+      <ETicketModal
+        visible={eTicketModalVisible}
+        booking={selectedTicket}
+        onClose={() => setETicketModalVisible(false)}
+      />
+
+      {/* Modal Bảng Quản Trị Đặt Vé (UC36) */}
+      <AdminBookingModal
+        visible={adminBookingModalVisible}
+        onClose={() => {
+          setAdminBookingModalVisible(false);
+          fetchMyTickets();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -2103,5 +2218,43 @@ const styles = StyleSheet.create({
   guestCriteriaText: {
     fontSize: 11,
     color: '#6B7280',
+  },
+  ticketStatusTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  ticketStatusTagText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  adminBookingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  adminIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#374151',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  adminTextCol: {
+    flex: 1,
+  },
+  adminBookingTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  adminBookingSub: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginTop: 2,
   },
 });

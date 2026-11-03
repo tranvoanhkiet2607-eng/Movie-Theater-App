@@ -35,6 +35,7 @@ export default function AppTabs() {
           </TabTrigger>
           <TabTrigger name="login" href="/login" style={{ display: 'none' }} />
           <TabTrigger name="register" href="/register" style={{ display: 'none' }} />
+          <TabTrigger name="booking" href="/booking" style={{ display: 'none' }} />
         </CustomTabList>
       </TabList>
     </Tabs>

@@ -80,6 +80,14 @@ export default function AppTabs() {
           tabBarStyle: { display: 'none' },
         }}
       />
+
+      <Tabs.Screen
+        name="booking"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }

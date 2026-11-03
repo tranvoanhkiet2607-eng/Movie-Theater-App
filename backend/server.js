@@ -13,7 +13,10 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const authRoutes = require('./routes/auth');
 const showtimeRoutes = require('./routes/showtimes');
 const movieRoutes = require('./routes/movies');
+const promotionRoutes = require('./routes/promotions');
+const bookingRoutes = require('./routes/bookings');
 const { seedShowtimesData } = require('./seed/seedShowtimes');
+const { seedPromotionsData } = require('./seed/seedPromotions');
 
 const app = express();
 
@@ -25,6 +28,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/showtimes', showtimeRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -122,8 +127,13 @@ mongoose
     // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
     await seedShowtimesData();
 
+    // Tự động khởi tạo danh mục mã khuyến mãi mẫu nếu chưa có (UC31)
+    await seedPromotionsData();
+
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, '0.0.0.0');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Express Server đang chạy tại http://localhost:${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('❌ Kết nối MongoDB thất bại:', err.message);
