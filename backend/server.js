@@ -76,13 +76,21 @@ if (!MONGODB_URI || MONGODB_URI.includes('<username>')) {
   process.exit(1);
 }
 
-mongoose
-  .connect(MONGODB_URI, { dbName: 'movie_theater' })
-  .then(async () => {
-    console.log(`✅ Kết nối MongoDB Atlas thành công! (Database: ${mongoose.connection.name})`);
+// ─── Khởi động Express Server ────────────────────────────────────────────────
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Backend CineMax đang chạy tại http://localhost:${PORT}`);
+  console.log(`🔗 Kiểm tra trạng thái: http://localhost:${PORT}/health`);
+});
 
-    // Seed dữ liệu mẫu nếu chưa có user nào hoặc chưa có admin
+// ─── Kết nối MongoDB Atlas (với cơ chế tự động thử lại) ─────────────────────
+let isSeeded = false;
+
+async function seedInitialData() {
+  if (isSeeded) return;
+  try {
     const User = require('./models/User');
+
     const adminExists = await User.findOne({ email: 'admin@cinema.com' });
     if (!adminExists) {
       await User.create({
@@ -146,13 +154,34 @@ mongoose
 
     // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
     await seedShowtimesData();
+    isSeeded = true;
+  } catch (seedErr) {
+    console.error('⚠️ Lỗi khi seed dữ liệu ban đầu:', seedErr.message);
+  }
+}
 
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend đang chạy tại http://localhost:${PORT}`);
+async function connectToMongo() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      dbName: 'movie_theater',
+      serverSelectionTimeoutMS: 7000,
     });
-  })
-  .catch((err) => {
-    console.error('❌ Kết nối MongoDB thất bại:', err.message);
-    process.exit(1);
-  });
+    console.log(`✅ Kết nối MongoDB Atlas thành công! (Database: ${mongoose.connection.name})`);
+    await seedInitialData();
+  } catch (err) {
+    console.error('\n⚠️ CHƯA THỂ KẾT NỐI MONGODB ATLAS:');
+    console.error('Chi tiết lỗi:', err.message);
+    console.log('\n📌 NGUYÊN NHÂN: Địa chỉ IP mạng hiện tại của bạn chưa được cấp phép (whitelist) trên MongoDB Atlas.');
+    console.log('👉 HƯỚNG DẪN CẤP PHÉP IP TRÊN MONGODB ATLAS (Mất 30 giây):');
+    console.log('   1. Đăng nhập vào trang quản trị: https://cloud.mongodb.com');
+    console.log('   2. Nhìn menu bên trái mục "Security" ➔ bấm chọn "Network Access".');
+    console.log('   3. Nhấn nút xanh "+ ADD IP ADDRESS".');
+    console.log('   4. Chọn "ALLOW ACCESS FROM ANYWHERE" (IP: 0.0.0.0/0) ➔ bấm "Confirm".');
+    console.log('   5. Đợi 1-2 phút trạng thái chuyển sang Active.\n');
+    console.log('🔄 Đang tự động thử kết nối lại sau 15 giây...\n');
+
+    setTimeout(connectToMongo, 15000);
+  }
+}
+
+connectToMongo();
