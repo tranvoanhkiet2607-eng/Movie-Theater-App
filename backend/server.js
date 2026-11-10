@@ -13,7 +13,14 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const authRoutes = require('./routes/auth');
 const showtimeRoutes = require('./routes/showtimes');
 const movieRoutes = require('./routes/movies');
+const foodRoutes = require('./routes/food');
+const promotionRoutes = require('./routes/promotions');
+const reviewRoutes = require('./routes/reviews');
+const notificationRoutes = require('./routes/notifications');
+const orderRoutes = require('./routes/orders');
+const reportRoutes = require('./routes/reports');
 const { seedShowtimesData } = require('./seed/seedShowtimes');
+const { seedNewFeaturesData } = require('./seed/seedNewFeatures');
 
 const app = express();
 
@@ -25,6 +32,12 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/showtimes', showtimeRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/food', foodRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -122,8 +135,13 @@ mongoose
     // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
     await seedShowtimesData();
 
+    // Tự động khởi tạo dữ liệu cho Food, Promotions, Reviews, Notifications, Orders
+    await seedNewFeaturesData();
+
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, '0.0.0.0');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 CineMax Backend Server đang chạy tại http://localhost:${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('❌ Kết nối MongoDB thất bại:', err.message);

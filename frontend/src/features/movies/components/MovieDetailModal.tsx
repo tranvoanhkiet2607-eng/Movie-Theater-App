@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Movie } from '../types/movie.types';
 import { getAgeBadgeColors } from './MovieCard';
+import MovieReviewsSection from '@/features/reviews/components/MovieReviewsSection';
 
 interface MovieDetailModalProps {
   movie: Movie | null;
@@ -203,13 +204,16 @@ export default function MovieDetailModal({
                 <View style={styles.castWrapper}>
                   {movie.cast.map((actor, idx) => (
                     <View key={idx} style={styles.castChip}>
-                      <Ionicons name="person-outline" size={13} color="#E5E7EB" />
+                      <Ionicons name="person-outline" size={13} color="#E50914" />
                       <Text style={styles.castChipText}>{actor}</Text>
                     </View>
                   ))}
                 </View>
               </View>
             ) : null}
+
+            {/* UC40: Review & Rating Section */}
+            <MovieReviewsSection movieId={movie.id} movieTitle={movie.title} />
           </ScrollView>
 
           {/* Bottom Action Footer */}

@@ -6,6 +6,7 @@ const Movie = require('../models/Movie');
 const Theater = require('../models/Theater');
 const Showtime = require('../models/Showtime');
 const { SHOWTIME_DATES, SHOWTIME_FORMATS } = require('../seed/seedShowtimes');
+const { requireAdmin } = require('../middleware/auth');
 
 function getTimePeriod(startTime) {
   const hour = parseInt(String(startTime).split(':')[0], 10);
@@ -232,7 +233,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/showtimes
 // UC22: Thêm mới suất chiếu trực tiếp lên MongoDB Atlas
 // ════════════════════════════════════════════════════════════════════════════
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   try {
     const {
       movieId,
@@ -358,7 +359,7 @@ router.post('/', async (req, res) => {
 // PUT /api/showtimes/:id
 // UC22: Cập nhật / Sửa thông tin suất chiếu trực tiếp trên MongoDB Atlas
 // ════════════════════════════════════════════════════════════════════════════
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const slotCode = req.params.id;
     const existingSlot = await Showtime.findOne({ code: slotCode });
@@ -478,7 +479,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/showtimes/:id
 // UC22: Xóa suất chiếu trực tiếp khỏi MongoDB Atlas
 // ════════════════════════════════════════════════════════════════════════════
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const slotCode = req.params.id;
     const deleted = await Showtime.findOneAndDelete({ code: slotCode });
