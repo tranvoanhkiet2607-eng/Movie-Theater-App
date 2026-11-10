@@ -28,6 +28,8 @@ import {
   BookSeatsResponse,
   GenerateRoomData,
   GetSeatsResponse,
+  HoldSeatsPayload,
+  HoldSeatsResponse,
   SeatFormData,
   SeatItem,
   ShowtimeSeatMapResponse,
@@ -641,11 +643,52 @@ export const SeatAPI = {
       body: JSON.stringify({ ids }),
     }),
 
-  /** UC24: Lấy sơ đồ ghế chi tiết và trạng thái còn trống/đã đặt của một suất chiếu */
-  getShowtimeSeatMap: (showtimeId: string): Promise<ShowtimeSeatMapResponse> =>
-    apiRequest<ShowtimeSeatMapResponse>(`/seats/showtime/${encodeURIComponent(showtimeId)}`),
+  /** UC24 & UC25: Lấy sơ đồ ghế chi tiết và trạng thái còn trống/đã đặt/đang giữ của suất chiếu */
+  getShowtimeSeatMap: (
+    showtimeId: string,
+    params: { holdToken?: string; userId?: string } = {}
+  ): Promise<ShowtimeSeatMapResponse> => {
+    const qs = new URLSearchParams();
+    if (params.holdToken) qs.append('holdToken', params.holdToken);
+    if (params.userId) qs.append('userId', params.userId);
+    const queryStr = qs.toString();
+    return apiRequest<ShowtimeSeatMapResponse>(
+      `/seats/showtime/${encodeURIComponent(showtimeId)}${queryStr ? `?${queryStr}` : ''}`
+    );
+  },
 
-  /** UC24: Đặt giữ ghế cho suất chiếu và lưu vé lên MongoDB Atlas */
+  /** UC25: Khóa giữ chỗ tạm thời (5 phút) và kiểm tra tình trạng ghế để tránh đặt trùng */
+  holdSeats: (payload: HoldSeatsPayload): Promise<HoldSeatsResponse> =>
+    apiRequest<HoldSeatsResponse>('/seats/hold', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC25: Giải phóng ghế đã giữ khi người dùng hủy hoặc đổi ghế */
+  releaseSeats: (payload: {
+    showtimeId: string;
+    seatCodes?: string[];
+    userId?: string;
+    holdToken?: string;
+  }): Promise<{ success: boolean; message: string }> =>
+    apiRequest('/seats/release', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC25: Kiểm tra nhanh tình trạng khả dụng realtime của danh sách ghế */
+  checkSeats: (payload: {
+    showtimeId: string;
+    seatCodes: string[];
+    userId?: string;
+    holdToken?: string;
+  }): Promise<{ success: boolean; isAvailable: boolean; conflictBooked: string[]; conflictHolding: string[] }> =>
+    apiRequest('/seats/check-seats', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC24 & UC25: Đặt giữ ghế cho suất chiếu và lưu vé lên MongoDB Atlas */
   bookSeats: (payload: BookSeatsPayload): Promise<BookSeatsResponse> =>
     apiRequest<BookSeatsResponse>('/seats/book', {
       method: 'POST',

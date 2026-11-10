@@ -87,10 +87,10 @@ export interface GenerateRoomData {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// UC24: SHOWTIME SEAT MAP & BOOKING TYPES — Nguyễn Minh Quân - CE180048
+// UC24 & UC25: SHOWTIME SEAT MAP & ANTI-COLLISION BOOKING TYPES — Nguyễn Minh Quân - CE180048
 // ════════════════════════════════════════════════════════════════════════════
 
-export type RuntimeSeatStatus = 'available' | 'booked' | 'maintenance' | 'selected';
+export type RuntimeSeatStatus = 'available' | 'booked' | 'maintenance' | 'holding' | 'selected';
 
 export interface ShowtimeSeatItem {
   id: string;
@@ -102,7 +102,7 @@ export interface ShowtimeSeatItem {
   basePrice: number;
   price: number;
   priceFormatted: string;
-  status: 'available' | 'booked' | 'maintenance';
+  status: 'available' | 'booked' | 'maintenance' | 'holding' | 'selected';
   notes?: string;
 }
 
@@ -110,6 +110,7 @@ export interface ShowtimeSeatMapSummary {
   totalSeats: number;
   availableCount: number;
   bookedCount: number;
+  holdingCount?: number;
   maintenanceCount: number;
   standardCount: number;
   vipCount: number;
@@ -151,6 +152,11 @@ export interface ShowtimeSeatMapResponse {
   } | null;
   summary: ShowtimeSeatMapSummary;
   seatMap: ShowtimeSeatItem[];
+  myHold?: {
+    seatCodes: string[];
+    expiresAt: string;
+    remainingSeconds: number;
+  } | null;
   otherShowtimes: Array<{
     id: string;
     code: string;
@@ -165,10 +171,29 @@ export interface ShowtimeSeatMapResponse {
   message?: string;
 }
 
+export interface HoldSeatsPayload {
+  showtimeId: string;
+  seatCodes: string[];
+  userId?: string;
+  holdToken?: string;
+}
+
+export interface HoldSeatsResponse {
+  success: boolean;
+  message: string;
+  heldSeats?: string[];
+  expiresAt?: string;
+  remainingSeconds?: number;
+  conflictType?: 'booked' | 'holding' | 'maintenance' | 'orphan_seat';
+  conflictSeats?: string[];
+  violationSeats?: string[];
+}
+
 export interface BookSeatsPayload {
   showtimeId: string;
   seatCodes: string[];
   userId?: string;
+  holdToken?: string;
   paymentMethod?: string;
   combos?: string;
 }
@@ -184,4 +209,5 @@ export interface BookSeatsResponse {
     status: string;
   };
 }
+
 

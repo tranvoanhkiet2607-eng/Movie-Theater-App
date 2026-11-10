@@ -13,7 +13,63 @@ function formatPriceVND(num) {
   return `${val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 }
 
-// Helper: Đảm bảo danh sách ghế đã đặt của suất chiếu được đồng bộ trên MongoDB Atlas
+// Helper: Dọn dẹp các ghế giữ chỗ tạm thời đã hết hạn (hơn 5 phút)
+function cleanExpiredHolds(showtime) {
+  if (!showtime.heldSeats || showtime.heldSeats.length === 0) return false;
+  const now = new Date();
+  const initLen = showtime.heldSeats.length;
+  showtime.heldSeats = showtime.heldSeats.filter((h) => h.expiresAt > now);
+  return showtime.heldSeats.length !== initLen;
+}
+
+// Helper: Kiểm tra quy tắc rạp phim không để trống duy nhất 1 ghế đơn lẻ ở giữa hoặc đầu hàng
+function validateNoSingleEmptySeats(roomSeats, bookedSet, selectedSeatCodes) {
+  const selectedSet = new Set(selectedSeatCodes);
+  const rowMap = {};
+  roomSeats.forEach((s) => {
+    if (!rowMap[s.row]) rowMap[s.row] = [];
+    rowMap[s.row].push(s);
+  });
+
+  const violations = [];
+
+  Object.keys(rowMap).forEach((row) => {
+    const list = rowMap[row].sort((a, b) => a.colNumber - b.colNumber);
+    const hasSelectionInRow = list.some((s) => selectedSet.has(s.seatCode));
+    if (!hasSelectionInRow) return;
+
+    for (let i = 0; i < list.length; i++) {
+      const current = list[i];
+      const isTaken =
+        bookedSet.has(current.seatCode) ||
+        selectedSet.has(current.seatCode) ||
+        current.status === 'maintenance';
+
+      if (!isTaken) {
+        const prev = i > 0 ? list[i - 1] : null;
+        const next = i < list.length - 1 ? list[i + 1] : null;
+
+        const prevIsTaken =
+          !prev ||
+          bookedSet.has(prev.seatCode) ||
+          selectedSet.has(prev.seatCode) ||
+          prev.status === 'maintenance';
+
+        const nextIsTaken =
+          !next ||
+          bookedSet.has(next.seatCode) ||
+          selectedSet.has(next.seatCode) ||
+          next.status === 'maintenance';
+
+        if (prevIsTaken && nextIsTaken) {
+          violations.push(current.seatCode);
+        }
+      }
+    }
+  });
+
+  return violations;
+}
 async function ensureShowtimeBookedSeats(showtime, roomSeats) {
   if (showtime.bookedSeats && showtime.bookedSeats.length > 0) {
     return showtime.bookedSeats;
@@ -192,11 +248,12 @@ router.get('/rooms', async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/seats/showtime/:showtimeId
-// UC24: Hiển thị sơ đồ ghế và trạng thái còn trống hoặc đã đặt cho suất chiếu
+// UC24 & UC25: Hiển thị sơ đồ ghế, trạng thái còn trống/đã đặt/đang giữ chỗ (Anti-collision)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/showtime/:showtimeId', async (req, res) => {
   try {
     const { showtimeId } = req.params;
+    const { holdToken, userId } = req.query;
     let showtime = null;
 
     if (showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -213,6 +270,12 @@ router.get('/showtime/:showtimeId', async (req, res) => {
       });
     }
 
+    // Tự động dọn dẹp các ghế giữ chỗ đã quá hạn
+    const hadExpired = cleanExpiredHolds(showtime);
+    if (hadExpired) {
+      await showtime.save();
+    }
+
     const [movie, theater, roomSeats, otherShowtimes] = await Promise.all([
       Movie.findOne({ code: showtime.movieId }),
       Theater.findOne({ code: showtime.theaterId }),
@@ -227,14 +290,57 @@ router.get('/showtime/:showtimeId', async (req, res) => {
     const bookedSeatCodes = await ensureShowtimeBookedSeats(showtime, roomSeats);
     const bookedSet = new Set(bookedSeatCodes);
 
+    // Map các ghế đang được giữ chỗ (Seat Hold)
+    const holdMap = new Map();
+    if (showtime.heldSeats && showtime.heldSeats.length > 0) {
+      showtime.heldSeats.forEach((h) => {
+        holdMap.set(h.seatCode, h);
+      });
+    }
+
+    // Tìm xem user hiện tại có đang giữ ghế nào không
+    let myHoldInfo = null;
+    const myHeldCodes = [];
+    let myHoldExpiresAt = null;
+
+    if (holdToken || userId) {
+      showtime.heldSeats.forEach((h) => {
+        const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+        if (isMine) {
+          myHeldCodes.push(h.seatCode);
+          if (!myHoldExpiresAt || h.expiresAt > myHoldExpiresAt) {
+            myHoldExpiresAt = h.expiresAt;
+          }
+        }
+      });
+
+      if (myHeldCodes.length > 0 && myHoldExpiresAt) {
+        const remMs = myHoldExpiresAt.getTime() - Date.now();
+        myHoldInfo = {
+          seatCodes: myHeldCodes,
+          expiresAt: myHoldExpiresAt.toISOString(),
+          remainingSeconds: Math.max(0, Math.floor(remMs / 1000)),
+        };
+      }
+    }
+
     // Xây dựng danh sách ghế kèm trạng thái realtime cho suất chiếu
     const baseShowtimePrice = showtime.price || 95000;
     const seatMap = roomSeats.map((s) => {
       let runtimeStatus = 'available';
+      const hold = holdMap.get(s.seatCode);
+
       if (s.status === 'maintenance') {
         runtimeStatus = 'maintenance';
       } else if (bookedSet.has(s.seatCode)) {
         runtimeStatus = 'booked';
+      } else if (hold) {
+        const isMine = (holdToken && hold.holdToken === holdToken) || (userId && hold.userId === userId);
+        if (isMine) {
+          runtimeStatus = 'selected';
+        } else {
+          runtimeStatus = 'holding'; // Người khác đang giữ chỗ
+        }
       }
 
       // Giá vé phụ thuộc theo loại ghế cho suất chiếu này
@@ -264,6 +370,7 @@ router.get('/showtime/:showtimeId', async (req, res) => {
       totalSeats: seatMap.length,
       availableCount: seatMap.filter((s) => s.status === 'available').length,
       bookedCount: seatMap.filter((s) => s.status === 'booked').length,
+      holdingCount: seatMap.filter((s) => s.status === 'holding').length,
       maintenanceCount: seatMap.filter((s) => s.status === 'maintenance').length,
       standardCount: seatMap.filter((s) => s.type === 'standard').length,
       vipCount: seatMap.filter((s) => s.type === 'vip').length,
@@ -309,6 +416,7 @@ router.get('/showtime/:showtimeId', async (req, res) => {
         : null,
       summary,
       seatMap,
+      myHold: myHoldInfo,
       otherShowtimes: otherShowtimes.map((st) => ({
         id: st.code,
         code: st.code,
@@ -331,8 +439,225 @@ router.get('/showtime/:showtimeId', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// POST /api/seats/hold
+// UC25: Khóa giữ chỗ tạm thời (5 phút) và kiểm tra tình trạng ghế để tránh đặt trùng
+// ════════════════════════════════════════════════════════════════════════════
+router.post('/hold', async (req, res) => {
+  try {
+    const { showtimeId, seatCodes, userId, holdToken } = req.body;
+
+    if (!showtimeId || !Array.isArray(seatCodes) || seatCodes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn ít nhất một ghế để giữ chỗ.',
+      });
+    }
+
+    if (seatCodes.length > 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bạn chỉ có thể chọn tối đa 8 ghế trong một lần đặt vé.',
+      });
+    }
+
+    let showtime = await Showtime.findOne({ code: showtimeId });
+    if (!showtime && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+      showtime = await Showtime.findById(showtimeId);
+    }
+
+    if (!showtime) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy suất chiếu yêu cầu.',
+      });
+    }
+
+    // Dọn dẹp các ghế giữ chỗ đã hết hạn trước khi kiểm tra
+    cleanExpiredHolds(showtime);
+
+    // 1. Kiểm tra ghế đã bán
+    const bookedSet = new Set(showtime.bookedSeats || []);
+    const conflictBooked = seatCodes.filter((c) => bookedSet.has(c));
+    if (conflictBooked.length > 0) {
+      return res.status(409).json({
+        success: false,
+        conflictType: 'booked',
+        conflictSeats: conflictBooked,
+        message: `Ghế [${conflictBooked.join(', ')}] đã có khách hàng khác hoàn tất mua vé. Vui lòng chọn ghế khác!`,
+      });
+    }
+
+    // 2. Kiểm tra ghế đang được người khác giữ chỗ
+    const conflictHolding = [];
+    (showtime.heldSeats || []).forEach((h) => {
+      const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+      if (!isMine && seatCodes.includes(h.seatCode)) {
+        conflictHolding.push(h.seatCode);
+      }
+    });
+
+    if (conflictHolding.length > 0) {
+      return res.status(409).json({
+        success: false,
+        conflictType: 'holding',
+        conflictSeats: conflictHolding,
+        message: `Ghế [${conflictHolding.join(', ')}] đang được một khách hàng khác giữ chỗ. Vui lòng chọn ghế khác hoặc thử lại sau!`,
+      });
+    }
+
+    // 3. Kiểm tra ghế bảo trì
+    const roomSeats = await Seat.find({
+      theaterId: showtime.theaterId,
+      room: showtime.room,
+    });
+    const seatInfoMap = new Map(roomSeats.map((s) => [s.seatCode, s]));
+
+    const maintenanceSeats = seatCodes.filter((c) => {
+      const s = seatInfoMap.get(c);
+      return s && s.status === 'maintenance';
+    });
+
+    if (maintenanceSeats.length > 0) {
+      return res.status(400).json({
+        success: false,
+        conflictType: 'maintenance',
+        conflictSeats: maintenanceSeats,
+        message: `Ghế [${maintenanceSeats.join(', ')}] đang trong quá trình bảo trì kỹ thuật, không thể chọn.`,
+      });
+    }
+
+    // 4. Kiểm tra quy tắc không để trống 1 ghế đơn lẻ ở giữa hoặc đầu hàng
+    const orphanViolations = validateNoSingleEmptySeats(roomSeats, bookedSet, seatCodes);
+    if (orphanViolations.length > 0) {
+      return res.status(400).json({
+        success: false,
+        conflictType: 'orphan_seat',
+        violationSeats: orphanViolations,
+        message: `Quy tắc rạp phim: Không thể để trống duy nhất 1 ghế lẻ loi [${orphanViolations.join(', ')}] ở giữa hoặc đầu hàng. Vui lòng chọn ghế liền kề nhau!`,
+      });
+    }
+
+    // 5. Cập nhật giữ chỗ (Hold duration: 5 phút = 300 giây)
+    const holdDurationMs = 5 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + holdDurationMs);
+
+    // Gỡ các ghế cũ của user này nếu có
+    showtime.heldSeats = (showtime.heldSeats || []).filter((h) => {
+      const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+      return !isMine;
+    });
+
+    // Thêm các ghế mới giữ
+    seatCodes.forEach((code) => {
+      showtime.heldSeats.push({
+        seatCode: code,
+        userId: userId || '',
+        holdToken: holdToken || '',
+        expiresAt,
+      });
+    });
+
+    await showtime.save();
+
+    return res.json({
+      success: true,
+      message: `Đã giữ chỗ thành công ${seatCodes.length} ghế trong 05:00 phút!`,
+      heldSeats: seatCodes,
+      expiresAt: expiresAt.toISOString(),
+      remainingSeconds: 300,
+    });
+  } catch (err) {
+    console.error('[POST /api/seats/hold] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi giữ chỗ ghế: ' + err.message,
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/seats/release
+// UC25: Hủy giữ chỗ ghế khi người dùng bỏ chọn hoặc thoát màn hình
+// ════════════════════════════════════════════════════════════════════════════
+router.post('/release', async (req, res) => {
+  try {
+    const { showtimeId, seatCodes, userId, holdToken } = req.body;
+
+    let showtime = await Showtime.findOne({ code: showtimeId });
+    if (!showtime && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+      showtime = await Showtime.findById(showtimeId);
+    }
+
+    if (!showtime) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu.' });
+    }
+
+    if (showtime.heldSeats && showtime.heldSeats.length > 0) {
+      const releaseSet = seatCodes ? new Set(seatCodes) : null;
+      showtime.heldSeats = showtime.heldSeats.filter((h) => {
+        const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+        if (!isMine) return true;
+        if (releaseSet) return !releaseSet.has(h.seatCode);
+        return false;
+      });
+      await showtime.save();
+    }
+
+    return res.json({
+      success: true,
+      message: 'Đã giải phóng ghế giữ chỗ thành công.',
+    });
+  } catch (err) {
+    console.error('[POST /api/seats/release] Lỗi:', err);
+    return res.status(500).json({ success: false, message: 'Lỗi khi giải phóng ghế: ' + err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/seats/check-seats
+// UC25: Kiểm tra nhanh tình trạng khả dụng realtime của danh sách ghế
+// ════════════════════════════════════════════════════════════════════════════
+router.post('/check-seats', async (req, res) => {
+  try {
+    const { showtimeId, seatCodes, userId, holdToken } = req.body;
+    let showtime = await Showtime.findOne({ code: showtimeId });
+    if (!showtime && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+      showtime = await Showtime.findById(showtimeId);
+    }
+
+    if (!showtime) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu.' });
+    }
+
+    cleanExpiredHolds(showtime);
+
+    const bookedSet = new Set(showtime.bookedSeats || []);
+    const conflictBooked = (seatCodes || []).filter((c) => bookedSet.has(c));
+    const conflictHolding = [];
+
+    (showtime.heldSeats || []).forEach((h) => {
+      const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+      if (!isMine && (seatCodes || []).includes(h.seatCode)) {
+        conflictHolding.push(h.seatCode);
+      }
+    });
+
+    const isAvailable = conflictBooked.length === 0 && conflictHolding.length === 0;
+
+    return res.json({
+      success: true,
+      isAvailable,
+      conflictBooked,
+      conflictHolding,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // POST /api/seats/book
-// UC24: Đặt giữ ghế cho suất chiếu và cập nhật trạng thái đã đặt lên MongoDB Atlas
+// UC24 & UC25: Đặt vé hoàn tất với cơ chế kiểm tra chống đặt trùng tuyệt đối
 // ════════════════════════════════════════════════════════════════════════════
 router.post('/book', async (req, res) => {
   try {
@@ -340,6 +665,7 @@ router.post('/book', async (req, res) => {
       showtimeId,
       seatCodes,
       userId,
+      holdToken,
       paymentMethod = 'Ví MoMo',
       combos = '',
     } = req.body;
@@ -363,18 +689,41 @@ router.post('/book', async (req, res) => {
       });
     }
 
-    // Kiểm tra các ghế đã chọn có bị đặt rồi hoặc đang bảo trì không
+    // Dọn dẹp các hold đã hết hạn
+    cleanExpiredHolds(showtime);
+
+    // 1. Kiểm tra chống trùng ghế đã đặt
     const currentBooked = new Set(showtime.bookedSeats || []);
     const alreadyBooked = seatCodes.filter((code) => currentBooked.has(code));
 
     if (alreadyBooked.length > 0) {
       return res.status(409).json({
         success: false,
-        message: `Ghế [${alreadyBooked.join(', ')}] đã có người đặt trước. Vui lòng chọn ghế khác!`,
+        conflictType: 'booked',
+        conflictSeats: alreadyBooked,
+        message: `Rất tiếc! Ghế [${alreadyBooked.join(', ')}] vừa có khách hàng khác thanh toán thành công. Vui lòng chọn ghế khác!`,
       });
     }
 
-    // Lấy thông tin chi tiết các ghế để tính tổng tiền
+    // 2. Kiểm tra xem có ghế nào đang bị người khác giữ chỗ không
+    const heldByOthers = [];
+    (showtime.heldSeats || []).forEach((h) => {
+      const isMine = (holdToken && h.holdToken === holdToken) || (userId && h.userId === userId);
+      if (!isMine && seatCodes.includes(h.seatCode)) {
+        heldByOthers.push(h.seatCode);
+      }
+    });
+
+    if (heldByOthers.length > 0) {
+      return res.status(409).json({
+        success: false,
+        conflictType: 'holding',
+        conflictSeats: heldByOthers,
+        message: `Ghế [${heldByOthers.join(', ')}] đang được một khách hàng khác giữ chỗ. Vui lòng chọn ghế khác!`,
+      });
+    }
+
+    // 3. Lấy thông tin chi tiết các ghế để tính tổng tiền
     const seatsInfo = await Seat.find({
       theaterId: showtime.theaterId,
       room: showtime.room,
@@ -409,8 +758,9 @@ router.post('/book', async (req, res) => {
       }
     });
 
-    // Thêm các ghế đã chọn vào bookedSeats của suất chiếu
+    // Thêm các ghế đã chọn vào bookedSeats của suất chiếu và giải phóng khỏi heldSeats
     showtime.bookedSeats.push(...seatCodes);
+    showtime.heldSeats = (showtime.heldSeats || []).filter((h) => !seatCodes.includes(h.seatCode));
     showtime.availableSeats = Math.max(0, showtime.totalSeats - showtime.bookedSeats.length);
 
     if (showtime.availableSeats === 0) {

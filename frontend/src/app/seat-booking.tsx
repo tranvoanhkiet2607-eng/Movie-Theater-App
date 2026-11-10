@@ -1,5 +1,5 @@
 // Nguyễn Minh Quân - CE180048
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,11 @@ export default function SeatBookingScreen() {
   const params = useLocalSearchParams<{ showtimeId?: string }>();
   const { user, isAuthenticated } = useAuth();
 
+  // Token nhận diện phiên chọn ghế độc nhất của thiết bị
+  const [holdToken] = useState<string>(
+    () => `tok_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`
+  );
+
   const [activeShowtimeId, setActiveShowtimeId] = useState<string>(
     params.showtimeId || 'st-m1-t1-d0-0930'
   );
@@ -33,44 +38,125 @@ export default function SeatBookingScreen() {
   const [data, setData] = useState<ShowtimeSeatMapResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ─── Selected Seats State ───────────────────────────────────────────────────
+  // ─── Selected Seats & Hold Timer States (UC25) ──────────────────────────────
   const [selectedSeatCodes, setSelectedSeatCodes] = useState<string[]>([]);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>('Ví MoMo');
+  const [isHoldingLoading, setIsHoldingLoading] = useState<boolean>(false);
 
-  // ─── Modals State ───────────────────────────────────────────────────────────
+  // ─── Modals & Notices State ─────────────────────────────────────────────────
   const [confirmModalVisible, setConfirmModalVisible] = useState<boolean>(false);
   const [bookingLoading, setBookingLoading] = useState<boolean>(false);
   const [successBooking, setSuccessBooking] = useState<any | null>(null);
   const [seatNotice, setSeatNotice] = useState<string | null>(null);
+  const [orphanWarning, setOrphanWarning] = useState<string | null>(null);
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── Fetch Seat Map for Showtime ────────────────────────────────────────────
-  const fetchSeatMap = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setErrorMessage(null);
-      setSelectedSeatCodes([]); // reset selected seats when changing showtime
+  const fetchSeatMap = useCallback(
+    async (isBackground = false) => {
+      try {
+        if (!isBackground) setIsLoading(true);
+        setErrorMessage(null);
 
-      const res = await SeatAPI.getShowtimeSeatMap(activeShowtimeId);
-      setData(res);
-    } catch (err: any) {
-      setErrorMessage(
-        err?.message || 'Không thể tải sơ đồ ghế của suất chiếu lúc này.'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeShowtimeId]);
+        const res = await SeatAPI.getShowtimeSeatMap(activeShowtimeId, {
+          holdToken,
+          userId: user?.id,
+        });
 
+        setData(res);
+
+        // Đồng bộ các ghế đang được giữ bởi user này nếu server phản hồi
+        if (res.myHold && res.myHold.seatCodes?.length > 0) {
+          setSelectedSeatCodes(res.myHold.seatCodes);
+          setRemainingSeconds(res.myHold.remainingSeconds || 300);
+          setHoldExpiresAt(res.myHold.expiresAt);
+        }
+      } catch (err: any) {
+        if (!isBackground) {
+          setErrorMessage(
+            err?.message || 'Không thể tải sơ đồ ghế của suất chiếu lúc này.'
+          );
+        }
+      } finally {
+        if (!isBackground) setIsLoading(false);
+      }
+    },
+    [activeShowtimeId, holdToken, user?.id]
+  );
+
+  // Khởi tạo và thiết lập polling làm mới trạng thái ghế ngầm mỗi 15 giây
   useEffect(() => {
     fetchSeatMap();
+
+    refreshIntervalRef.current = setInterval(() => {
+      fetchSeatMap(true);
+    }, 15000);
+
+    return () => {
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+    };
   }, [fetchSeatMap]);
 
-  // Đồng bộ params từ ngoài truyền vào
+  // Đồng bộ params từ bên ngoài
   useEffect(() => {
     if (params.showtimeId && params.showtimeId !== activeShowtimeId) {
       setActiveShowtimeId(params.showtimeId);
+      setSelectedSeatCodes([]);
+      setRemainingSeconds(0);
+      setHoldExpiresAt(null);
     }
   }, [params.showtimeId]);
+
+  // ─── Countdown Timer cho ghế đang giữ chỗ (UC25) ─────────────────────────────
+  useEffect(() => {
+    if (remainingSeconds <= 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (selectedSeatCodes.length > 0 && holdExpiresAt) {
+        // Hết thời gian giữ chỗ
+        Alert.alert(
+          'Hết thời gian giữ chỗ',
+          'Thời gian giữ chỗ ghế (5 phút) đã hết hạn. Hệ thống đã mở lại ghế cho khách hàng khác để tránh chiếm chỗ.',
+          [{ text: 'Đã hiểu' }]
+        );
+        setSelectedSeatCodes([]);
+        setHoldExpiresAt(null);
+        fetchSeatMap();
+      }
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setRemainingSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [remainingSeconds, selectedSeatCodes.length, holdExpiresAt, fetchSeatMap]);
+
+  // Giải phóng ghế khi rời khỏi màn hình
+  useEffect(() => {
+    return () => {
+      if (selectedSeatCodes.length > 0) {
+        SeatAPI.releaseSeats({
+          showtimeId: activeShowtimeId,
+          holdToken,
+          userId: user?.id,
+        }).catch(() => {});
+      }
+    };
+  }, [activeShowtimeId, holdToken, user?.id, selectedSeatCodes.length]);
+
+  // ─── Format Timer (MM:SS) ───────────────────────────────────────────────────
+  const timerDisplay = useMemo(() => {
+    const mins = Math.floor(remainingSeconds / 60);
+    const secs = remainingSeconds % 60;
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  }, [remainingSeconds]);
 
   // ─── Group Seats By Row ────────────────────────────────────────────────────
   const seatsByRow = useMemo(() => {
@@ -109,31 +195,91 @@ export default function SeatBookingScreen() {
     return `${totalAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
   }, [totalAmount]);
 
-  // ─── Handle Toggle Seat Selection ───────────────────────────────────────────
-  const handleToggleSeat = (seat: ShowtimeSeatItem) => {
+  // ─── UC25: Xử lý chọn ghế & Kiểm tra tình trạng tránh đặt trùng ──────────────
+  const handleToggleSeat = async (seat: ShowtimeSeatItem) => {
     setSeatNotice(null);
+    setOrphanWarning(null);
 
-    // Không cho chọn ghế đã đặt
+    // 1. Kiểm tra nếu ghế đã bán
     if (seat.status === 'booked') {
-      setSeatNotice(`Ghế ${seat.seatCode} đã có người đặt vé cho suất chiếu này.`);
+      setSeatNotice(`Ghế ${seat.seatCode} đã có khách hàng mua vé cho suất chiếu này.`);
       return;
     }
 
-    // Không cho chọn ghế đang bảo trì
+    // 2. Kiểm tra nếu ghế đang bị khách hàng khác giữ chỗ
+    if (seat.status === 'holding') {
+      setSeatNotice(
+        `Ghế ${seat.seatCode} đang được một khách hàng khác giữ chỗ. Vui lòng chọn ghế khác!`
+      );
+      return;
+    }
+
+    // 3. Kiểm tra nếu ghế bảo trì
     if (seat.status === 'maintenance') {
       setSeatNotice(`Ghế ${seat.seatCode} hiện đang bảo trì kỹ thuật.`);
       return;
     }
 
-    // Toggle chọn / bỏ chọn
-    if (selectedSeatCodes.includes(seat.seatCode)) {
-      setSelectedSeatCodes((prev) => prev.filter((c) => c !== seat.seatCode));
+    const isCurrentlySelected = selectedSeatCodes.includes(seat.seatCode);
+    let nextSelected: string[] = [];
+
+    if (isCurrentlySelected) {
+      // Bỏ chọn ghế
+      nextSelected = selectedSeatCodes.filter((c) => c !== seat.seatCode);
     } else {
+      // Chọn thêm ghế
       if (selectedSeatCodes.length >= 8) {
-        Alert.alert('Thông báo', 'Bạn chỉ có thể chọn tối đa 8 ghế trong một lần đặt vé.');
+        Alert.alert('Giới hạn', 'Bạn chỉ có thể chọn tối đa 8 ghế trong một lần đặt vé.');
         return;
       }
-      setSelectedSeatCodes((prev) => [...prev, seat.seatCode]);
+      nextSelected = [...selectedSeatCodes, seat.seatCode];
+    }
+
+    // Nếu bỏ chọn hết tất cả các ghế
+    if (nextSelected.length === 0) {
+      setSelectedSeatCodes([]);
+      setRemainingSeconds(0);
+      setHoldExpiresAt(null);
+      try {
+        await SeatAPI.releaseSeats({
+          showtimeId: activeShowtimeId,
+          holdToken,
+          userId: user?.id,
+        });
+        await fetchSeatMap(true);
+      } catch {}
+      return;
+    }
+
+    // Gọi API giữ chỗ tạm thời và kiểm tra chống đặt trùng (UC25)
+    try {
+      setIsHoldingLoading(true);
+      const res = await SeatAPI.holdSeats({
+        showtimeId: activeShowtimeId,
+        seatCodes: nextSelected,
+        userId: user?.id,
+        holdToken,
+      });
+
+      if (res.success) {
+        setSelectedSeatCodes(nextSelected);
+        setRemainingSeconds(res.remainingSeconds || 300);
+        setHoldExpiresAt(res.expiresAt || null);
+        // Refresh seat map để đồng bộ
+        await fetchSeatMap(true);
+      }
+    } catch (err: any) {
+      // Nếu có lỗi vi phạm quy tắc bỏ trống ghế lẻ hoặc xung đột
+      const msg = err?.message || 'Không thể chọn ghế này.';
+      if (msg.includes('Quy tắc rạp phim') || msg.includes('lẻ loi')) {
+        setOrphanWarning(msg);
+      } else {
+        setSeatNotice(msg);
+        // Làm mới lại sơ đồ ghế vì có thể ghế vừa bị người khác mua
+        await fetchSeatMap(true);
+      }
+    } finally {
+      setIsHoldingLoading(false);
     }
   };
 
@@ -147,11 +293,15 @@ export default function SeatBookingScreen() {
         showtimeId: activeShowtimeId,
         seatCodes: selectedSeatCodes,
         userId: user?.id,
+        holdToken,
         paymentMethod,
       });
 
       setConfirmModalVisible(false);
       setSuccessBooking(res.booking);
+      setSelectedSeatCodes([]);
+      setRemainingSeconds(0);
+      setHoldExpiresAt(null);
       // Refresh lại sơ đồ ghế để hiển thị các ghế vừa đặt chuyển sang trạng thái đã đặt
       await fetchSeatMap();
     } catch (err: any) {
@@ -159,6 +309,7 @@ export default function SeatBookingScreen() {
         'Đặt vé không thành công',
         err?.message || 'Có lỗi xảy ra trong quá trình đặt vé. Vui lòng thử lại.'
       );
+      await fetchSeatMap();
     } finally {
       setBookingLoading(false);
     }
@@ -186,12 +337,20 @@ export default function SeatBookingScreen() {
             </Text>
           </View>
 
-          <View style={styles.timeBadge}>
-            <Ionicons name="time-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.timeBadgeText}>
-              {data?.showtime?.startTime || '--:--'}
-            </Text>
-          </View>
+          {/* Đồng hồ đếm ngược giữ ghế (UC25 Seat Hold Timer) */}
+          {remainingSeconds > 0 ? (
+            <View style={styles.timerBadge}>
+              <Ionicons name="time" size={14} color="#FFFFFF" />
+              <Text style={styles.timerBadgeText}>{timerDisplay}</Text>
+            </View>
+          ) : (
+            <View style={styles.timeBadge}>
+              <Ionicons name="film-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.timeBadgeText}>
+                {data?.showtime?.startTime || '--:--'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Danh sách các suất chiếu khác cùng ngày để đổi nhanh */}
@@ -239,17 +398,17 @@ export default function SeatBookingScreen() {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}>
+        contentContainerStyle={{ paddingBottom: 130 }}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#E50914" />
-            <Text style={styles.loadingText}>Đang tải sơ đồ ghế...</Text>
+            <Text style={styles.loadingText}>Đang kiểm tra sơ đồ ghế realtime...</Text>
           </View>
         ) : errorMessage ? (
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={28} color="#EF4444" />
             <Text style={styles.errorText}>{errorMessage}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchSeatMap}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSeatMap()}>
               <Text style={styles.retryBtnText}>Tải lại sơ đồ ghế</Text>
             </TouchableOpacity>
           </View>
@@ -288,26 +447,49 @@ export default function SeatBookingScreen() {
                 </View>
 
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendBox, { backgroundColor: '#374151' }]}>
-                    <Ionicons name="close" size={10} color="#9CA3AF" />
+                  <View
+                    style={[
+                      styles.legendBox,
+                      { backgroundColor: '#78350F', borderWidth: 1, borderColor: '#D97706' },
+                    ]}>
+                    <Ionicons name="time" size={9} color="#FBBF24" />
                   </View>
-                  <Text style={styles.legendLabel}>Đã đặt</Text>
+                  <Text style={styles.legendLabel}>Đang giữ</Text>
                 </View>
 
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendBox, { backgroundColor: '#1F2937', borderWidth: 1, borderColor: '#EF4444' }]}>
-                    <Ionicons name="construct" size={8} color="#EF4444" />
+                  <View style={[styles.legendBox, { backgroundColor: '#374151' }]}>
+                    <Ionicons name="person" size={9} color="#9CA3AF" />
                   </View>
-                  <Text style={styles.legendLabel}>Bảo trì</Text>
+                  <Text style={styles.legendLabel}>Đã bán</Text>
                 </View>
               </View>
             </View>
 
-            {/* Thông báo tương tác ghế */}
+            {/* Banner Cảnh báo ghế lẻ loi (Orphan Seat Rule) */}
+            {orphanWarning && (
+              <View style={styles.orphanWarningBanner}>
+                <Ionicons name="warning" size={18} color="#EF4444" />
+                <Text style={styles.orphanWarningText}>{orphanWarning}</Text>
+              </View>
+            )}
+
+            {/* Banner Thông báo xung đột / trạng thái ghế */}
             {seatNotice && (
               <View style={styles.noticeBanner}>
                 <Ionicons name="information-circle" size={16} color="#F59E0B" />
                 <Text style={styles.noticeText}>{seatNotice}</Text>
+              </View>
+            )}
+
+            {/* Banner đồng hồ giữ chỗ nếu đang chọn ghế */}
+            {remainingSeconds > 0 && selectedSeatCodes.length > 0 && (
+              <View style={styles.holdBanner}>
+                <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+                <Text style={styles.holdBannerText}>
+                  Ghế [{selectedSeatCodes.join(', ')}] đang được tạm khóa riêng cho bạn trong{' '}
+                  <Text style={{ fontWeight: '800', color: '#FFFFFF' }}>{timerDisplay}</Text>
+                </Text>
               </View>
             )}
 
@@ -322,6 +504,7 @@ export default function SeatBookingScreen() {
                       {group.items.map((seat) => {
                         const isSelected = selectedSeatCodes.includes(seat.seatCode);
                         const isBooked = seat.status === 'booked';
+                        const isHolding = seat.status === 'holding';
                         const isMaint = seat.status === 'maintenance';
                         const isCouple = seat.type === 'couple';
                         const isVip = seat.type === 'vip';
@@ -329,6 +512,7 @@ export default function SeatBookingScreen() {
                         let bgColor = '#E5E7EB'; // standard available
                         if (isVip) bgColor = '#F59E0B';
                         if (isCouple) bgColor = '#EC4899';
+                        if (isHolding) bgColor = '#78350F';
                         if (isBooked) bgColor = '#374151';
                         if (isMaint) bgColor = '#1F2937';
                         if (isSelected) bgColor = '#E50914';
@@ -341,13 +525,16 @@ export default function SeatBookingScreen() {
                               isCouple && styles.seatButtonCouple,
                               { backgroundColor: bgColor },
                               isSelected && styles.seatButtonSelected,
+                              isHolding && styles.seatButtonHolding,
                               isMaint && styles.seatButtonMaintenance,
                             ]}
                             onPress={() => handleToggleSeat(seat)}
-                            disabled={isBooked || isMaint}
+                            disabled={isBooked || isMaint || isHolding || isHoldingLoading}
                             activeOpacity={0.7}>
                             {isSelected ? (
                               <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                            ) : isHolding ? (
+                              <Ionicons name="time" size={11} color="#FBBF24" />
                             ) : isBooked ? (
                               <Ionicons name="person" size={11} color="#6B7280" />
                             ) : isMaint ? (
@@ -378,7 +565,7 @@ export default function SeatBookingScreen() {
               <View style={styles.summaryBar}>
                 <View style={styles.summaryStatItem}>
                   <Text style={styles.summaryStatVal}>{data.summary.totalSeats}</Text>
-                  <Text style={styles.summaryStatName}>Tổng số ghế</Text>
+                  <Text style={styles.summaryStatName}>Tổng ghế</Text>
                 </View>
                 <View style={styles.summaryStatItem}>
                   <Text style={[styles.summaryStatVal, { color: '#10B981' }]}>
@@ -387,16 +574,22 @@ export default function SeatBookingScreen() {
                   <Text style={styles.summaryStatName}>Còn trống</Text>
                 </View>
                 <View style={styles.summaryStatItem}>
+                  <Text style={[styles.summaryStatVal, { color: '#F59E0B' }]}>
+                    {data.summary.holdingCount || 0}
+                  </Text>
+                  <Text style={styles.summaryStatName}>Đang giữ</Text>
+                </View>
+                <View style={styles.summaryStatItem}>
                   <Text style={[styles.summaryStatVal, { color: '#EF4444' }]}>
                     {data.summary.bookedCount}
                   </Text>
-                  <Text style={styles.summaryStatName}>Đã đặt</Text>
+                  <Text style={styles.summaryStatName}>Đã bán</Text>
                 </View>
                 <View style={styles.summaryStatItem}>
-                  <Text style={[styles.summaryStatVal, { color: '#F59E0B' }]}>
-                    {data.summary.vipCount}
+                  <Text style={[styles.summaryStatVal, { color: '#EC4899' }]}>
+                    {data.summary.coupleCount}
                   </Text>
-                  <Text style={styles.summaryStatName}>Ghế VIP</Text>
+                  <Text style={styles.summaryStatName}>Sweetbox</Text>
                 </View>
               </View>
             )}
@@ -410,13 +603,13 @@ export default function SeatBookingScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedCountText}>
               {selectedSeatCodes.length > 0
-                ? `Đang chọn ${selectedSeatCodes.length} ghế:`
+                ? `Đang giữ ${selectedSeatCodes.length} ghế (khóa 5p):`
                 : 'Chưa chọn ghế nào'}
             </Text>
             <Text style={styles.selectedSeatsList} numberOfLines={1}>
               {selectedSeatCodes.length > 0
                 ? selectedSeatCodes.join(', ')
-                : 'Chạm vào sơ đồ để chọn ghế'}
+                : 'Chạm vào ghế trống để giữ chỗ'}
             </Text>
           </View>
 
@@ -446,7 +639,7 @@ export default function SeatBookingScreen() {
             color="#FFFFFF"
           />
           <Text style={styles.bookButtonText}>
-            {isAuthenticated ? 'Tiếp tục đặt vé' : 'Đăng nhập để đặt vé'}
+            {isAuthenticated ? 'Tiến hành đặt vé' : 'Đăng nhập để đặt vé'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -496,6 +689,12 @@ export default function SeatBookingScreen() {
                 <Text style={styles.bookingDetailLabel}>Ghế đã chọn:</Text>
                 <Text style={[styles.bookingDetailVal, { color: '#E50914', fontWeight: '800' }]}>
                   {selectedSeatCodes.join(', ')} ({selectedSeatCodes.length} ghế)
+                </Text>
+              </View>
+              <View style={styles.bookingDetailRow}>
+                <Text style={styles.bookingDetailLabel}>Thời gian giữ chỗ còn lại:</Text>
+                <Text style={[styles.bookingDetailVal, { color: '#F59E0B', fontWeight: '800' }]}>
+                  {timerDisplay}
                 </Text>
               </View>
               <View style={styles.bookingDetailRow}>
@@ -637,9 +836,7 @@ export default function SeatBookingScreen() {
                   setSuccessBooking(null);
                   router.push('/explore');
                 }}>
-                <Text style={styles.successBackExploreText}>
-                  Về Lịch Chiếu
-                </Text>
+                <Text style={styles.successBackExploreText}>Về Lịch Chiếu</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -684,6 +881,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 2,
+  },
+  timerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  timerBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
   timeBadge: {
     flexDirection: 'row',
@@ -828,7 +1043,7 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   legendBox: {
     width: 14,
@@ -838,8 +1053,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   legendLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#D1D5DB',
+  },
+  orphanWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.16)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  orphanWarningText: {
+    color: '#F87171',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 16,
   },
   noticeBanner: {
     flexDirection: 'row',
@@ -853,6 +1087,24 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  holdBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  holdBannerText: {
+    color: '#10B981',
     fontSize: 12,
     fontWeight: '500',
     flex: 1,
@@ -897,6 +1149,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 6,
     elevation: 4,
+  },
+  seatButtonHolding: {
+    borderWidth: 1,
+    borderColor: '#D97706',
+    opacity: 0.85,
   },
   seatButtonMaintenance: {
     borderWidth: 1,

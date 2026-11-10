@@ -64,6 +64,14 @@ const ShowtimeSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    heldSeats: [
+      {
+        seatCode: { type: String, required: true },
+        userId: { type: String, default: '' },
+        holdToken: { type: String, default: '' },
+        expiresAt: { type: Date, required: true },
+      },
+    ],
     status: {
       type: String,
       enum: ['available', 'filling_fast', 'almost_full', 'sold_out'],
