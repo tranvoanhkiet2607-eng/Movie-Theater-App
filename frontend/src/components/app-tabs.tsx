@@ -46,6 +46,16 @@ export default function AppTabs() {
       />
 
       <Tabs.Screen
+        name="cinemas"
+        options={{
+          title: 'Cụm rạp',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'business' : 'business-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="explore"
         options={{
           title: 'Lịch chiếu',

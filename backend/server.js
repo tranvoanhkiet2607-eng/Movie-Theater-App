@@ -24,6 +24,8 @@ const orderRoutes = require('./routes/orders');
 const reportRoutes = require('./routes/reports');
 const seatRoutes = require('./routes/seats');
 const pricingRoutes = require('./routes/pricing');
+const genreRoutes = require('./routes/genres');
+const theaterRoutes = require('./routes/theaters');
 const { seedShowtimesData } = require('./seed/seedShowtimes');
 const { seedNewFeaturesData } = require('./seed/seedNewFeatures');
 const { seedSeatsData } = require('./seed/seedSeats');
@@ -50,6 +52,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/seats', seatRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/genres', genreRoutes);
+app.use('/api/theaters', theaterRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
