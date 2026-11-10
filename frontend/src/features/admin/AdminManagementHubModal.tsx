@@ -33,8 +33,9 @@ import { Review } from '@/types/review';
 import { NotificationItem } from '@/types/notification';
 import { Order, OrderStatus } from '@/types/order';
 import { ReportSummary, TopMovieStat, TopFoodStat } from '@/types/report';
+import PricingManagementTab from '@/features/pricing/PricingManagementTab';
 
-type AdminTab = 'food' | 'promo' | 'reviews' | 'notifs' | 'orders' | 'reports';
+type AdminTab = 'food' | 'promo' | 'reviews' | 'notifs' | 'orders' | 'reports' | 'pricing';
 
 interface AdminManagementHubModalProps {
   visible: boolean;
@@ -458,6 +459,7 @@ export default function AdminManagementHubModal({
             { key: 'food', label: '🍿 Đồ ăn (UC37)' },
             { key: 'orders', label: '📋 Đơn đồ ăn (UC44)' },
             { key: 'promo', label: '🎟️ Khuyến mãi (UC39)' },
+            { key: 'pricing', label: '🏷️ Giá vé (UC28)' },
             { key: 'reviews', label: '⭐ Kiểm duyệt (UC41)' },
             { key: 'notifs', label: '🔔 Thông báo (UC42)' },
             { key: 'reports', label: '📊 Báo cáo (UC45)' },
@@ -1095,6 +1097,13 @@ export default function AdminManagementHubModal({
                   ))}
                 </View>
               </View>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════ */}
+            {/* TAB 7: UC28 - MANAGE TICKET PRICING RULES                   */}
+            {/* ═══════════════════════════════════════════════════════════ */}
+            {activeTab === 'pricing' && (
+              <PricingManagementTab isManageMode={true} />
             )}
           </ScrollView>
         )}

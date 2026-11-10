@@ -2481,6 +2481,35 @@ export default function ExploreScreen() {
                   </Text>
                 </View>
 
+                {isManageMode && (
+                  <TouchableOpacity
+                    style={[
+                      styles.pricingMatrixCloseBtn,
+                      {
+                        backgroundColor: '#1E2330',
+                        borderWidth: 1,
+                        borderColor: '#F59E0B',
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        gap: 6,
+                        marginTop: 4,
+                      },
+                    ]}
+                    onPress={() => {
+                      setPricingMatrixModalVisible(false);
+                      router.push({
+                        pathname: '/seats',
+                        params: { tab: 'pricing' },
+                      });
+                    }}
+                    activeOpacity={0.8}>
+                    <Ionicons name="settings-outline" size={16} color="#F59E0B" />
+                    <Text style={[styles.pricingMatrixCloseText, { color: '#F59E0B' }]}>
+                      Quản Lý Quy Tắc Giá Vé
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   style={styles.pricingMatrixCloseBtn}
                   onPress={() => setPricingMatrixModalVisible(false)}

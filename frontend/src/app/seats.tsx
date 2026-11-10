@@ -29,12 +29,13 @@ import {
   SeatTypeItem,
   UpdateSeatTypePayload,
 } from '@/types/seat';
+import PricingManagementTab from '@/features/pricing/PricingManagementTab';
 
-type ViewMode = 'map' | 'list' | 'types';
+type ViewMode = 'map' | 'list' | 'types' | 'pricing';
 
 export default function SeatsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ theaterId?: string; room?: string }>();
+  const params = useLocalSearchParams<{ theaterId?: string; room?: string; tab?: string }>();
   const { user, isAuthenticated } = useAuth();
   const isManageMode = Boolean(isAuthenticated && user?.role === 'admin');
 
@@ -45,7 +46,7 @@ export default function SeatsScreen() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedRow, setSelectedRow] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const [viewMode, setViewMode] = useState<ViewMode>(params.tab === 'pricing' ? 'pricing' : 'map');
 
   // ─── Data States ────────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -597,6 +598,16 @@ export default function SeatsScreen() {
                 color={viewMode === 'types' ? '#FFFFFF' : '#9CA3AF'}
               />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewModeBtn, viewMode === 'pricing' && styles.viewModeBtnActive]}
+              onPress={() => setViewMode('pricing')}
+              activeOpacity={0.8}>
+              <Ionicons
+                name="receipt"
+                size={16}
+                color={viewMode === 'pricing' ? '#FFFFFF' : '#9CA3AF'}
+              />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -634,6 +645,18 @@ export default function SeatsScreen() {
                 activeOpacity={0.8}>
                 <Ionicons name="pricetags" size={15} color="#FFFFFF" />
                 <Text style={styles.adminActionBtnText}>Loại ghế</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.adminActionBtn,
+                  styles.adminActionBtnSecondary,
+                  viewMode === 'pricing' && { backgroundColor: '#E50914', borderColor: '#E50914' },
+                ]}
+                onPress={() => setViewMode('pricing')}
+                activeOpacity={0.8}>
+                <Ionicons name="receipt" size={15} color="#FFFFFF" />
+                <Text style={styles.adminActionBtnText}>Quy tắc giá</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -832,6 +855,9 @@ export default function SeatsScreen() {
               <Text style={styles.retryBtnText}>Thử lại</Text>
             </TouchableOpacity>
           </View>
+        ) : viewMode === 'pricing' ? (
+          /* ── Quản Lý Quy Tắc Giá Vé (UC28: Manage Ticket Pricing) ── */
+          <PricingManagementTab isManageMode={isManageMode} />
         ) : viewMode === 'types' ? (
           /* ── Quản Lý Loại Ghế (UC26: Manage Seat Types) ── */
           <View style={styles.typesContainer}>

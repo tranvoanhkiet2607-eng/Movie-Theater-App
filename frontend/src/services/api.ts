@@ -41,6 +41,15 @@ import {
   ShowtimeSeatMapResponse,
   UpdateSeatTypePayload,
 } from '@/types/seat';
+import {
+  PricingCalculatePreviewPayload,
+  PricingCalculatePreviewResponse,
+  PricingRuleDetailResponse,
+  PricingRuleFormData,
+  PricingRuleItem,
+  PricingRulesResponse,
+  PricingRuleSummaryResponse,
+} from '@/types/pricing';
 
 function getBaseUrl(): string {
   // Tự động lấy IP mạng LAN của máy tính khi chạy trên Expo Go / thiết bị thật
@@ -752,5 +761,67 @@ export const SeatAPI = {
   resetSeatTypes: (): Promise<{ success: boolean; message: string; seatTypes: SeatTypeItem[] }> =>
     apiRequest('/seats/types/reset-defaults', {
       method: 'POST',
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC28: TICKET PRICING RULES MANAGEMENT API
+// ════════════════════════════════════════════════════════════════════════════
+export const PricingAPI = {
+  /** UC28: Lấy danh sách quy tắc giá vé (có hỗ trợ lọc theo category, isActive, search) */
+  getRules: (params: { category?: string; isActive?: boolean | string; search?: string } = {}): Promise<PricingRulesResponse> => {
+    const qs = new URLSearchParams();
+    if (params.category && params.category !== 'all') qs.append('category', params.category);
+    if (params.isActive !== undefined && params.isActive !== 'all') qs.append('isActive', String(params.isActive));
+    if (params.search) qs.append('search', params.search);
+    const queryStr = qs.toString();
+    return apiRequest<PricingRulesResponse>(`/pricing/rules${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  /** UC28: Lấy thống kê tổng quan quy tắc giá vé */
+  getSummary: (): Promise<PricingRuleSummaryResponse> =>
+    apiRequest<PricingRuleSummaryResponse>('/pricing/rules/summary'),
+
+  /** UC28: Lấy chi tiết một quy tắc giá vé theo ID hoặc Code */
+  getRuleById: (id: string): Promise<PricingRuleDetailResponse> =>
+    apiRequest<PricingRuleDetailResponse>(`/pricing/rules/${encodeURIComponent(id)}`),
+
+  /** UC28: Thêm mới quy tắc giá vé */
+  createRule: (payload: PricingRuleFormData): Promise<{ success: boolean; message: string; rule: PricingRuleItem }> =>
+    apiRequest('/pricing/rules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC28: Cập nhật quy tắc giá vé */
+  updateRule: (id: string, payload: Partial<PricingRuleFormData>): Promise<{ success: boolean; message: string; rule: PricingRuleItem }> =>
+    apiRequest(`/pricing/rules/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC28: Bật / Tắt kích hoạt nhanh trạng thái quy tắc */
+  toggleRule: (id: string): Promise<{ success: boolean; message: string; rule: PricingRuleItem }> =>
+    apiRequest(`/pricing/rules/${encodeURIComponent(id)}/toggle`, {
+      method: 'PATCH',
+    }),
+
+  /** UC28: Xóa quy tắc giá vé */
+  deleteRule: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/pricing/rules/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+
+  /** UC28: Khôi phục danh sách quy tắc giá vé mặc định của rạp */
+  resetDefaults: (): Promise<{ success: boolean; message: string; rules: PricingRuleItem[] }> =>
+    apiRequest('/pricing/rules/reset-defaults', {
+      method: 'POST',
+    }),
+
+  /** UC28: Tính toán xem trước giá vé theo bộ quy tắc đang kích hoạt */
+  calculatePreview: (payload: PricingCalculatePreviewPayload): Promise<PricingCalculatePreviewResponse> =>
+    apiRequest<PricingCalculatePreviewResponse>('/pricing/calculate-preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };
