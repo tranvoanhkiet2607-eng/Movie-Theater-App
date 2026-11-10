@@ -1,4 +1,4 @@
-// UC11: View Movies - MovieDetailModal Component
+// UC11: View Movies | UC16: View Movie Trailer - MovieDetailModal Component
 import React from 'react';
 import {
   View,
@@ -13,13 +13,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Movie } from '../types/movie.types';
 import { getAgeBadgeColors } from './MovieCard';
-import MovieReviewsSection from '@/features/reviews/components/MovieReviewsSection';
 
 interface MovieDetailModalProps {
   movie: Movie | null;
   visible: boolean;
   onClose: () => void;
   onSelectShowtime?: (movieId: string) => void;
+  onWatchTrailer?: (movie: Movie) => void; // UC16
 }
 
 export default function MovieDetailModal({
@@ -27,6 +27,7 @@ export default function MovieDetailModal({
   visible,
   onClose,
   onSelectShowtime,
+  onWatchTrailer,
 }: MovieDetailModalProps) {
   if (!movie) return null;
 
@@ -133,6 +134,19 @@ export default function MovieDetailModal({
               </View>
             </View>
 
+            {/* UC16: Nút xem Trailer lớn */}
+            {onWatchTrailer ? (
+              <View style={styles.trailerBarWrapper}>
+                <TouchableOpacity
+                  style={styles.watchTrailerBigBtn}
+                  onPress={() => onWatchTrailer(movie)}
+                  activeOpacity={0.85}>
+                  <Ionicons name="play-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.watchTrailerBigText}>Xem Video Trailer chính thức</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {/* Age Rating Explanation Note */}
             {movie.ageDescription ? (
               <View style={styles.ageNoteBox}>
@@ -204,16 +218,13 @@ export default function MovieDetailModal({
                 <View style={styles.castWrapper}>
                   {movie.cast.map((actor, idx) => (
                     <View key={idx} style={styles.castChip}>
-                      <Ionicons name="person-outline" size={13} color="#E50914" />
+                      <Ionicons name="person-outline" size={13} color="#E5E7EB" />
                       <Text style={styles.castChipText}>{actor}</Text>
                     </View>
                   ))}
                 </View>
               </View>
             ) : null}
-
-            {/* UC40: Review & Rating Section */}
-            <MovieReviewsSection movieId={movie.id} movieTitle={movie.title} />
           </ScrollView>
 
           {/* Bottom Action Footer */}
@@ -382,6 +393,26 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+  trailerBarWrapper: {
+    paddingHorizontal: 20,
+    marginTop: 14,
+  },
+  watchTrailerBigBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1E2436',
+    borderWidth: 1,
+    borderColor: '#E50914',
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  watchTrailerBigText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
   ageNoteBox: {
