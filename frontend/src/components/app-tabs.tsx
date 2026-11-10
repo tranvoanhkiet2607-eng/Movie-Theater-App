@@ -56,6 +56,16 @@ export default function AppTabs() {
       />
 
       <Tabs.Screen
+        name="seats"
+        options={{
+          title: 'Phòng & Ghế',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Tài khoản',

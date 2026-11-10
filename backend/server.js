@@ -22,8 +22,10 @@ const reviewRoutes = require('./routes/reviews');
 const notificationRoutes = require('./routes/notifications');
 const orderRoutes = require('./routes/orders');
 const reportRoutes = require('./routes/reports');
+const seatRoutes = require('./routes/seats');
 const { seedShowtimesData } = require('./seed/seedShowtimes');
 const { seedNewFeaturesData } = require('./seed/seedNewFeatures');
+const { seedSeatsData } = require('./seed/seedSeats');
 
 const app = express();
 
@@ -44,6 +46,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/seats', seatRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -169,6 +172,8 @@ async function seedInitialData() {
     await seedShowtimesData();
     // Tự động khởi tạo dữ liệu cho Food, Promotions, Reviews, Notifications, Orders
     await seedNewFeaturesData();
+    // Tự động khởi tạo dữ liệu Ghế ngồi (UC23)
+    await seedSeatsData();
     isSeeded = true;
   } catch (seedErr) {
     console.error('⚠️ Lỗi khi seed dữ liệu ban đầu:', seedErr.message);

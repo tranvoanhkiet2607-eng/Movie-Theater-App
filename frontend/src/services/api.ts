@@ -23,6 +23,12 @@ import { Review, MovieReviewsResponse, ReviewMutationPayload } from '@/types/rev
 import { NotificationItem, NotificationMutationPayload } from '@/types/notification';
 import { Order, CreateOrderPayload, OrderStatus } from '@/types/order';
 import { ReportSummary, TopMovieStat, TopFoodStat, RevenueTrend } from '@/types/report';
+import {
+  GenerateRoomData,
+  GetSeatsResponse,
+  SeatFormData,
+  SeatItem,
+} from '@/types/seat';
 
 function getBaseUrl(): string {
   // Tự động lấy IP mạng LAN của máy tính khi chạy trên Expo Go / thiết bị thật
@@ -554,4 +560,81 @@ export const ReportAPI = {
 
   getRevenueTrends: (): Promise<{ success: boolean; trends: RevenueTrend[] }> =>
     apiRequest('/reports/revenue-trends'),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC23: SEAT MANAGEMENT ENDPOINTS — Nguyễn Minh Quân - CE180048
+// Truy vấn sơ đồ & Quản lý (Thêm, Xem, Sửa, Xóa) thông tin ghế trên MongoDB Atlas
+// ════════════════════════════════════════════════════════════════════════════
+
+export const SeatAPI = {
+  /** Lấy danh sách ghế, thông số phòng và thống kê ghế theo rạp & phòng chiếu */
+  getSeats: (params: {
+    theaterId?: string;
+    room?: string;
+    type?: string;
+    status?: string;
+    row?: string;
+    search?: string;
+  } = {}): Promise<GetSeatsResponse> => {
+    const query = new URLSearchParams();
+    if (params.theaterId) query.append('theaterId', params.theaterId);
+    if (params.room) query.append('room', params.room);
+    if (params.type) query.append('type', params.type);
+    if (params.status) query.append('status', params.status);
+    if (params.row) query.append('row', params.row);
+    if (params.search) query.append('search', params.search);
+
+    const qs = query.toString();
+    return apiRequest<GetSeatsResponse>(`/seats${qs ? `?${qs}` : ''}`);
+  },
+
+  /** Lấy danh sách các phòng và số lượng ghế theo rạp */
+  getRooms: (theaterId: string = 't1') =>
+    apiRequest(`/seats/rooms?theaterId=${encodeURIComponent(theaterId)}`),
+
+  /** Lấy chi tiết 1 ghế theo ID */
+  getSeatById: (id: string): Promise<{ success: boolean; seat: SeatItem }> =>
+    apiRequest(`/seats/${encodeURIComponent(id)}`),
+
+  /** UC23: Thêm mới 1 ghế vào phòng chiếu */
+  createSeat: (data: SeatFormData): Promise<{ success: boolean; message: string; seat: SeatItem }> =>
+    apiRequest('/seats', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** UC23: Tự động khởi tạo sơ đồ hàng loạt ghế cho phòng chiếu */
+  generateRoom: (
+    data: GenerateRoomData
+  ): Promise<{ success: boolean; message: string; totalCreated: number }> =>
+    apiRequest('/seats/generate-room', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** UC23: Cập nhật thông tin ghế (Mã ghế, hàng, loại ghế, giá vé, trạng thái, ghi chú) */
+  updateSeat: (
+    id: string,
+    data: Partial<SeatFormData>
+  ): Promise<{ success: boolean; message: string; seat: SeatItem }> =>
+    apiRequest(`/seats/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  /** UC23: Xóa 1 ghế khỏi phòng chiếu */
+  deleteSeat: (id: string): Promise<{ success: boolean; message: string; deletedId: string }> =>
+    apiRequest(`/seats/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+
+  /** UC23: Xóa nhiều ghế theo danh sách ID */
+  batchDeleteSeats: (
+    ids: string[]
+  ): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    apiRequest('/seats/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
 };

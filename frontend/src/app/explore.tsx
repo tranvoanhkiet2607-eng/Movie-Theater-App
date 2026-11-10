@@ -1633,6 +1633,24 @@ export default function ExploreScreen() {
                   </View>
                 ) : null}
 
+                {/* Nút xem sơ đồ ghế phòng chiếu */}
+                <TouchableOpacity
+                  style={styles.modalSeatMapBtn}
+                  onPress={() => {
+                    const slot = selectedShowtime;
+                    setSelectedShowtime(null);
+                    router.push({
+                      pathname: '/seats',
+                      params: { theaterId: slot.theaterId, room: slot.room },
+                    });
+                  }}
+                  activeOpacity={0.8}>
+                  <Ionicons name="grid-outline" size={16} color="#3B82F6" />
+                  <Text style={styles.modalSeatMapText}>
+                    Xem sơ đồ ghế {selectedShowtime.room}
+                  </Text>
+                </TouchableOpacity>
+
                 {/* Nút Quản lý trong Modal chi tiết khi là Admin */}
                 {isManageMode && (
                   <View style={styles.modalAdminActionsRow}>
@@ -1641,7 +1659,23 @@ export default function ExploreScreen() {
                       onPress={() => handleOpenEditModal(selectedShowtime)}>
                       <Ionicons name="create-outline" size={16} color="#3B82F6" />
                       <Text style={styles.modalAdminEditText}>
-                        Chỉnh sửa suất chiếu
+                        Sửa suất
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalAdminEditBtn, { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.14)' }]}
+                      onPress={() => {
+                        const slot = selectedShowtime;
+                        setSelectedShowtime(null);
+                        router.push({
+                          pathname: '/seats',
+                          params: { theaterId: slot.theaterId, room: slot.room },
+                        });
+                      }}>
+                      <Ionicons name="grid" size={16} color="#10B981" />
+                      <Text style={[styles.modalAdminEditText, { color: '#10B981' }]}>
+                        Quản lý ghế
                       </Text>
                     </TouchableOpacity>
 
@@ -1654,7 +1688,7 @@ export default function ExploreScreen() {
                         setDeletingSlot(target);
                       }}>
                       <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                      <Text style={styles.modalAdminDeleteText}>Xóa suất</Text>
+                      <Text style={styles.modalAdminDeleteText}>Xóa</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -3484,6 +3518,23 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 12.5,
     fontWeight: '800',
+  },
+  modalSeatMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    gap: 6,
+  },
+  modalSeatMapText: {
+    color: '#3B82F6',
+    fontSize: 13,
+    fontWeight: '700',
   },
   synopsisBox: {
     backgroundColor: '#10131B',
