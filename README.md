@@ -1,56 +1,73 @@
-# Welcome to your Expo app 👋
+# 🎬 Movie Theater — Hệ Thống Đặt Vé Xem Phim
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Dự án được chia thành 2 thư mục độc lập cho **Backend (Node.js + Express + MongoDB)** và **Frontend (React Native + Expo)**, đi kèm `package.json` ở thư mục gốc để chạy song song cả 2 dự án cùng lúc.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```text
+Movie_Theater/
+├── backend/                # REST API Server (Node.js, Express, Mongoose, JWT)
+│   ├── models/             # Mongoose Schemas (User...)
+│   ├── routes/             # API Routes (/api/auth...)
+│   ├── server.js           # Entry point của Express Server
+│   ├── .env                # Biến môi trường (MONGODB_URI, JWT_SECRET, PORT)
+│   └── package.json
+│
+├── frontend/               # Ứng dụng Mobile & Web (React Native, Expo Router, TypeScript)
+│   ├── assets/             # Hình ảnh, biểu tượng
+│   ├── src/
+│   │   ├── app/            # Các màn hình ứng dụng (Expo Router)
+│   │   ├── components/     # UI Components
+│   │   ├── constants/      # Theme & Constants
+│   │   ├── context/        # Quản lý trạng thái (AuthContext)
+│   │   ├── services/       # Gọi API tới Backend (api.ts)
+│   │   └── types/          # TypeScript Interfaces
+│   ├── app.json
+│   └── package.json
+│
+└── package.json            # Script chạy đồng thời cả Backend & Frontend (concurrently)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-### Other setup steps
+## ⚡ Chạy đồng thời cả 2 dự án (từ thư mục gốc `Movie_Theater`)
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+# Cài đặt toàn bộ dependencies cho root, backend và frontend
+npm run install:all
 
-## Learn more
+# Chạy cả Backend (watch mode) + Frontend (Expo) cùng lúc
+npm run dev
 
-To learn more about developing your project with Expo, look at the following resources:
+# Hoặc chạy cả Backend + Frontend Web cùng lúc
+npm run dev:web
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Các lệnh có sẵn ở `package.json` gốc:
 
-## Join the community
+| Lệnh | Mô tả |
+|------|-------|
+| `npm run dev` | Chạy đồng thời **Backend (`npm run dev`)** và **Frontend (`npm start`)** |
+| `npm start` | Chạy đồng thời **Backend (`npm start`)** và **Frontend (`npm start`)** |
+| `npm run dev:web` | Chạy đồng thời **Backend** và **Frontend Web** |
+| `npm run dev:android` | Chạy đồng thời **Backend** và **Frontend Android** |
+| `npm run backend` | Chỉ chạy riêng **Backend** |
+| `npm run frontend` | Chỉ chạy riêng **Frontend** |
+| `npm run install:all` | Cài đặt `node_modules` cho cả `root`, `backend/` và `frontend/` |
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 🔧 Chạy riêng từng phần (nếu muốn mở 2 terminal riêng)
+
+### 1. Backend (Express + MongoDB)
+
+```bash
+cd backend
+npm run dev
+```
+
+### 2. Frontend (React Native / Expo)
+
+```bash
+cd frontend
+npx expo start
+```
+

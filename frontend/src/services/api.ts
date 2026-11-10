@@ -1,15 +1,30 @@
 /**
- * API Service — kết nối đến backend Node.js/Express + MongoDB
+ * API Service — kết nối đến backend Node.js/Express + MongoDB Atlas
  *
  * Đổi BASE_URL theo môi trường:
+ *  - Thiết bị thật (Expo Go cùng WiFi): Tự động lấy IP LAN máy tính qua Constants.expoConfig.hostUri
  *  - Android Emulator: http://10.0.2.2:5000
  *  - iOS Simulator / Web: http://localhost:5000
- *  - Thiết bị thật (cùng WiFi): http://<IP_máy_tính>:5000
  */
 
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import {
+  ShowtimeFilterParams,
+  ShowtimeFormPayload,
+  ShowtimeMutationResponse,
+  ShowtimesResponse,
+} from '@/types/showtime';
+
 function getBaseUrl(): string {
+  // Tự động lấy IP mạng LAN của máy tính khi chạy trên Expo Go / thiết bị thật
+  if (Platform.OS !== 'web') {
+    const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0];
+    if (debuggerHost && /^\d+\.\d+\.\d+\.\d+$/.test(debuggerHost)) {
+      return `http://${debuggerHost}:5000/api`;
+    }
+  }
   // Android emulator cần địa chỉ đặc biệt để trỏ về máy host
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5000/api';
@@ -54,7 +69,7 @@ function authHeader(token: string): HeadersInit {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// AUTH ENDPOINTS
+// AUTH ENDPOINTS (UC01, UC02, UC04, UC05, UC06)
 // ════════════════════════════════════════════════════════════════════════════
 
 export const AuthAPI = {
@@ -251,5 +266,53 @@ export const MembershipAPI = {
       method: 'POST',
       headers: authHeader(token),
       body: JSON.stringify({ rewardId }),
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC21 & UC22: SHOWTIME ENDPOINTS — Nguyễn Minh Quân - CE180048
+// Truy vấn & Quản lý (Thêm, Xem, Sửa, Xóa) lịch chiếu trực tiếp trên MongoDB Atlas
+// ════════════════════════════════════════════════════════════════════════════
+
+export const ShowtimeAPI = {
+  /** UC21 & UC22: Lấy danh sách phim, cụm rạp, ngày chiếu và các suất chiếu đã lọc từ MongoDB Atlas */
+  getShowtimes: (params: ShowtimeFilterParams = {}): Promise<ShowtimesResponse> => {
+    const query = new URLSearchParams();
+    if (params.dateKey) query.append('dateKey', params.dateKey);
+    if (params.movieId) query.append('movieId', params.movieId);
+    if (params.theaterId) query.append('theaterId', params.theaterId);
+    if (params.area) query.append('area', params.area);
+    if (params.format) query.append('format', params.format);
+    if (params.period) query.append('period', params.period);
+    if (params.searchQuery) query.append('searchQuery', params.searchQuery);
+
+    const qs = query.toString();
+    return apiRequest<ShowtimesResponse>(`/showtimes${qs ? `?${qs}` : ''}`);
+  },
+
+  /** Lấy chi tiết một suất chiếu cụ thể theo mã suất chiếu */
+  getShowtimeById: (id: string) => apiRequest(`/showtimes/${encodeURIComponent(id)}`),
+
+  /** UC22: Thêm mới một suất chiếu lên MongoDB Atlas */
+  createShowtime: (payload: ShowtimeFormPayload): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>('/showtimes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC22: Cập nhật (Sửa) một suất chiếu trên MongoDB Atlas */
+  updateShowtime: (
+    id: string,
+    payload: Partial<ShowtimeFormPayload>
+  ): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC22: Xóa một suất chiếu khỏi MongoDB Atlas */
+  deleteShowtime: (id: string): Promise<ShowtimeMutationResponse> =>
+    apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
     }),
 };
