@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,10 @@ import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { AdminAccountManagementModal } from '@/components/admin-account-management';
 import { BookingHistoryModal } from '@/components/booking-history-modal';
 import { MembershipModal } from '@/components/membership-modal';
+import NotificationModal from '@/components/NotificationModal';
+import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
+import { NotificationAPI, OrderAPI } from '@/services/api';
+import { Order } from '@/types/order';
 
 
 interface GuestAuthProps {
@@ -61,10 +65,14 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
   // Forgot Password Modal State (UC04)
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
 
-
-
-  const handleQuickFillDemo = () => {
+  const handleQuickFillCustomer = () => {
     setLoginId('customer@cinema.com');
+    setLoginPassword('password123');
+    setLoginError(null);
+  };
+
+  const handleQuickFillAdmin = () => {
+    setLoginId('admin@cinema.com');
     setLoginPassword('password123');
     setLoginError(null);
   };
@@ -201,16 +209,28 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
         {/* LOGIN TAB CONTENT */}
         {tab === 'login' && (
           <View style={styles.guestAuthCard}>
-            {/* Quick Demo Fill */}
-            <TouchableOpacity
-              style={styles.guestDemoBtn}
-              onPress={handleQuickFillDemo}
-              activeOpacity={0.8}>
-              <Ionicons name="flash" size={16} color="#F59E0B" />
-              <Text style={styles.guestDemoText}>
-                Điền nhanh tài khoản mẫu: <Text style={styles.guestDemoBold}>customer@cinema.com</Text>
-              </Text>
-            </TouchableOpacity>
+            {/* Quick Demo Fill Buttons for Role-Based Access Control */}
+            <View style={{ gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={styles.guestDemoBtn}
+                onPress={handleQuickFillCustomer}
+                activeOpacity={0.8}>
+                <Ionicons name="person" size={15} color="#3B82F6" />
+                <Text style={styles.guestDemoText}>
+                  Khách hàng: <Text style={styles.guestDemoBold}>customer@cinema.com</Text> (password123)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.guestDemoBtn, { borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}
+                onPress={handleQuickFillAdmin}
+                activeOpacity={0.8}>
+                <Ionicons name="shield-checkmark" size={15} color="#F59E0B" />
+                <Text style={styles.guestDemoText}>
+                  Quản trị viên: <Text style={[styles.guestDemoBold, { color: '#F59E0B' }]}>admin@cinema.com</Text> (password123)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {loginError && (
               <View style={styles.guestAlertError}>
@@ -502,6 +522,7 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
           </View>
         )}
 
+
         {/* Member Privileges Card */}
         <View style={styles.benefitsCard}>
           <Text style={styles.benefitsTitle}>ĐẶC QUYỀN THÀNH VIÊN CINEMAX</Text>
@@ -536,7 +557,6 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
           onSuccess={handleResetSuccess}
         />
       </ScrollView>
-
     </SafeAreaView>
   );
 }
@@ -592,6 +612,30 @@ export default function ProfileScreen() {
   // Session Info Modal
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
+  // Notifications (UC43) & Admin Management Hub (UC37, 39, 41, 42, 44, 45)
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [adminHubVisible, setAdminHubVisible] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [myOrders, setMyOrders] = useState<Order[]>([]);
+
+  const fetchProfileData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [notifRes, orderRes] = await Promise.all([
+        NotificationAPI.getUnreadCount(user.id),
+        OrderAPI.getOrders({ userId: user.id }),
+      ]);
+      if (notifRes.success) setUnreadNotifs(notifRes.count || 0);
+      if (orderRes.success) setMyOrders(orderRes.orders || []);
+    } catch (err) {
+      console.log('[Load Profile Data Error]', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchProfileData();
+  }, [fetchProfileData]);
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -605,7 +649,13 @@ export default function ProfileScreen() {
 
   // Guest State - When not logged in: Render interactive Login & Register form directly
   if (!isAuthenticated || !user) {
-    return <GuestAuthSection login={login} register={register} resetPassword={resetPassword} />;
+    return (
+      <GuestAuthSection
+        login={login}
+        register={register}
+        resetPassword={resetPassword}
+      />
+    );
   }
 
   // Authenticated State - Active Session
@@ -718,6 +768,18 @@ export default function ProfileScreen() {
 
 
 
+  // Mock booked tickets for this customer
+  const sampleTickets = [
+    {
+      id: 'TCK-8821',
+      movieTitle: 'Dune: Part Two (Hành Tinh Cát)',
+      theater: 'CineMax Vincom Đồng Khởi - Rạp 03',
+      showtime: '20:15 - Hôm nay',
+      seats: 'F08, F09 (VIP)',
+      status: 'Đã xác nhận',
+    },
+  ];
+
   // Current avatar icon determination
   const currentAvatarIcon = user.avatarUrl?.startsWith('cinema_avatar_')
     ? (user.avatarUrl.replace('cinema_avatar_', '') as any)
@@ -730,14 +792,28 @@ export default function ProfileScreen() {
         {/* Top Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Hồ Sơ Khách Hàng</Text>
-          <TouchableOpacity
-            style={styles.sessionStatusBadge}
-            onPress={() => setSessionModalVisible(true)}
-            activeOpacity={0.8}>
-            <View style={styles.statusDot} />
-            <Text style={styles.sessionStatusText}>Phiên hoạt động</Text>
-            <Ionicons name="information-circle-outline" size={14} color="#10B981" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.notifBtn}
+              onPress={() => setNotifModalVisible(true)}
+              activeOpacity={0.8}>
+              <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+              {unreadNotifs > 0 && (
+                <View style={styles.notifBadgeCircle}>
+                  <Text style={styles.notifBadgeNum}>{unreadNotifs > 9 ? '9+' : unreadNotifs}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sessionStatusBadge}
+              onPress={() => setSessionModalVisible(true)}
+              activeOpacity={0.8}>
+              <View style={styles.statusDot} />
+              <Text style={styles.sessionStatusText}>Phiên hoạt động</Text>
+              <Ionicons name="information-circle-outline" size={14} color="#10B981" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* VIP Membership Card (UC10) */}
@@ -892,6 +968,32 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Admin Management Hub Access (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
+        {user.role === 'admin' && (
+          <TouchableOpacity
+            style={styles.adminHubCard}
+            onPress={() => setAdminHubVisible(true)}
+            activeOpacity={0.85}>
+            <View style={styles.adminHubLeft}>
+              <View style={styles.adminHubIconCircle}>
+                <Ionicons name="shield-checkmark" size={22} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.adminHubTitle}>TRUNG TÂM QUẢN TRỊ CINEMAX</Text>
+                  <View style={styles.adminHubRolePill}>
+                    <Text style={styles.adminHubRoleText}>Admin Access</Text>
+                  </View>
+                </View>
+                <Text style={styles.adminHubSub}>
+                  Quản lý Đồ ăn (UC37), Khuyến mãi (UC39), Đánh giá (UC41), Thông báo (UC42), Đơn đồ ăn (UC44) & Báo cáo doanh thu (UC45)
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+          </TouchableOpacity>
+        )}
+
         {/* Customer Info Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -1029,6 +1131,99 @@ export default function ProfileScreen() {
             <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
             <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm (UC10)</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Tickets & Food Orders (UC38 & UC44) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
+            <Text style={styles.ticketCount}>
+              {myOrders.length > 0 ? `${myOrders.length} đơn` : `${sampleTickets.length} vé`}
+            </Text>
+          </View>
+
+          {myOrders.length > 0 ? (
+            myOrders.map((ord) => (
+              <View key={ord.id} style={styles.ticketItem}>
+                <View style={styles.ticketHeader}>
+                  <Ionicons name="film-outline" size={18} color="#E50914" />
+                  <Text style={styles.ticketMovieTitle}>{ord.movie?.title || 'Phim rạp'}</Text>
+                  <View
+                    style={[
+                      styles.orderStatusChip,
+                      {
+                        backgroundColor:
+                          ord.orderStatus === 'ready'
+                            ? '#10B98125'
+                            : ord.orderStatus === 'completed'
+                            ? '#3B82F625'
+                            : '#F59E0B25',
+                      },
+                    ]}>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: '700',
+                        color:
+                          ord.orderStatus === 'ready'
+                            ? '#10B981'
+                            : ord.orderStatus === 'completed'
+                            ? '#3B82F6'
+                            : '#F59E0B',
+                      }}>
+                      {ord.orderStatus === 'preparing' && 'Đang chuẩn bị'}
+                      {ord.orderStatus === 'ready' && 'Đã sẵn sàng nhận'}
+                      {ord.orderStatus === 'completed' && 'Đã hoàn tất'}
+                      {ord.orderStatus === 'cancelled' && 'Đã hủy'}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.ticketTheater}>
+                  {ord.theater?.name} • {ord.theater?.room}
+                </Text>
+
+                <View style={styles.ticketFooter}>
+                  <Text style={styles.ticketShowtime}>
+                    🕒 {ord.theater?.showtimeTime} ({ord.theater?.showtimeDate})
+                  </Text>
+                  <Text style={styles.ticketSeats}>
+                    Ghế: {(ord.tickets || []).map((t) => t.seatNumber).join(', ')}
+                  </Text>
+                </View>
+
+                {ord.foods && ord.foods.length > 0 && (
+                  <View style={styles.ticketFoodRow}>
+                    <Ionicons name="fast-food-outline" size={14} color="#F59E0B" />
+                    <Text style={styles.ticketFoodText}>
+                      Đồ ăn: {ord.foods.map((f) => `${f.name} x${f.quantity}`).join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.ticketPriceRow}>
+                  <Text style={styles.ticketOrderCode}>Mã đơn: #{ord.orderCode}</Text>
+                  <Text style={styles.ticketPriceVal}>
+                    {ord.totalPrice?.toLocaleString('vi-VN')}đ
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            sampleTickets.map((ticket) => (
+              <View key={ticket.id} style={styles.ticketItem}>
+                <View style={styles.ticketHeader}>
+                  <Ionicons name="film-outline" size={18} color="#E50914" />
+                  <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
+                </View>
+                <Text style={styles.ticketTheater}>{ticket.theater}</Text>
+                <View style={styles.ticketFooter}>
+                  <Text style={styles.ticketShowtime}>🕒 {ticket.showtime}</Text>
+                  <Text style={styles.ticketSeats}>Ghế: {ticket.seats}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Logout Button */}
@@ -1389,6 +1584,21 @@ export default function ProfileScreen() {
         onPointsUpdated={(newPts) => updateUserLoyaltyPoints?.(newPts)}
       />
 
+      {/* UC43: View Notifications & Mark As Read */}
+      <NotificationModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        onNotificationsUpdated={fetchProfileData}
+      />
+
+      {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
+      <AdminManagementHubModal
+        visible={adminHubVisible}
+        onClose={() => {
+          setAdminHubVisible(false);
+          fetchProfileData();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1418,6 +1628,129 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     gap: 8,
+  },
+  notifBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1F2430',
+    borderWidth: 1,
+    borderColor: '#374151',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notifBadgeCircle: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#E50914',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#0B0C10',
+  },
+  notifBadgeNum: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  adminHubCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#151821',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    marginBottom: 20,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  adminHubLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    marginRight: 10,
+  },
+  adminHubIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminHubTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  adminHubRolePill: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  adminHubRoleText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0B0C10',
+  },
+  adminHubSub: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  orderStatusChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  ticketFoodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#151821',
+    padding: 6,
+    borderRadius: 6,
+    marginTop: 6,
+  },
+  ticketFoodText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '500',
+    flex: 1,
+  },
+  ticketPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#262626',
+  },
+  ticketOrderCode: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  ticketPriceVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#E50914',
   },
   headerTitle: {
     fontSize: 20,

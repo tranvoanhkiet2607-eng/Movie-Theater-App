@@ -30,6 +30,8 @@ import {
   ShowtimeViewMode,
   TimeSlotPeriod,
 } from '@/types/showtime';
+import BookingFoodModal from '@/features/booking/components/BookingFoodModal';
+import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
 
 const TIME_PERIOD_OPTIONS: {
   key: TimeSlotPeriod;
@@ -188,6 +190,11 @@ export default function ExploreScreen() {
   const [selectedShowtime, setSelectedShowtime] = useState<ShowtimeItem | null>(null);
   const [detailMovie, setDetailMovie] = useState<ShowtimeMovie | null>(null);
   const [bookingNotice, setBookingNotice] = useState<string | null>(null);
+
+  // ─── Booking & Food Ordering Modal State (UC38 & UC39) ──────────────────────
+  const [bookingModalVisible, setBookingModalVisible] = useState<boolean>(false);
+  const [activeBookingShowtime, setActiveBookingShowtime] = useState<ShowtimeItem | null>(null);
+  const [adminHubVisible, setAdminHubVisible] = useState<boolean>(false);
 
   // ─── Gọi REST API lấy dữ liệu lịch chiếu ────────────────────────────────────
   const fetchShowtimes = useCallback(async () => {
@@ -489,6 +496,22 @@ export default function ExploreScreen() {
     [theaters, selectedShowtime]
   );
 
+  const activeBookingMovie = useMemo(
+    () =>
+      activeBookingShowtime
+        ? movies.find((m) => m.id === activeBookingShowtime.movieId) || null
+        : null,
+    [movies, activeBookingShowtime]
+  );
+
+  const activeBookingTheater = useMemo(
+    () =>
+      activeBookingShowtime
+        ? theaters.find((t) => t.id === activeBookingShowtime.theaterId) || null
+        : null,
+    [theaters, activeBookingShowtime]
+  );
+
   const formSelectedMovieObj = useMemo(
     () => movies.find((m) => m.id === formMovieId) || movies[0] || null,
     [movies, formMovieId]
@@ -594,7 +617,7 @@ export default function ExploreScreen() {
           {/* ─── Top Header ─────────────────────────────────────────────────── */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <View style={styles.headerBadgeRow}>
+              <View style={[styles.headerBadgeRow, { flex: 1 }]}>
                 <Text style={styles.headerTitle}>
                   Hệ Thống Cụm Rạp & Lịch Chiếu
                 </Text>
@@ -602,6 +625,28 @@ export default function ExploreScreen() {
                   Chọn ngày chiếu, bộ phim và cụm rạp gần bạn nhất để đặt vé
                 </Text>
               </View>
+
+              {/* Nút truy cập nhanh Quản Trị Hệ Thống (Chỉ hiển thị cho Admin) */}
+              {isManageMode && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    backgroundColor: '#1E2330',
+                    borderWidth: 1,
+                    borderColor: '#F59E0B',
+                    borderRadius: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                  }}
+                  onPress={() => setAdminHubVisible(true)}>
+                  <Ionicons name="settings" size={14} color="#F59E0B" />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#F59E0B' }}>
+                    Quản Trị
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* ─── BẢNG QUẢN LÝ LỊCH CHIẾU (TỰ ĐỘNG HIỆN KHI ĐĂNG NHẬP ADMIN) ─── */}
@@ -668,6 +713,26 @@ export default function ExploreScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: '#1E2330',
+                    borderWidth: 1,
+                    borderColor: '#3B82F6',
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    marginTop: 10,
+                  }}
+                  onPress={() => setAdminHubVisible(true)}>
+                  <Ionicons name="apps" size={16} color="#3B82F6" />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#60A5FA' }}>
+                    Trung Tâm Quản Trị Đồ Ăn, Khuyến Mãi & Báo Cáo (UC37, 39, 41, 42, 44, 45)
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1605,20 +1670,14 @@ export default function ExploreScreen() {
                   <TouchableOpacity
                     style={styles.modalPrimaryBtn}
                     onPress={() => {
-                      if (!isAuthenticated) {
-                        setSelectedShowtime(null);
-                        router.push('/login');
-                      } else {
-                        setBookingNotice(
-                          `Đã ghi nhận lựa chọn suất ${selectedShowtime.startTime} (${selectedShowtime.room} - ${selectedSlotTheater.shortName}) cho ${user?.fullName || 'bạn'}!`
-                        );
-                      }
+                      const st = selectedShowtime;
+                      setSelectedShowtime(null);
+                      setActiveBookingShowtime(st);
+                      setBookingModalVisible(true);
                     }}>
                     <Ionicons name="ticket" size={16} color="#FFFFFF" />
                     <Text style={styles.modalPrimaryText}>
-                      {isAuthenticated
-                        ? 'Chọn suất chiếu này'
-                        : 'Đăng nhập để đặt vé'}
+                      Đặt vé & Chọn bắp nước (UC38)
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1627,6 +1686,28 @@ export default function ExploreScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── UC38: ĐẶT VÉ & CHỌN BẮP NƯỚC (BOOKING & FOOD ORDERING MODAL) ─── */}
+      <BookingFoodModal
+        visible={bookingModalVisible}
+        onClose={() => {
+          setBookingModalVisible(false);
+          setActiveBookingShowtime(null);
+        }}
+        movie={activeBookingMovie}
+        theater={activeBookingTheater}
+        showtime={activeBookingShowtime}
+        dateLabel={currentDateObj.dayLabel}
+        onBookingComplete={() => {
+          fetchShowtimes();
+        }}
+      />
+
+      {/* ─── TRUNG TÂM QUẢN TRỊ CINEMAX (UC37, UC39, UC41, UC42, UC44, UC45) ─── */}
+      <AdminManagementHubModal
+        visible={adminHubVisible}
+        onClose={() => setAdminHubVisible(false)}
+      />
 
       {/* ═══════════════════════════════════════════════════════════════════════
           MODAL 2: CHI TIẾT BỘ PHIM

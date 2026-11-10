@@ -9,6 +9,7 @@
 
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   ShowtimeFilterParams,
@@ -16,6 +17,12 @@ import {
   ShowtimeMutationResponse,
   ShowtimesResponse,
 } from '@/types/showtime';
+import { FoodItem, FoodMutationPayload } from '@/types/food';
+import { Promotion, CheckPromotionResult, PromotionMutationPayload } from '@/types/promotion';
+import { Review, MovieReviewsResponse, ReviewMutationPayload } from '@/types/review';
+import { NotificationItem, NotificationMutationPayload } from '@/types/notification';
+import { Order, CreateOrderPayload, OrderStatus } from '@/types/order';
+import { ReportSummary, TopMovieStat, TopFoodStat, RevenueTrend } from '@/types/report';
 
 function getBaseUrl(): string {
   // Tự động lấy IP mạng LAN của máy tính khi chạy trên Expo Go / thiết bị thật
@@ -33,6 +40,7 @@ function getBaseUrl(): string {
 }
 
 const BASE_URL = getBaseUrl();
+const TOKEN_STORAGE_KEY = '@movie_theater_token_v2';
 
 // ─── Generic fetch wrapper ────────────────────────────────────────────────────
 async function apiRequest<T = any>(
@@ -41,15 +49,24 @@ async function apiRequest<T = any>(
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
 
-  const defaultHeaders: HeadersInit = {
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+
+  try {
+    const token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {
+    // Không thể đọc token từ storage, tiếp tục gửi request
+  }
 
   const response = await fetch(url, {
     ...options,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     },
   });
 
@@ -315,4 +332,226 @@ export const ShowtimeAPI = {
     apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC37: FOOD & DRINKS API
+// ════════════════════════════════════════════════════════════════════════════
+export const FoodAPI = {
+  getFoods: (params: { category?: string; search?: string; availableOnly?: boolean } = {}): Promise<{ success: boolean; items: FoodItem[] }> => {
+    const qs = new URLSearchParams();
+    if (params.category && params.category !== 'all') qs.append('category', params.category);
+    if (params.search) qs.append('search', params.search);
+    if (params.availableOnly) qs.append('availableOnly', 'true');
+    const queryStr = qs.toString();
+    return apiRequest(`/food${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  getFoodById: (id: string): Promise<{ success: boolean; item: FoodItem }> =>
+    apiRequest(`/food/${encodeURIComponent(id)}`),
+
+  createFood: (payload: FoodMutationPayload): Promise<{ success: boolean; message: string; item: FoodItem }> =>
+    apiRequest('/food', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateFood: (id: string, payload: Partial<FoodMutationPayload>): Promise<{ success: boolean; message: string; item: FoodItem }> =>
+    apiRequest(`/food/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  toggleAvailable: (id: string): Promise<{ success: boolean; message: string; item: FoodItem }> =>
+    apiRequest(`/food/${encodeURIComponent(id)}/toggle`, {
+      method: 'PATCH',
+    }),
+
+  deleteFood: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/food/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC39: PROMOTIONS API
+// ════════════════════════════════════════════════════════════════════════════
+export const PromotionAPI = {
+  getPromotions: (params: { activeOnly?: boolean; search?: string } = {}): Promise<{ success: boolean; promotions: Promotion[] }> => {
+    const qs = new URLSearchParams();
+    if (params.activeOnly) qs.append('activeOnly', 'true');
+    if (params.search) qs.append('search', params.search);
+    const queryStr = qs.toString();
+    return apiRequest(`/promotions${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  checkPromotion: (code: string, orderTotal: number): Promise<CheckPromotionResult> =>
+    apiRequest(`/promotions/check/${encodeURIComponent(code)}?orderTotal=${orderTotal}`),
+
+  createPromotion: (payload: PromotionMutationPayload): Promise<{ success: boolean; message: string; promotion: Promotion }> =>
+    apiRequest('/promotions', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updatePromotion: (id: string, payload: Partial<PromotionMutationPayload>): Promise<{ success: boolean; message: string; promotion: Promotion }> =>
+    apiRequest(`/promotions/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  togglePromotion: (id: string): Promise<{ success: boolean; message: string; promotion: Promotion }> =>
+    apiRequest(`/promotions/${encodeURIComponent(id)}/toggle`, {
+      method: 'PATCH',
+    }),
+
+  deletePromotion: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/promotions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC40 & UC41: REVIEWS API
+// ════════════════════════════════════════════════════════════════════════════
+export const ReviewAPI = {
+  getMovieReviews: (movieId: string): Promise<MovieReviewsResponse> =>
+    apiRequest(`/reviews/movie/${encodeURIComponent(movieId)}`),
+
+  createReview: (payload: ReviewMutationPayload): Promise<{ success: boolean; message: string; review: Review }> =>
+    apiRequest('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateReview: (id: string, payload: { rating?: number; comment?: string }): Promise<{ success: boolean; message: string; review: Review }> =>
+    apiRequest(`/reviews/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteReview: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/reviews/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+
+  getAdminReviews: (params: { status?: string; search?: string; movieId?: string } = {}): Promise<{ success: boolean; total: number; reviews: Review[] }> => {
+    const qs = new URLSearchParams();
+    if (params.status && params.status !== 'all') qs.append('status', params.status);
+    if (params.search) qs.append('search', params.search);
+    if (params.movieId && params.movieId !== 'all') qs.append('movieId', params.movieId);
+    const queryStr = qs.toString();
+    return apiRequest(`/reviews/admin/all${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  moderateReview: (id: string, status: 'approved' | 'hidden' | 'flagged'): Promise<{ success: boolean; message: string; review: Review }> =>
+    apiRequest(`/reviews/admin/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC42 & UC43: NOTIFICATIONS API
+// ════════════════════════════════════════════════════════════════════════════
+export const NotificationAPI = {
+  getNotifications: (userId?: string): Promise<{ success: boolean; unreadCount: number; notifications: NotificationItem[] }> => {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return apiRequest(`/notifications${qs}`);
+  },
+
+  getUnreadCount: (userId?: string): Promise<{ success: boolean; count: number }> => {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return apiRequest(`/notifications/unread-count${qs}`);
+  },
+
+  markAsRead: (id: string, userId?: string): Promise<{ success: boolean; notification: NotificationItem }> =>
+    apiRequest(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'PATCH',
+      body: JSON.stringify({ userId }),
+    }),
+
+  markAllAsRead: (userId?: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest('/notifications/read-all', {
+      method: 'PATCH',
+      body: JSON.stringify({ userId }),
+    }),
+
+  getAdminNotifications: (params: { type?: string; search?: string } = {}): Promise<{ success: boolean; total: number; notifications: NotificationItem[] }> => {
+    const qs = new URLSearchParams();
+    if (params.type && params.type !== 'all') qs.append('type', params.type);
+    if (params.search) qs.append('search', params.search);
+    const queryStr = qs.toString();
+    return apiRequest(`/notifications/admin/all${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  createNotification: (payload: NotificationMutationPayload): Promise<{ success: boolean; message: string; notification: NotificationItem }> =>
+    apiRequest('/notifications/admin', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateNotification: (id: string, payload: Partial<NotificationMutationPayload>): Promise<{ success: boolean; message: string; notification: NotificationItem }> =>
+    apiRequest(`/notifications/admin/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteNotification: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/notifications/admin/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC38 & UC44: ORDERS API
+// ════════════════════════════════════════════════════════════════════════════
+export const OrderAPI = {
+  createOrder: (payload: CreateOrderPayload): Promise<{ success: boolean; message: string; order: Order }> =>
+    apiRequest('/orders', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getOrders: (params: { userId?: string; status?: string } = {}): Promise<{ success: boolean; total: number; orders: Order[] }> => {
+    const qs = new URLSearchParams();
+    if (params.userId && params.userId !== 'all') qs.append('userId', params.userId);
+    if (params.status && params.status !== 'all') qs.append('status', params.status);
+    const queryStr = qs.toString();
+    return apiRequest(`/orders${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  getFoodOrders: (params: { status?: string; search?: string } = {}): Promise<{ success: boolean; total: number; orders: Order[] }> => {
+    const qs = new URLSearchParams();
+    if (params.status && params.status !== 'all') qs.append('status', params.status);
+    if (params.search) qs.append('search', params.search);
+    const queryStr = qs.toString();
+    return apiRequest(`/orders/food-orders${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  getOrderById: (id: string): Promise<{ success: boolean; order: Order }> =>
+    apiRequest(`/orders/${encodeURIComponent(id)}`),
+
+  updateOrderStatus: (id: string, orderStatus: OrderStatus): Promise<{ success: boolean; message: string; order: Order }> =>
+    apiRequest(`/orders/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ orderStatus }),
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC45: REPORTS API
+// ════════════════════════════════════════════════════════════════════════════
+export const ReportAPI = {
+  getSummary: (): Promise<{ success: boolean; data: ReportSummary }> =>
+    apiRequest('/reports/summary'),
+
+  getTopMovies: (): Promise<{ success: boolean; topMovies: TopMovieStat[] }> =>
+    apiRequest('/reports/top-movies'),
+
+  getTopFoods: (): Promise<{ success: boolean; topFoods: TopFoodStat[] }> =>
+    apiRequest('/reports/top-foods'),
+
+  getRevenueTrends: (): Promise<{ success: boolean; trends: RevenueTrend[] }> =>
+    apiRequest('/reports/revenue-trends'),
 };
