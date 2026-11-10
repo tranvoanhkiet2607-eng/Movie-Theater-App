@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,32 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth-context';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
-import { ShowtimeAPI } from '@/services/api';
+import { ShowtimeAPI, NotificationAPI } from '@/services/api';
 import { ShowtimeMovie } from '@/types/showtime';
+import NotificationModal from '@/components/NotificationModal';
+import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
 
 export default function HomeScreen() {
   const { user, isAuthenticated } = useAuth();
   const [movies, setMovies] = useState<ShowtimeMovie[]>([]);
   const [loadingMovies, setLoadingMovies] = useState<boolean>(true);
+
+  // Notifications (UC43) & Admin Hub (UC37, 39, 41, 42, 44, 45)
+  const [notifModalVisible, setNotifModalVisible] = useState<boolean>(false);
+  const [adminHubVisible, setAdminHubVisible] = useState<boolean>(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  const fetchUnreadCount = useCallback(() => {
+    NotificationAPI.getUnreadCount(user?.id)
+      .then((res) => {
+        if (res.success) setUnreadCount(res.count || 0);
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
     let mounted = true;
@@ -64,32 +83,70 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {isAuthenticated && user ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Notification Bell Button (UC43) */}
               <TouchableOpacity
-                style={styles.userQuickChip}
-                onPress={() => router.push('/profile')}
+                style={styles.notifBellBtn}
+                onPress={() => setNotifModalVisible(true)}
                 activeOpacity={0.8}>
-                <Image source={{ uri: user.avatarUrl }} style={styles.userAvatarSmall} />
-                <View style={styles.userChipInfo}>
-                  <Text style={styles.userChipName} numberOfLines={1}>
-                    {user.fullName}
-                  </Text>
-                  <Text style={styles.userChipPoints}>
-                    ★ {user.loyaltyPoints} điểm ({user.membershipTier})
+                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={styles.notifBadgeCircle}>
+                    <Text style={styles.notifBadgeNum}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {isAuthenticated && user ? (
+                <TouchableOpacity
+                  style={styles.userQuickChip}
+                  onPress={() => router.push('/profile')}
+                  activeOpacity={0.8}>
+                  <Image source={{ uri: user.avatarUrl }} style={styles.userAvatarSmall} />
+                  <View style={styles.userChipInfo}>
+                    <Text style={styles.userChipName} numberOfLines={1}>
+                      {user.fullName}
+                    </Text>
+                    <Text style={styles.userChipPoints}>
+                      ★ {user.loyaltyPoints} điểm ({user.membershipTier})
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.authButtonGroup}>
+                  <TouchableOpacity
+                    style={styles.loginOutlineBtn}
+                    onPress={() => router.push('/login')}
+                    activeOpacity={0.8}>
+                    <Text style={styles.loginOutlineText}>Đăng nhập</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Admin Management Hub Banner (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
+          {isAuthenticated && user?.role === 'admin' && (
+            <TouchableOpacity
+              style={styles.adminHubBanner}
+              onPress={() => setAdminHubVisible(true)}
+              activeOpacity={0.85}>
+              <View style={styles.adminHubLeft}>
+                <View style={styles.adminHubIconBox}>
+                  <Ionicons name="shield-checkmark" size={20} color="#F59E0B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.adminHubTitle}>Trung Tâm Quản Trị Rạp & Báo Cáo</Text>
+                  <Text style={styles.adminHubSub}>
+                    Quản lý Đồ ăn (UC37), Khuyến mãi (UC39), Đơn hàng (UC44) & Doanh thu (UC45)
                   </Text>
                 </View>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.authButtonGroup}>
-                <TouchableOpacity
-                  style={styles.loginOutlineBtn}
-                  onPress={() => router.push('/login')}
-                  activeOpacity={0.8}>
-                  <Text style={styles.loginOutlineText}>Đăng nhập</Text>
-                </TouchableOpacity>
               </View>
-            )}
-          </View>
+              <Ionicons name="chevron-forward" size={18} color="#F59E0B" />
+            </TouchableOpacity>
+          )}
 
           {/* Authentication Banner */}
           {!isAuthenticated || !user ? (
@@ -274,6 +331,19 @@ export default function HomeScreen() {
 
         </View>
       </ScrollView>
+
+      {/* UC43: View Notifications & Mark As Read */}
+      <NotificationModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        onNotificationsUpdated={fetchUnreadCount}
+      />
+
+      {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
+      <AdminManagementHubModal
+        visible={adminHubVisible}
+        onClose={() => setAdminHubVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -303,6 +373,73 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1F2430',
     marginBottom: 16,
+  },
+  notifBellBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#151821',
+    borderWidth: 1,
+    borderColor: '#2A3040',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notifBadgeCircle: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#E50914',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#0B0C10',
+  },
+  notifBadgeNum: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  adminHubBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#151821',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  adminHubLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    marginRight: 10,
+  },
+  adminHubIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#F59E0B20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminHubTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  adminHubSub: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+    lineHeight: 15,
   },
   brandRow: {
     flexDirection: 'row',
