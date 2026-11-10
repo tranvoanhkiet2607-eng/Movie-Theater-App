@@ -130,3 +130,126 @@ export const AuthAPI = {
       headers: authHeader(token),
     }),
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC07 & UC08: ADMIN & ROLE MANAGEMENT ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════
+export const AdminAPI = {
+  /** Lấy danh sách tài khoản (UC07) */
+  getAccounts: (token: string, search = '', role = 'all', status = 'all') => {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (role && role !== 'all') params.append('role', role);
+    if (status && status !== 'all') params.append('status', status);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/admin/accounts${queryString}`, {
+      headers: authHeader(token),
+    });
+  },
+
+  /** Thêm tài khoản mới (UC07) */
+  createAccount: (
+    token: string,
+    data: {
+      fullName: string;
+      email: string;
+      phone: string;
+      password: string;
+      role?: string;
+      membershipTier?: string;
+      loyaltyPoints?: number;
+    }
+  ) =>
+    apiRequest('/admin/accounts', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify(data),
+    }),
+
+  /** Cập nhật thông tin tài khoản (UC07) */
+  updateAccount: (
+    token: string,
+    id: string,
+    data: {
+      fullName?: string;
+      phone?: string;
+      membershipTier?: string;
+      loyaltyPoints?: number;
+    }
+  ) =>
+    apiRequest(`/admin/accounts/${id}`, {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify(data),
+    }),
+
+  /** Vô hiệu hóa hoặc kích hoạt lại tài khoản (UC07) */
+  toggleStatus: (token: string, id: string, isActive: boolean) =>
+    apiRequest(`/admin/accounts/${id}/status`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ isActive }),
+    }),
+
+  /** Cập nhật vai trò & phân quyền (UC08) */
+  updateRole: (token: string, id: string, role: string, customPermissions?: string[]) =>
+    apiRequest(`/admin/accounts/${id}/role`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ role, customPermissions }),
+    }),
+
+  /** Lấy ma trận phân quyền các vai trò (UC08) */
+  getRoleMatrix: () => apiRequest('/admin/roles'),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC09: BOOKING HISTORY & TICKETS ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════
+export const BookingAPI = {
+  /** Lấy danh sách vé sắp sử dụng và lịch sử đặt vé (UC09) */
+  getMyBookings: (token: string) =>
+    apiRequest('/bookings/my-bookings', {
+      headers: authHeader(token),
+    }),
+
+  /** Hủy vé sắp sử dụng (UC09) */
+  cancelBooking: (token: string, id: string) =>
+    apiRequest(`/bookings/${id}/cancel`, {
+      method: 'POST',
+      headers: authHeader(token),
+    }),
+
+  /** Đặt vé xem phim mới (UC09) */
+  createBooking: (token: string, data: any) =>
+    apiRequest('/bookings', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify(data),
+    }),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC10: MEMBERSHIP & LOYALTY POINTS ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════
+export const MembershipAPI = {
+  /** Lấy thông tin hội viên & tiến trình thăng hạng (UC10) */
+  getInfo: (token: string) =>
+    apiRequest('/membership/info', {
+      headers: authHeader(token),
+    }),
+
+  /** Lấy lịch sử biến động điểm tích lũy (UC10) */
+  getHistory: (token: string) =>
+    apiRequest('/membership/history', {
+      headers: authHeader(token),
+    }),
+
+  /** Đổi điểm tích lũy lấy quà / voucher (UC10) */
+  redeemReward: (token: string, rewardId: string) =>
+    apiRequest('/membership/redeem', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ rewardId }),
+    }),
+};

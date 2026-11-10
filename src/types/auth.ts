@@ -1,17 +1,92 @@
 export type MembershipTier = 'Standard' | 'Silver' | 'Gold' | 'VIP';
+export type UserRole = 'customer' | 'staff' | 'manager' | 'admin';
 
 export interface User {
   id: string;
   fullName: string;
   email: string;
   phone: string;
-  password?: string; // Stored securely in mock database
-  role: 'customer' | 'admin';
+  password?: string;
+  role: UserRole;
+  isActive?: boolean;
+  permissions?: string[];
   membershipTier: MembershipTier;
   loyaltyPoints: number;
   avatarUrl?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface BookingItem {
+  id: string;
+  bookingCode: string;
+  movieTitle: string;
+  moviePoster: string;
+  cinemaName: string;
+  hallName: string;
+  showtime: string;
+  format: string;
+  seats: string[];
+  seatType: string;
+  combos?: string;
+  totalAmount: number;
+  paymentMethod: string;
+  paymentStatus: 'paid' | 'pending' | 'refunded';
+  status: 'upcoming' | 'completed' | 'cancelled';
+  qrCodeData?: string;
+  createdAt: string;
+}
+
+export interface PermissionItem {
+  code: string;
+  name: string;
+  granted: boolean;
+}
+
+export interface RoleInfo {
+  roleName: string;
+  description: string;
+  badgeColor: string;
+  permissions: PermissionItem[];
+}
+
+export interface PointTransaction {
+  date: string;
+  description: string;
+  pointsChange: number;
+  balanceAfter: number;
+}
+
+export interface VoucherItem {
+  code: string;
+  title: string;
+  discount: string;
+  pointsCost: number;
+  expiryDate: string;
+  isUsed: boolean;
+  createdAt?: string;
+}
+
+export interface RewardCatalogItem {
+  id: string;
+  title: string;
+  category: string;
+  pointsCost: number;
+  icon: any;
+  description: string;
+}
+
+export interface TierConfigItem {
+  tier: MembershipTier;
+  name: string;
+  minPoints: number;
+  maxPoints: number;
+  nextTier: MembershipTier | null;
+  nextTierPoints: number | null;
+  accentColor: string;
+  cardBackground: string;
+  pointRate: string;
+  benefits: string[];
 }
 
 export interface AuthSession {
@@ -77,5 +152,7 @@ export interface AuthContextType {
   completePasswordReset: (identifier: string, code: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   deleteAccount: () => Promise<{ success: boolean; message: string }>;
   savedIdentifier: string | null;
+  switchDemoRole?: (role: UserRole) => void;
+  updateUserLoyaltyPoints?: (points: number) => void;
 }
 

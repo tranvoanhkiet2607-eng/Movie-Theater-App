@@ -29,8 +29,16 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['customer', 'admin'],
+      enum: ['customer', 'staff', 'manager', 'admin'],
       default: 'customer',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    permissions: {
+      type: [String],
+      default: [],
     },
     membershipTier: {
       type: String,
@@ -45,6 +53,25 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    pointHistory: [
+      {
+        date: { type: Date, default: Date.now },
+        description: { type: String, required: true },
+        pointsChange: { type: Number, required: true },
+        balanceAfter: { type: Number, required: true },
+      },
+    ],
+    vouchers: [
+      {
+        code: { type: String, required: true },
+        title: { type: String, required: true },
+        discount: { type: String, required: true },
+        pointsCost: { type: Number, required: true },
+        expiryDate: { type: String, required: true },
+        isUsed: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true, // tự tạo createdAt, updatedAt

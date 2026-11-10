@@ -304,6 +304,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  /**
+   * Helper: Chuyển đổi nhanh vai trò demo để kiểm tra UC07, UC08
+   */
+  function switchDemoRole(newRole: any) {
+    if (user) {
+      setUser({ ...user, role: newRole });
+    }
+  }
+
+  /**
+   * Helper: Cập nhật điểm thưởng hội viên (UC10)
+   */
+  function updateUserLoyaltyPoints(newPoints: number) {
+    if (user) {
+      let tier = user.membershipTier;
+      if (newPoints >= 1200) tier = 'VIP';
+      else if (newPoints >= 600) tier = 'Gold';
+      else if (newPoints >= 300) tier = 'Silver';
+      else tier = 'Standard';
+      setUser({ ...user, loyaltyPoints: newPoints, membershipTier: tier });
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -322,6 +345,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         completePasswordReset,
         deleteAccount,
         savedIdentifier,
+        switchDemoRole,
+        updateUserLoyaltyPoints,
       }}>
       {children}
     </AuthContext.Provider>

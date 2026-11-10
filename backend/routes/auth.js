@@ -103,6 +103,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    if (foundUser.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản của bạn đã bị vô hiệu hóa bởi ban quản trị. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.',
+      });
+    }
+
     const isMatch = await foundUser.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({
