@@ -1,4 +1,4 @@
-// UC11: View Movies - MovieCard Component
+// UC11: View Movies | UC14: Manage Movies | UC16: View Movie Trailer
 import React from 'react';
 import {
   View,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Movie, AgeRating } from '../types/movie.types';
@@ -14,6 +15,10 @@ interface MovieCardProps {
   movie: Movie;
   onPress: (movie: Movie) => void;
   onViewShowtimes?: (movie: Movie) => void;
+  onViewTrailer?: (movie: Movie) => void; // UC16
+  isAdmin?: boolean; // UC14: Phân quyền Quản trị viên
+  onEditMovie?: (movie: Movie) => void; // UC14
+  onDeleteMovie?: (movie: Movie) => void; // UC14
 }
 
 export function getAgeBadgeColors(ageRating: AgeRating): { bg: string; text: string } {
@@ -33,7 +38,15 @@ export function getAgeBadgeColors(ageRating: AgeRating): { bg: string; text: str
   }
 }
 
-export default function MovieCard({ movie, onPress, onViewShowtimes }: MovieCardProps) {
+export default function MovieCard({
+  movie,
+  onPress,
+  onViewShowtimes,
+  onViewTrailer,
+  isAdmin = false,
+  onEditMovie,
+  onDeleteMovie,
+}: MovieCardProps) {
   const ageColors = getAgeBadgeColors(movie.ageRating);
 
   return (
@@ -79,6 +92,16 @@ export default function MovieCard({ movie, onPress, onViewShowtimes }: MovieCard
         <View style={styles.ratingBadge}>
           <Text style={styles.ratingBadgeText}>{movie.rating}</Text>
         </View>
+
+        {/* UC16: Quick Play Trailer Button Overlay */}
+        {onViewTrailer ? (
+          <TouchableOpacity
+            style={styles.trailerPlayOverlay}
+            onPress={() => onViewTrailer(movie)}
+            activeOpacity={0.8}>
+            <Ionicons name="play-circle" size={32} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Status Indicator */}
         <View
@@ -127,15 +150,17 @@ export default function MovieCard({ movie, onPress, onViewShowtimes }: MovieCard
           ) : null}
         </View>
 
-        {/* Action Buttons */}
+        {/* Customer Action Buttons */}
         <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.detailBtn}
-            onPress={() => onPress(movie)}
-            activeOpacity={0.8}>
-            <Ionicons name="information-circle-outline" size={14} color="#E5E7EB" />
-            <Text style={styles.detailBtnText}>Chi tiết</Text>
-          </TouchableOpacity>
+          {onViewTrailer ? (
+            <TouchableOpacity
+              style={styles.trailerBtn}
+              onPress={() => onViewTrailer(movie)}
+              activeOpacity={0.8}>
+              <Ionicons name="play" size={13} color="#E50914" />
+              <Text style={styles.trailerBtnText}>Trailer</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {onViewShowtimes ? (
             <TouchableOpacity
@@ -155,11 +180,49 @@ export default function MovieCard({ movie, onPress, onViewShowtimes }: MovieCard
                   styles.ticketBtnText,
                   !movie.isNowShowing && { color: '#F59E0B' },
                 ]}>
-                {movie.isNowShowing ? 'Đặt vé' : 'Lịch chiếu'}
+                {movie.isNowShowing ? 'Đặt vé' : 'Lịch'}
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {/* UC14: Admin Action Toolbar (Chỉ hiển thị khi isAdmin === true) */}
+        {isAdmin ? (
+          <View style={styles.adminActionRow}>
+            {onEditMovie ? (
+              <TouchableOpacity
+                style={styles.adminEditBtn}
+                onPress={() => onEditMovie(movie)}
+                activeOpacity={0.8}>
+                <Ionicons name="create-outline" size={13} color="#3B82F6" />
+                <Text style={styles.adminEditText}>Sửa</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {onDeleteMovie ? (
+              <TouchableOpacity
+                style={styles.adminDeleteBtn}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete Movie',
+                    `Are you sure you want to delete "${movie.title}"? This action cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => onDeleteMovie(movie),
+                      },
+                    ]
+                  );
+                }}
+                activeOpacity={0.8}>
+                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                <Text style={styles.adminDeleteText}>Xóa</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -227,6 +290,17 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontSize: 11,
     fontWeight: '700',
+  },
+  trailerPlayOverlay: {
+    position: 'absolute',
+    top: '38%',
+    left: '38%',
+    backgroundColor: 'rgba(229, 9, 20, 0.75)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusTag: {
     position: 'absolute',
@@ -304,7 +378,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-  detailBtn: {
+  trailerBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,12 +388,12 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2F374A',
+    borderColor: 'rgba(229, 9, 20, 0.35)',
   },
-  detailBtnText: {
-    color: '#E5E7EB',
+  trailerBtnText: {
+    color: '#FFFFFF',
     fontSize: 11.5,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   ticketBtn: {
     flex: 1,
@@ -334,6 +408,48 @@ const styles = StyleSheet.create({
   ticketBtnText: {
     color: '#FFFFFF',
     fontSize: 11.5,
+    fontWeight: '700',
+  },
+  adminActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#242B3C',
+  },
+  adminEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  adminEditText: {
+    color: '#3B82F6',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  adminDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  adminDeleteText: {
+    color: '#EF4444',
+    fontSize: 11,
     fontWeight: '700',
   },
 });

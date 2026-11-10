@@ -73,6 +73,11 @@ const MovieSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    trailerUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     isNowShowing: {
       type: Boolean,
       default: true,
