@@ -91,3 +91,4 @@ BookingSchema.set('toJSON', {
 });
 
 module.exports = mongoose.model('Booking', BookingSchema);
+

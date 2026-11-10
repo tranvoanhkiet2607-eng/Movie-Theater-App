@@ -312,3 +312,4 @@ router.patch('/accounts/:id/role', verifyAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
