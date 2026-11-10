@@ -210,4 +210,86 @@ export interface BookSeatsResponse {
   };
 }
 
+// ─── Seat Type Management (UC26) ─────────────────────────────────────────────
+export interface SeatTypeStats {
+  totalCount: number;
+  availableCount: number;
+  maintenanceCount: number;
+  reservedCount?: number;
+  percentage: number;
+  estimatedRevenue: number;
+  estimatedRevenueFormatted: string;
+  usedInRows: string[];
+}
+
+export interface SeatTypeItem {
+  id?: string;
+  _id?: string;
+  code: SeatType;
+  name: string;
+  nameEn?: string;
+  description: string;
+  color: string;
+  accentColor?: string;
+  basePrice: number;
+  surcharge: number;
+  capacity: number;
+  features: string[];
+  defaultRows: string[];
+  isActive: boolean;
+  sortOrder: number;
+  stats?: SeatTypeStats;
+}
+
+export interface GetSeatTypesResponse {
+  success: boolean;
+  seatTypes: SeatTypeItem[];
+  summary: {
+    totalSeats: number;
+    standardCount: number;
+    vipCount: number;
+    coupleCount: number;
+  };
+  filter: {
+    theaterId: string;
+    room: string;
+  };
+  message?: string;
+}
+
+export interface UpdateSeatTypePayload {
+  name?: string;
+  nameEn?: string;
+  description?: string;
+  color?: string;
+  accentColor?: string;
+  basePrice?: number;
+  surcharge?: number;
+  features?: string[];
+  defaultRows?: string[];
+  isActive?: boolean;
+  applyToExistingSeats?: boolean;
+  theaterId?: string;
+  room?: string;
+}
+
+export interface BatchAssignRowPayload {
+  theaterId: string;
+  room: string;
+  rows: string[];
+  newType: SeatType;
+  updatePrice?: boolean;
+}
+
+export interface BatchAssignRowResponse {
+  success: boolean;
+  message: string;
+  updatedCount: number;
+  theaterId: string;
+  room: string;
+  rows: string[];
+  newType: SeatType;
+}
+
+
 

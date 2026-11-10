@@ -19,15 +19,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 import { SeatAPI } from '@/services/api';
 import {
+  BatchAssignRowPayload,
   GenerateRoomData,
   SeatFormData,
   SeatItem,
   SeatStatus,
   SeatSummary,
   SeatType,
+  SeatTypeItem,
+  UpdateSeatTypePayload,
 } from '@/types/seat';
 
-type ViewMode = 'map' | 'list';
+type ViewMode = 'map' | 'list' | 'types';
 
 export default function SeatsScreen() {
   const router = useRouter();
@@ -97,6 +100,36 @@ export default function SeatsScreen() {
   const [genSubmitting, setGenSubmitting] = useState<boolean>(false);
   const [genError, setGenError] = useState<string | null>(null);
 
+  // ─── Seat Types (UC26) States ───────────────────────────────────────────────
+  const [seatTypes, setSeatTypes] = useState<SeatTypeItem[]>([]);
+  const [seatTypesLoading, setSeatTypesLoading] = useState<boolean>(false);
+  const [seatTypesError, setSeatTypesError] = useState<string | null>(null);
+
+  // 5. Modal Chỉnh sửa cấu hình Loại Ghế (UC26)
+  const [editTypeModalVisible, setEditTypeModalVisible] = useState<boolean>(false);
+  const [editingType, setEditingType] = useState<SeatTypeItem | null>(null);
+  const [formTypeName, setFormTypeName] = useState<string>('');
+  const [formTypeNameEn, setFormTypeNameEn] = useState<string>('');
+  const [formTypeDesc, setFormTypeDesc] = useState<string>('');
+  const [formTypeBasePrice, setFormTypeBasePrice] = useState<string>('90000');
+  const [formTypeSurcharge, setFormTypeSurcharge] = useState<string>('0');
+  const [formTypeColor, setFormTypeColor] = useState<string>('#64748B');
+  const [formTypeFeatures, setFormTypeFeatures] = useState<string>('');
+  const [formTypeSyncExisting, setFormTypeSyncExisting] = useState<boolean>(true);
+  const [formTypeSubmitting, setFormTypeSubmitting] = useState<boolean>(false);
+  const [formTypeError, setFormTypeError] = useState<string | null>(null);
+
+  // 6. Modal Chuyển đổi hàng ghế hàng loạt (UC26)
+  const [batchModalVisible, setBatchModalVisible] = useState<boolean>(false);
+  const [batchSelectedRows, setBatchSelectedRows] = useState<string[]>([]);
+  const [batchTargetType, setBatchTargetType] = useState<SeatType>('vip');
+  const [batchUpdatePrice, setBatchUpdatePrice] = useState<boolean>(true);
+  const [batchSubmitting, setBatchSubmitting] = useState<boolean>(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+
+  // 7. Reset State (UC26)
+  const [resetLoading, setResetLoading] = useState<boolean>(false);
+
   // ─── Fetch Data ─────────────────────────────────────────────────────────────
   const fetchSeats = useCallback(async () => {
     try {
@@ -135,9 +168,29 @@ export default function SeatsScreen() {
     searchQuery,
   ]);
 
+  // ─── Fetch Seat Types (UC26) ────────────────────────────────────────────────
+  const fetchSeatTypes = useCallback(async () => {
+    try {
+      setSeatTypesLoading(true);
+      setSeatTypesError(null);
+      const res = await SeatAPI.getSeatTypes({
+        theaterId: selectedTheaterId,
+        room: selectedRoom,
+      });
+      if (res.seatTypes) {
+        setSeatTypes(res.seatTypes);
+      }
+    } catch (err: any) {
+      setSeatTypesError(err?.message || 'Không thể tải danh sách loại ghế.');
+    } finally {
+      setSeatTypesLoading(false);
+    }
+  }, [selectedTheaterId, selectedRoom]);
+
   useEffect(() => {
     fetchSeats();
-  }, [fetchSeats]);
+    fetchSeatTypes();
+  }, [fetchSeats, fetchSeatTypes]);
 
   // Nhận params từ route ngoài (ví dụ từ màn hình Lịch chiếu)
   useEffect(() => {
@@ -325,6 +378,144 @@ export default function SeatsScreen() {
     }
   };
 
+  // ─── Seat Types (UC26) Handlers ─────────────────────────────────────────────
+  const handleOpenEditTypeModal = (typeItem: SeatTypeItem) => {
+    setEditingType(typeItem);
+    setFormTypeName(typeItem.name);
+    setFormTypeNameEn(typeItem.nameEn || '');
+    setFormTypeDesc(typeItem.description || '');
+    setFormTypeBasePrice(String(typeItem.basePrice));
+    setFormTypeSurcharge(String(typeItem.surcharge || 0));
+    setFormTypeColor(typeItem.color || '#64748B');
+    setFormTypeFeatures((typeItem.features || []).join('\n'));
+    setFormTypeSyncExisting(true);
+    setFormTypeError(null);
+    setEditTypeModalVisible(true);
+  };
+
+  const handleSaveSeatType = async () => {
+    if (!editingType) return;
+    if (!formTypeName.trim()) {
+      setFormTypeError('Vui lòng nhập tên loại ghế.');
+      return;
+    }
+    const priceNum = parseInt(formTypeBasePrice, 10);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setFormTypeError('Giá vé cơ bản không hợp lệ.');
+      return;
+    }
+    const surchargeNum = parseInt(formTypeSurcharge, 10) || 0;
+
+    try {
+      setFormTypeSubmitting(true);
+      setFormTypeError(null);
+
+      const parsedFeatures = formTypeFeatures
+        .split('\n')
+        .map((f) => f.trim())
+        .filter(Boolean);
+
+      const payload: UpdateSeatTypePayload = {
+        name: formTypeName.trim(),
+        nameEn: formTypeNameEn.trim(),
+        description: formTypeDesc.trim(),
+        basePrice: priceNum,
+        surcharge: surchargeNum,
+        color: formTypeColor.trim(),
+        features: parsedFeatures,
+        applyToExistingSeats: formTypeSyncExisting,
+        theaterId: selectedTheaterId,
+        room: selectedRoom,
+      };
+
+      const res = await SeatAPI.updateSeatType(editingType.code, payload);
+      setEditTypeModalVisible(false);
+      Alert.alert('Thành công', res.message || 'Cập nhật cấu hình loại ghế thành công!');
+      await fetchSeatTypes();
+      await fetchSeats();
+    } catch (err: any) {
+      setFormTypeError(err?.message || 'Không thể cập nhật cấu hình loại ghế.');
+    } finally {
+      setFormTypeSubmitting(false);
+    }
+  };
+
+  const handleQuickAssignRow = async (row: string, newType: SeatType) => {
+    try {
+      const targetRoom = selectedRoom || (rooms.length > 0 ? rooms[0] : 'Rạp 01');
+
+      const res = await SeatAPI.batchAssignRowType({
+        theaterId: selectedTheaterId,
+        room: targetRoom,
+        rows: [row],
+        newType,
+        updatePrice: true,
+      });
+
+      Alert.alert('Cập nhật thành công', res.message);
+      await fetchSeatTypes();
+      await fetchSeats();
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể chuyển đổi loại ghế cho hàng này.');
+    }
+  };
+
+  const handleBatchAssignRows = async () => {
+    if (!batchSelectedRows.length) {
+      setBatchError('Vui lòng chọn ít nhất 1 hàng ghế.');
+      return;
+    }
+    try {
+      setBatchSubmitting(true);
+      setBatchError(null);
+      const targetRoom = selectedRoom || (rooms.length > 0 ? rooms[0] : 'Rạp 01');
+
+      const res = await SeatAPI.batchAssignRowType({
+        theaterId: selectedTheaterId,
+        room: targetRoom,
+        rows: batchSelectedRows,
+        newType: batchTargetType,
+        updatePrice: batchUpdatePrice,
+      });
+
+      setBatchModalVisible(false);
+      Alert.alert('Thành công', res.message);
+      await fetchSeatTypes();
+      await fetchSeats();
+    } catch (err: any) {
+      setBatchError(err?.message || 'Không thể chuyển đổi hàng ghế.');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const handleResetSeatTypes = () => {
+    Alert.alert(
+      'Khôi phục mặc định',
+      'Bạn có chắc chắn muốn đặt lại cấu hình 3 loại ghế (Thường, VIP, Đôi) về mặc định ban đầu của hệ thống rạp?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Khôi phục',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setResetLoading(true);
+              const res = await SeatAPI.resetSeatTypes();
+              Alert.alert('Thành công', res.message);
+              await fetchSeatTypes();
+              await fetchSeats();
+            } catch (err: any) {
+              Alert.alert('Lỗi', err?.message || 'Không thể khôi phục loại ghế mặc định.');
+            } finally {
+              setResetLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // ─── Helpers: Color & Labels ────────────────────────────────────────────────
   const getSeatColor = (seat: SeatItem) => {
     if (seat.status === 'maintenance') return '#EF4444'; // Đỏ bảo trì
@@ -374,7 +565,7 @@ export default function SeatsScreen() {
             </Text>
           </View>
 
-          {/* Nút chuyển đổi View Mode: Sơ đồ hoặc Danh sách */}
+          {/* Nút chuyển đổi View Mode: Sơ đồ, Danh sách, hoặc Quản lý loại ghế */}
           <View style={styles.viewModeToggle}>
             <TouchableOpacity
               style={[styles.viewModeBtn, viewMode === 'map' && styles.viewModeBtnActive]}
@@ -394,6 +585,16 @@ export default function SeatsScreen() {
                 name="list"
                 size={16}
                 color={viewMode === 'list' ? '#FFFFFF' : '#9CA3AF'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewModeBtn, viewMode === 'types' && styles.viewModeBtnActive]}
+              onPress={() => setViewMode('types')}
+              activeOpacity={0.8}>
+              <Ionicons
+                name="pricetags"
+                size={16}
+                color={viewMode === 'types' ? '#FFFFFF' : '#9CA3AF'}
               />
             </TouchableOpacity>
           </View>
@@ -425,6 +626,14 @@ export default function SeatsScreen() {
                 activeOpacity={0.8}>
                 <Ionicons name="apps" size={16} color="#FFFFFF" />
                 <Text style={styles.adminActionBtnText}>Khởi tạo sơ đồ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.adminActionBtn, styles.adminActionBtnSecondary]}
+                onPress={() => setViewMode('types')}
+                activeOpacity={0.8}>
+                <Ionicons name="pricetags" size={15} color="#FFFFFF" />
+                <Text style={styles.adminActionBtnText}>Loại ghế</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -622,6 +831,366 @@ export default function SeatsScreen() {
             <TouchableOpacity style={styles.retryBtn} onPress={fetchSeats}>
               <Text style={styles.retryBtnText}>Thử lại</Text>
             </TouchableOpacity>
+          </View>
+        ) : viewMode === 'types' ? (
+          /* ── Quản Lý Loại Ghế (UC26: Manage Seat Types) ── */
+          <View style={styles.typesContainer}>
+            {/* 1. Tóm tắt phân bổ loại ghế */}
+            <View style={styles.typesSummaryCard}>
+              <View style={styles.typesSummaryHeader}>
+                <View>
+                  <Text style={styles.typesSummaryTitle}>Phân Bổ Loại Ghế Trong Phòng</Text>
+                  <Text style={styles.typesSummarySubtitle}>
+                    {activeTheater?.shortName || activeTheater?.name} • {selectedRoom || 'Phòng chiếu'} ({summary.total} ghế)
+                  </Text>
+                </View>
+                {isManageMode && (
+                  <TouchableOpacity
+                    style={styles.batchOpenBtn}
+                    onPress={() => {
+                      setBatchSelectedRows([]);
+                      setBatchError(null);
+                      setBatchModalVisible(true);
+                    }}
+                    activeOpacity={0.8}>
+                    <Ionicons name="swap-horizontal" size={14} color="#FFFFFF" />
+                    <Text style={styles.batchOpenBtnText}>Đổi hàng ghế</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Thanh phân bổ màu ghế */}
+              <View style={styles.distribBarWrapper}>
+                <View
+                  style={[
+                    styles.distribBarSegment,
+                    {
+                      flex: summary.standardCount || 0.001,
+                      backgroundColor: '#64748B',
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.distribBarSegment,
+                    {
+                      flex: summary.vipCount || 0.001,
+                      backgroundColor: '#F59E0B',
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.distribBarSegment,
+                    {
+                      flex: summary.coupleCount || 0.001,
+                      backgroundColor: '#EC4899',
+                    },
+                  ]}
+                />
+              </View>
+
+              {/* Legend phân bổ */}
+              <View style={styles.distribLegendRow}>
+                <View style={styles.distribLegendItem}>
+                  <View style={[styles.distribDot, { backgroundColor: '#64748B' }]} />
+                  <Text style={styles.distribLegendText}>
+                    Thường: {summary.standardCount} ({summary.total > 0 ? Math.round((summary.standardCount / summary.total) * 100) : 0}%)
+                  </Text>
+                </View>
+                <View style={styles.distribLegendItem}>
+                  <View style={[styles.distribDot, { backgroundColor: '#F59E0B' }]} />
+                  <Text style={styles.distribLegendText}>
+                    VIP: {summary.vipCount} ({summary.total > 0 ? Math.round((summary.vipCount / summary.total) * 100) : 0}%)
+                  </Text>
+                </View>
+                <View style={styles.distribLegendItem}>
+                  <View style={[styles.distribDot, { backgroundColor: '#EC4899' }]} />
+                  <Text style={styles.distribLegendText}>
+                    Đôi: {summary.coupleCount} ({summary.total > 0 ? Math.round((summary.coupleCount / summary.total) * 100) : 0}%)
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 2. Danh sách 3 Loại Ghế (Thường, VIP, Đôi Sweetbox) */}
+            <View style={styles.typesListSection}>
+              <View style={styles.typesSectionHeader}>
+                <Ionicons name="pricetags" size={18} color="#E50914" />
+                <Text style={styles.typesSectionTitle}>Cấu hình & Bảng giá các loại ghế</Text>
+              </View>
+
+              {seatTypesLoading ? (
+                <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#E50914" />
+                  <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 8 }}>
+                    Đang đồng bộ loại ghế từ MongoDB Atlas...
+                  </Text>
+                </View>
+              ) : (
+                seatTypes.map((typeItem) => {
+                  const isVip = typeItem.code === 'vip';
+                  const isCouple = typeItem.code === 'couple';
+                  const cardBorderColor = isCouple ? '#EC4899' : isVip ? '#F59E0B' : '#64748B';
+                  const iconName = isCouple ? 'heart' : isVip ? 'star' : 'film-outline';
+
+                  return (
+                    <View
+                      key={typeItem.code}
+                      style={[styles.typeCard, { borderLeftColor: cardBorderColor }]}>
+                      {/* Card Header */}
+                      <View style={styles.typeCardHeader}>
+                        <View style={styles.typeCardTitleRow}>
+                          <View
+                            style={[
+                              styles.typeIconBox,
+                              { backgroundColor: `${cardBorderColor}22` },
+                            ]}>
+                            <Ionicons name={iconName} size={20} color={cardBorderColor} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={styles.typeCardName}>{typeItem.name}</Text>
+                              <View
+                                style={[
+                                  styles.capacityBadge,
+                                  { backgroundColor: `${cardBorderColor}20` },
+                                ]}>
+                                <Ionicons
+                                  name={isCouple ? 'people' : 'person'}
+                                  size={11}
+                                  color={cardBorderColor}
+                                />
+                                <Text
+                                  style={[styles.capacityBadgeText, { color: cardBorderColor }]}>
+                                  {typeItem.capacity === 2 ? '2 Chỗ (Cặp đôi)' : '1 Chỗ'}
+                                </Text>
+                              </View>
+                            </View>
+                            {typeItem.nameEn ? (
+                              <Text style={styles.typeCardNameEn}>{typeItem.nameEn}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        {/* Price Badge */}
+                        <View style={styles.typePriceBox}>
+                          <Text style={styles.typePriceText}>
+                            {typeItem.basePrice?.toLocaleString('vi-VN')}đ
+                          </Text>
+                          {typeItem.surcharge > 0 && (
+                            <Text style={styles.typeSurchargeText}>
+                              +{typeItem.surcharge?.toLocaleString('vi-VN')}đ phụ thu
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Description */}
+                      <Text style={styles.typeDescText}>{typeItem.description}</Text>
+
+                      {/* Stats Grid */}
+                      <View style={styles.typeStatsRow}>
+                        <View style={styles.typeStatCol}>
+                          <Text style={styles.typeStatNumber}>
+                            {typeItem.stats?.totalCount || 0}
+                          </Text>
+                          <Text style={styles.typeStatLabel}>Ghế trong phòng</Text>
+                        </View>
+                        <View style={styles.typeStatCol}>
+                          <Text style={[styles.typeStatNumber, { color: '#10B981' }]}>
+                            {typeItem.stats?.availableCount || 0}
+                          </Text>
+                          <Text style={styles.typeStatLabel}>Khả dụng</Text>
+                        </View>
+                        <View style={styles.typeStatCol}>
+                          <Text style={[styles.typeStatNumber, { color: '#EF4444' }]}>
+                            {typeItem.stats?.maintenanceCount || 0}
+                          </Text>
+                          <Text style={styles.typeStatLabel}>Bảo trì</Text>
+                        </View>
+                        <View style={styles.typeStatCol}>
+                          <Text style={styles.typeStatNumber}>
+                            {typeItem.stats?.percentage || 0}%
+                          </Text>
+                          <Text style={styles.typeStatLabel}>Tỷ lệ phòng</Text>
+                        </View>
+                      </View>
+
+                      {/* Rows Applied */}
+                      {typeItem.stats?.usedInRows?.length ? (
+                        <View style={styles.typeRowsBox}>
+                          <Ionicons name="grid-outline" size={13} color="#9CA3AF" />
+                          <Text style={styles.typeRowsText}>
+                            Áp dụng tại:{' '}
+                            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>
+                              {typeItem.stats.usedInRows.map((r) => `Hàng ${r}`).join(', ')}
+                            </Text>
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {/* Feature chips */}
+                      {typeItem.features?.length ? (
+                        <View style={styles.featureChipsWrapper}>
+                          {typeItem.features.map((feat, idx) => (
+                            <View key={idx} style={styles.featureChip}>
+                              <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                              <Text style={styles.featureChipText}>{feat}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+
+                      {/* Admin Actions */}
+                      {isManageMode && (
+                        <View style={styles.typeCardActions}>
+                          <TouchableOpacity
+                            style={styles.editTypeBtn}
+                            onPress={() => handleOpenEditTypeModal(typeItem)}
+                            activeOpacity={0.8}>
+                            <Ionicons name="create-outline" size={15} color="#FFFFFF" />
+                            <Text style={styles.editTypeBtnText}>Chỉnh sửa cấu hình & giá vé</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* 3. Công cụ quản lý loại ghế theo từng hàng ghế */}
+            <View style={styles.rowManagementSection}>
+              <View style={styles.typesSectionHeader}>
+                <Ionicons name="layers" size={18} color="#E50914" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.typesSectionTitle}>Chuyển đổi loại ghế theo hàng</Text>
+                  <Text style={styles.typesSectionSubtitle}>
+                    Chạm nút 1 lần để đổi toàn bộ loại ghế của hàng (Tự động cập nhật MongoDB Atlas)
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rowsTableCard}>
+                {seatsByRow.map((group) => {
+                  const dominantType = group.items[0]?.type || 'standard';
+                  return (
+                    <View key={group.row} style={styles.rowManageItem}>
+                      <View style={styles.rowManageLeft}>
+                        <View style={styles.rowLetterBadge}>
+                          <Text style={styles.rowLetterBadgeText}>{group.row}</Text>
+                        </View>
+                        <View>
+                          <Text style={styles.rowManageTitle}>Hàng {group.row}</Text>
+                          <Text style={styles.rowManageSubtitle}>
+                            {group.items.length} ghế • {group.items[0]?.priceFormatted || '90.000đ'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Segmented Type Switcher */}
+                      {isManageMode ? (
+                        <View style={styles.rowTypeSegment}>
+                          <TouchableOpacity
+                            style={[
+                              styles.rowSegmentBtn,
+                              dominantType === 'standard' && styles.rowSegmentBtnStdActive,
+                            ]}
+                            onPress={() => handleQuickAssignRow(group.row, 'standard')}
+                            activeOpacity={0.7}>
+                            <Text
+                              style={[
+                                styles.rowSegmentText,
+                                dominantType === 'standard' && styles.rowSegmentTextActive,
+                              ]}>
+                              Thường
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.rowSegmentBtn,
+                              dominantType === 'vip' && styles.rowSegmentBtnVipActive,
+                            ]}
+                            onPress={() => handleQuickAssignRow(group.row, 'vip')}
+                            activeOpacity={0.7}>
+                            <Text
+                              style={[
+                                styles.rowSegmentText,
+                                dominantType === 'vip' && styles.rowSegmentTextActive,
+                              ]}>
+                              VIP
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.rowSegmentBtn,
+                              dominantType === 'couple' && styles.rowSegmentBtnCplActive,
+                            ]}
+                            onPress={() => handleQuickAssignRow(group.row, 'couple')}
+                            activeOpacity={0.7}>
+                            <Text
+                              style={[
+                                styles.rowSegmentText,
+                                dominantType === 'couple' && styles.rowSegmentTextActive,
+                              ]}>
+                              Đôi
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View
+                          style={[
+                            styles.readOnlyTypeBadge,
+                            {
+                              backgroundColor:
+                                dominantType === 'couple'
+                                  ? '#EC489922'
+                                  : dominantType === 'vip'
+                                  ? '#F59E0B22'
+                                  : '#64748B22',
+                            },
+                          ]}>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: '600',
+                              color:
+                                dominantType === 'couple'
+                                  ? '#EC4899'
+                                  : dominantType === 'vip'
+                                  ? '#F59E0B'
+                                  : '#94A3B8',
+                            }}>
+                            {dominantType === 'couple'
+                              ? 'Sweetbox'
+                              : dominantType === 'vip'
+                              ? 'VIP'
+                              : 'Thường'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* 4. Khôi phục mặc định */}
+            {isManageMode && (
+              <TouchableOpacity
+                style={styles.resetTypesBtn}
+                onPress={handleResetSeatTypes}
+                disabled={resetLoading}
+                activeOpacity={0.8}>
+                <Ionicons name="refresh-circle-outline" size={18} color="#9CA3AF" />
+                <Text style={styles.resetTypesBtnText}>
+                  {resetLoading ? 'Đang khôi phục...' : 'Khôi phục cấu hình 3 loại ghế mặc định'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : seats.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -1304,6 +1873,356 @@ export default function SeatsScreen() {
                   <>
                     <Ionicons name="flash" size={16} color="#FFFFFF" />
                     <Text style={styles.modalSaveBtnText}>Tạo sơ đồ phòng</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL 5: CẬP NHẬT CẤU HÌNH LOẠI GHẾ (ADMIN - UC26)
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={editTypeModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditTypeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalDialog, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View
+                style={[
+                  styles.modalSeatCodeCircle,
+                  { backgroundColor: editingType?.color || '#E50914' },
+                ]}>
+                <Ionicons
+                  name={
+                    editingType?.code === 'couple'
+                      ? 'heart'
+                      : editingType?.code === 'vip'
+                      ? 'star'
+                      : 'film-outline'
+                  }
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>
+                  Cấu Hình {editingType?.name}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  Mã loại: {editingType?.code?.toUpperCase()} • Quản lý giá vé & tiện ích
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditTypeModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {formTypeError && (
+              <View style={styles.formErrorBox}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                <Text style={styles.formErrorText}>{formTypeError}</Text>
+              </View>
+            )}
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Tên loại ghế */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tên loại ghế (Tiếng Việt)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formTypeName}
+                  onChangeText={setFormTypeName}
+                  placeholder="Ví dụ: Ghế VIP Prime"
+                  placeholderTextColor="#6B7280"
+                />
+              </View>
+
+              {/* Tên tiếng Anh */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tên tiếng Anh (Hiển thị vé)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formTypeNameEn}
+                  onChangeText={setFormTypeNameEn}
+                  placeholder="Ví dụ: VIP Prime Seat"
+                  placeholderTextColor="#6B7280"
+                />
+              </View>
+
+              {/* Giá vé cơ bản & Phụ thu */}
+              <View style={styles.formRowTwo}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.formLabel}>Giá vé niêm yết (VNĐ)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={formTypeBasePrice}
+                    onChangeText={setFormTypeBasePrice}
+                    placeholder="90000"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={styles.formLabel}>Phụ thu (VNĐ)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={formTypeSurcharge}
+                    onChangeText={setFormTypeSurcharge}
+                    placeholder="0"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Màu sắc nhận diện */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Mã màu nhận diện trên sơ đồ</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TextInput
+                    style={[styles.formInput, { flex: 1 }]}
+                    value={formTypeColor}
+                    onChangeText={setFormTypeColor}
+                    placeholder="#F59E0B"
+                    placeholderTextColor="#6B7280"
+                  />
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      backgroundColor: formTypeColor || '#64748B',
+                      borderWidth: 1,
+                      borderColor: '#4B5563',
+                    }}
+                  />
+                </View>
+                {/* Color presets */}
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  {['#64748B', '#F59E0B', '#EC4899', '#10B981', '#3B82F6', '#8B5CF6'].map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        backgroundColor: c,
+                        borderWidth: formTypeColor === c ? 2 : 0,
+                        borderColor: '#FFFFFF',
+                      }}
+                      onPress={() => setFormTypeColor(c)}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Mô tả chi tiết */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Mô tả vị trí & trải nghiệm</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 70, textAlignVertical: 'top' }]}
+                  value={formTypeDesc}
+                  onChangeText={setFormTypeDesc}
+                  placeholder="Mô tả góc nhìn, độ thoải mái, khoảng cách..."
+                  placeholderTextColor="#6B7280"
+                  multiline
+                />
+              </View>
+
+              {/* Danh sách tiện ích */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tiện ích nổi bật (mỗi dòng một tiện ích)</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 80, textAlignVertical: 'top' }]}
+                  value={formTypeFeatures}
+                  onChangeText={setFormTypeFeatures}
+                  placeholder="Vị trí trung tâm&#10;Đệm da cao cấp&#10;Âm thanh Dolby Atmos"
+                  placeholderTextColor="#6B7280"
+                  multiline
+                />
+              </View>
+
+              {/* Checkbox đồng bộ giá vào các ghế hiện có */}
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => setFormTypeSyncExisting(!formTypeSyncExisting)}
+                activeOpacity={0.8}>
+                <Ionicons
+                  name={formTypeSyncExisting ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={formTypeSyncExisting ? '#E50914' : '#9CA3AF'}
+                />
+                <Text style={styles.checkboxLabel}>
+                  Đồng bộ giá mới ({parseInt(formTypeBasePrice || '0', 10).toLocaleString('vi-VN')}đ) vào tất cả ghế thuộc loại này trong phòng
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <View style={styles.modalActionButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setEditTypeModalVisible(false)}
+                disabled={formTypeSubmitting}>
+                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleSaveSeatType}
+                disabled={formTypeSubmitting}>
+                {formTypeSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" />
+                    <Text style={styles.modalSaveBtnText}>Lưu cấu hình</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL 6: CHUYỂN ĐỔI HÀNG GHẾ HÀNG LOẠT (ADMIN - UC26)
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={batchModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBatchModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalDialog, { maxHeight: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalSeatCodeCircle, { backgroundColor: '#3B82F6' }]}>
+                <Ionicons name="layers" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>Chuyển Đổi Hàng Ghế</Text>
+                <Text style={styles.modalSubtitle}>
+                  {activeTheater?.shortName || activeTheater?.name} • {selectedRoom || 'Phòng chiếu'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setBatchModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {batchError && (
+              <View style={styles.formErrorBox}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                <Text style={styles.formErrorText}>{batchError}</Text>
+              </View>
+            )}
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.formLabel}>
+                1. Chọn các hàng ghế cần chuyển đổi:
+              </Text>
+              <View style={styles.batchRowsGrid}>
+                {seatsByRow.map((group) => {
+                  const isChecked = batchSelectedRows.includes(group.row);
+                  return (
+                    <TouchableOpacity
+                      key={group.row}
+                      style={[
+                        styles.batchRowChip,
+                        isChecked && styles.batchRowChipActive,
+                      ]}
+                      onPress={() => {
+                        if (isChecked) {
+                          setBatchSelectedRows(batchSelectedRows.filter((r) => r !== group.row));
+                        } else {
+                          setBatchSelectedRows([...batchSelectedRows, group.row]);
+                        }
+                      }}>
+                      <Ionicons
+                        name={isChecked ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={16}
+                        color={isChecked ? '#FFFFFF' : '#9CA3AF'}
+                      />
+                      <Text
+                        style={[
+                          styles.batchRowChipText,
+                          isChecked && styles.batchRowChipTextActive,
+                        ]}>
+                        Hàng {group.row} ({group.items.length} ghế)
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[styles.formLabel, { marginTop: 16 }]}>
+                2. Chuyển sang loại ghế:
+              </Text>
+              <View style={styles.typeSelectorRow}>
+                {[
+                  { id: 'standard', name: 'Ghế Thường', color: '#64748B' },
+                  { id: 'vip', name: 'Ghế VIP', color: '#F59E0B' },
+                  { id: 'couple', name: 'Ghế Đôi Sweetbox', color: '#EC4899' },
+                ].map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[
+                      styles.typeOptionBtn,
+                      batchTargetType === t.id && {
+                        borderColor: t.color,
+                        backgroundColor: `${t.color}22`,
+                      },
+                    ]}
+                    onPress={() => setBatchTargetType(t.id as SeatType)}>
+                    <Text
+                      style={[
+                        styles.typeOptionText,
+                        batchTargetType === t.id && { color: t.color, fontWeight: '700' },
+                      ]}>
+                      {t.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Checkbox cập nhật giá vé */}
+              <TouchableOpacity
+                style={[styles.checkboxRow, { marginTop: 14 }]}
+                onPress={() => setBatchUpdatePrice(!batchUpdatePrice)}
+                activeOpacity={0.8}>
+                <Ionicons
+                  name={batchUpdatePrice ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={batchUpdatePrice ? '#E50914' : '#9CA3AF'}
+                />
+                <Text style={styles.checkboxLabel}>
+                  Tự động cập nhật giá vé tương ứng với loại ghế mới
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <View style={styles.modalActionButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setBatchModalVisible(false)}
+                disabled={batchSubmitting}>
+                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleBatchAssignRows}
+                disabled={batchSubmitting}>
+                {batchSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="swap-horizontal" size={18} color="#FFFFFF" />
+                    <Text style={styles.modalSaveBtnText}>Áp dụng thay đổi</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -2082,6 +3001,367 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
+  },
+
+  // ─── Seat Types (UC26) Styles ───────────────────────────────────────────────
+  typesContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  typesSummaryCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+  typesSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  typesSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  typesSummarySubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  batchOpenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  batchOpenBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  distribBarWrapper: {
+    height: 10,
+    flexDirection: 'row',
+    backgroundColor: '#27272A',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  distribBarSegment: {
+    height: '100%',
+  },
+  distribLegendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  distribLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  distribDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  distribLegendText: {
+    fontSize: 12,
+    color: '#D1D5DB',
+  },
+  typesListSection: {
+    marginBottom: 24,
+  },
+  typesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
+  typesSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  typesSectionSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  typeCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderLeftWidth: 5,
+  },
+  typeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  typeCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  typeIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeCardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  typeCardNameEn: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 1,
+  },
+  capacityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 3,
+  },
+  capacityBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  typePriceBox: {
+    alignItems: 'flex-end',
+  },
+  typePriceText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#E50914',
+  },
+  typeSurchargeText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  typeDescText: {
+    fontSize: 13,
+    color: '#D1D5DB',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  typeStatsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#202024',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    justifyContent: 'space-around',
+  },
+  typeStatCol: {
+    alignItems: 'center',
+  },
+  typeStatNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  typeStatLabel: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  typeRowsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27272A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+    marginBottom: 12,
+  },
+  typeRowsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  featureChipsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27272A',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  featureChipText: {
+    fontSize: 11,
+    color: '#D1D5DB',
+  },
+  typeCardActions: {
+    borderTopWidth: 1,
+    borderTopColor: '#27272A',
+    paddingTop: 12,
+    alignItems: 'flex-end',
+  },
+  editTypeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 6,
+  },
+  editTypeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rowManagementSection: {
+    marginBottom: 20,
+  },
+  rowsTableCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+  rowManageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272A',
+  },
+  rowManageLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rowLetterBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLetterBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  rowManageTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rowManageSubtitle: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 1,
+  },
+  rowTypeSegment: {
+    flexDirection: 'row',
+    backgroundColor: '#27272A',
+    borderRadius: 6,
+    padding: 2,
+    gap: 2,
+  },
+  rowSegmentBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 4,
+  },
+  rowSegmentBtnStdActive: {
+    backgroundColor: '#64748B',
+  },
+  rowSegmentBtnVipActive: {
+    backgroundColor: '#F59E0B',
+  },
+  rowSegmentBtnCplActive: {
+    backgroundColor: '#EC4899',
+  },
+  rowSegmentText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  rowSegmentTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  readOnlyTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  resetTypesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginTop: 8,
+    gap: 6,
+  },
+  resetTypesBtnText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  batchRowsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  batchRowChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27272A',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 6,
+  },
+  batchRowChipActive: {
+    backgroundColor: '#3B82F6',
+  },
+  batchRowChipText: {
+    color: '#D1D5DB',
+    fontSize: 12,
+  },
+  batchRowChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
 

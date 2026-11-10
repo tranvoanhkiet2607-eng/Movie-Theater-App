@@ -1,5 +1,69 @@
 // Nguyễn Minh Quân - CE180048
 const Seat = require('../models/Seat');
+const SeatType = require('../models/SeatType');
+
+const DEFAULT_SEAT_TYPES = [
+  {
+    code: 'standard',
+    name: 'Ghế Thường',
+    nameEn: 'Standard Seat',
+    description: 'Ghế đơn tiêu chuẩn với góc nhìn toàn cảnh, đệm ngồi êm ái, phù hợp cho mọi khán giả.',
+    color: '#64748B',
+    accentColor: '#475569',
+    basePrice: 90000,
+    surcharge: 0,
+    capacity: 1,
+    features: [
+      'Tầm nhìn toàn cảnh phòng chiếu',
+      'Đệm ngồi êm ái đàn hồi cao',
+      'Khay đựng bắp & nước tiện dụng',
+      'Kê tay gập mở linh hoạt',
+    ],
+    defaultRows: ['A', 'B'],
+    isActive: true,
+    sortOrder: 1,
+  },
+  {
+    code: 'vip',
+    name: 'Ghế VIP',
+    nameEn: 'VIP Prime Seat',
+    description: 'Nằm ở khu vực trung tâm (Sweet Spot), mang lại trải nghiệm hình ảnh sắc nét và âm thanh vòm sống động nhất.',
+    color: '#F59E0B',
+    accentColor: '#D97706',
+    basePrice: 110000,
+    surcharge: 20000,
+    capacity: 1,
+    features: [
+      'Vị trí trung tâm phòng chiếu (Sweet Spot)',
+      'Khoảng cách giữa các hàng ghế siêu rộng',
+      'Chất liệu da công nghiệp cao cấp',
+      'Trải nghiệm âm thanh vòm tối ưu',
+    ],
+    defaultRows: ['C', 'D', 'E'],
+    isActive: true,
+    sortOrder: 2,
+  },
+  {
+    code: 'couple',
+    name: 'Ghế Đôi Sweetbox',
+    nameEn: 'Sweetbox Couple Seat',
+    description: 'Ghế sofa đôi rộng rãi dành riêng cho 2 người ở hàng ghế cuối, vách ngăn cao tạo không gian riêng tư, ấm cúng.',
+    color: '#EC4899',
+    accentColor: '#DB2777',
+    basePrice: 180000,
+    surcharge: 90000,
+    capacity: 2,
+    features: [
+      'Dành riêng cho 2 người (1 vé trọn gói)',
+      'Vách ngăn riêng tư cao và kín đáo',
+      'Không gác tay ngăn giữa, thoải mái tựa đầu',
+      'Bố trí tại hàng ghế cuối cùng ấm cúng',
+    ],
+    defaultRows: ['F', 'G'],
+    isActive: true,
+    sortOrder: 3,
+  },
+];
 
 function formatPriceVND(price) {
   return `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
@@ -231,7 +295,15 @@ function buildAllInitialSeats() {
   return allSeats;
 }
 
+async function seedSeatTypesData() {
+  const count = await SeatType.countDocuments();
+  if (count === 0) {
+    await SeatType.insertMany(DEFAULT_SEAT_TYPES);
+  }
+}
+
 async function seedSeatsData() {
+  await seedSeatTypesData();
   const seatCount = await Seat.countDocuments();
   if (seatCount === 0) {
     const initialSeats = buildAllInitialSeats();
@@ -241,6 +313,9 @@ async function seedSeatsData() {
 
 module.exports = {
   seedSeatsData,
+  seedSeatTypesData,
   buildAllInitialSeats,
+  DEFAULT_SEAT_TYPES,
 };
+
 

@@ -24,15 +24,20 @@ import { NotificationItem, NotificationMutationPayload } from '@/types/notificat
 import { Order, CreateOrderPayload, OrderStatus } from '@/types/order';
 import { ReportSummary, TopMovieStat, TopFoodStat, RevenueTrend } from '@/types/report';
 import {
+  BatchAssignRowPayload,
+  BatchAssignRowResponse,
   BookSeatsPayload,
   BookSeatsResponse,
   GenerateRoomData,
   GetSeatsResponse,
+  GetSeatTypesResponse,
   HoldSeatsPayload,
   HoldSeatsResponse,
   SeatFormData,
   SeatItem,
+  SeatTypeItem,
   ShowtimeSeatMapResponse,
+  UpdateSeatTypePayload,
 } from '@/types/seat';
 
 function getBaseUrl(): string {
@@ -693,5 +698,49 @@ export const SeatAPI = {
     apiRequest<BookSeatsResponse>('/seats/book', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+
+  /** UC26: Lấy danh sách cấu hình và thống kê các loại ghế (Thường, VIP, Đôi Sweetbox) */
+  getSeatTypes: (params?: { theaterId?: string; room?: string }): Promise<GetSeatTypesResponse> => {
+    const qs = new URLSearchParams();
+    if (params?.theaterId) qs.append('theaterId', params.theaterId);
+    if (params?.room) qs.append('room', params.room);
+    const queryStr = qs.toString();
+    return apiRequest<GetSeatTypesResponse>(`/seats/types${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  /** UC26: Lấy chi tiết cấu hình 1 loại ghế */
+  getSeatTypeByCode: (
+    code: string,
+    params?: { theaterId?: string; room?: string }
+  ): Promise<{ success: boolean; seatType: SeatTypeItem }> => {
+    const qs = new URLSearchParams();
+    if (params?.theaterId) qs.append('theaterId', params.theaterId);
+    if (params?.room) qs.append('room', params.room);
+    const queryStr = qs.toString();
+    return apiRequest(`/seats/types/${encodeURIComponent(code)}${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  /** UC26: Cập nhật cấu hình loại ghế (giá vé cơ bản, phụ thu, màu sắc, tiện ích) */
+  updateSeatType: (
+    code: string,
+    payload: UpdateSeatTypePayload
+  ): Promise<{ success: boolean; message: string; seatType: SeatTypeItem; syncedSeatsCount: number }> =>
+    apiRequest(`/seats/types/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC26: Chuyển đổi loại ghế hàng loạt cho toàn bộ hàng ghế */
+  batchAssignRowType: (payload: BatchAssignRowPayload): Promise<BatchAssignRowResponse> =>
+    apiRequest<BatchAssignRowResponse>('/seats/types/batch-assign-row', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** UC26: Khôi phục cấu hình 3 loại ghế mặc định */
+  resetSeatTypes: (): Promise<{ success: boolean; message: string; seatTypes: SeatTypeItem[] }> =>
+    apiRequest('/seats/types/reset-defaults', {
+      method: 'POST',
     }),
 };

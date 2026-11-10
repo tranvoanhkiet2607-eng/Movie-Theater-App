@@ -2,10 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const Seat = require('../models/Seat');
+const SeatType = require('../models/SeatType');
 const Theater = require('../models/Theater');
 const Movie = require('../models/Movie');
 const Showtime = require('../models/Showtime');
 const Booking = require('../models/Booking');
+const { DEFAULT_SEAT_TYPES } = require('../seed/seedSeats');
 
 // Helper: Định dạng giá vé VND
 function formatPriceVND(num) {
@@ -242,6 +244,281 @@ router.get('/rooms', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Lỗi máy chủ khi lấy danh sách phòng chiếu: ' + err.message,
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC26: QUẢN LÝ CÁC LOẠI GHẾ (THƯỜNG, VIP, GHẾ ĐÔI / SWEETBOX)
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/seats/types - Lấy danh sách cấu hình các loại ghế và thống kê số lượng
+router.get('/types', async (req, res) => {
+  try {
+    const { theaterId, room } = req.query;
+
+    // Tự động seed 3 loại ghế nếu chưa có
+    let seatTypes = await SeatType.find().sort({ sortOrder: 1 });
+    if (!seatTypes || seatTypes.length === 0) {
+      await SeatType.insertMany(DEFAULT_SEAT_TYPES);
+      seatTypes = await SeatType.find().sort({ sortOrder: 1 });
+    }
+
+    // Filter thống kê ghế theo rạp và phòng nếu có
+    const seatFilter = {};
+    if (theaterId && theaterId !== 'all') seatFilter.theaterId = theaterId;
+    if (room && room !== 'all') seatFilter.room = room;
+
+    const allSeats = await Seat.find(seatFilter).lean();
+    const totalSeats = allSeats.length;
+
+    // Tính thống kê thực tế cho từng loại ghế
+    const enhancedTypes = seatTypes.map((st) => {
+      const typeSeats = allSeats.filter((s) => s.type === st.code);
+      const totalCount = typeSeats.length;
+      const availableCount = typeSeats.filter((s) => s.status === 'available').length;
+      const maintenanceCount = typeSeats.filter((s) => s.status === 'maintenance').length;
+      const reservedCount = typeSeats.filter((s) => s.status === 'reserved').length;
+      const percentage = totalSeats > 0 ? Math.round((totalCount / totalSeats) * 100) : 0;
+      const estimatedRevenue = totalCount * (st.basePrice || 0);
+
+      const rowsSet = new Set(typeSeats.map((s) => s.row));
+      const usedInRows = Array.from(rowsSet).sort();
+
+      return {
+        ...st.toJSON(),
+        stats: {
+          totalCount,
+          availableCount,
+          maintenanceCount,
+          reservedCount,
+          percentage,
+          estimatedRevenue,
+          estimatedRevenueFormatted: formatPriceVND(estimatedRevenue),
+          usedInRows,
+        },
+      };
+    });
+
+    const standardCount = allSeats.filter((s) => s.type === 'standard').length;
+    const vipCount = allSeats.filter((s) => s.type === 'vip').length;
+    const coupleCount = allSeats.filter((s) => s.type === 'couple').length;
+
+    return res.json({
+      success: true,
+      seatTypes: enhancedTypes,
+      summary: {
+        totalSeats,
+        standardCount,
+        vipCount,
+        coupleCount,
+      },
+      filter: {
+        theaterId: theaterId || 'all',
+        room: room || 'all',
+      },
+    });
+  } catch (err) {
+    console.error('[GET /api/seats/types] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy danh sách loại ghế: ' + err.message,
+    });
+  }
+});
+
+// GET /api/seats/types/:code - Chi tiết 1 loại ghế
+router.get('/types/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    let seatType = await SeatType.findOne({ code: code.toLowerCase() });
+    if (!seatType) {
+      return res.status(404).json({
+        success: false,
+        message: `Không tìm thấy loại ghế với mã "${code}".`,
+      });
+    }
+
+    const { theaterId, room } = req.query;
+    const filter = { type: code.toLowerCase() };
+    if (theaterId && theaterId !== 'all') filter.theaterId = theaterId;
+    if (room && room !== 'all') filter.room = room;
+
+    const matchingSeats = await Seat.find(filter).lean();
+    const rowsSet = new Set(matchingSeats.map((s) => s.row));
+
+    return res.json({
+      success: true,
+      seatType: {
+        ...seatType.toJSON(),
+        stats: {
+          totalCount: matchingSeats.length,
+          availableCount: matchingSeats.filter((s) => s.status === 'available').length,
+          maintenanceCount: matchingSeats.filter((s) => s.status === 'maintenance').length,
+          usedInRows: Array.from(rowsSet).sort(),
+        },
+      },
+    });
+  } catch (err) {
+    console.error('[GET /api/seats/types/:code] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy thông tin loại ghế: ' + err.message,
+    });
+  }
+});
+
+// PUT /api/seats/types/:code - Cập nhật cấu hình loại ghế (giá, tên, mô tả, màu sắc, tiện ích)
+router.put('/types/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const {
+      name,
+      nameEn,
+      description,
+      color,
+      accentColor,
+      basePrice,
+      surcharge,
+      features,
+      defaultRows,
+      isActive,
+      applyToExistingSeats,
+      theaterId,
+      room,
+    } = req.body;
+
+    let seatType = await SeatType.findOne({ code: code.toLowerCase() });
+    if (!seatType) {
+      return res.status(404).json({
+        success: false,
+        message: `Không tìm thấy loại ghế "${code}" để cập nhật.`,
+      });
+    }
+
+    if (name !== undefined) seatType.name = name.trim();
+    if (nameEn !== undefined) seatType.nameEn = nameEn.trim();
+    if (description !== undefined) seatType.description = description.trim();
+    if (color !== undefined) seatType.color = color.trim();
+    if (accentColor !== undefined) seatType.accentColor = accentColor.trim();
+    if (basePrice !== undefined) {
+      const p = Number(basePrice);
+      if (isNaN(p) || p < 0) {
+        return res.status(400).json({ success: false, message: 'Giá vé cơ bản không hợp lệ.' });
+      }
+      seatType.basePrice = p;
+    }
+    if (surcharge !== undefined) {
+      const s = Number(surcharge);
+      if (!isNaN(s)) seatType.surcharge = s;
+    }
+    if (Array.isArray(features)) seatType.features = features.map((f) => String(f).trim()).filter(Boolean);
+    if (Array.isArray(defaultRows)) seatType.defaultRows = defaultRows.map((r) => String(r).trim().toUpperCase()).filter(Boolean);
+    if (isActive !== undefined) seatType.isActive = Boolean(isActive);
+
+    await seatType.save();
+
+    let syncedSeatsCount = 0;
+    // Nếu người dùng chọn đồng bộ giá mới cho các ghế hiện có
+    if (applyToExistingSeats && basePrice !== undefined) {
+      const syncFilter = { type: code.toLowerCase() };
+      if (theaterId && theaterId !== 'all') syncFilter.theaterId = theaterId;
+      if (room && room !== 'all') syncFilter.room = room;
+
+      const updateResult = await Seat.updateMany(syncFilter, {
+        $set: {
+          price: Number(basePrice),
+          priceFormatted: formatPriceVND(Number(basePrice)),
+        },
+      });
+      syncedSeatsCount = updateResult.modifiedCount || 0;
+    }
+
+    return res.json({
+      success: true,
+      message: `Cập nhật cấu hình loại ghế "${seatType.name}" thành công!${syncedSeatsCount > 0 ? ` Đã đồng bộ giá mới cho ${syncedSeatsCount} ghế.` : ''}`,
+      seatType,
+      syncedSeatsCount,
+    });
+  } catch (err) {
+    console.error('[PUT /api/seats/types/:code] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi cập nhật loại ghế: ' + err.message,
+    });
+  }
+});
+
+// POST /api/seats/types/batch-assign-row - Chuyển đổi loại ghế hàng loạt theo hàng ghế
+router.post('/types/batch-assign-row', async (req, res) => {
+  try {
+    const { theaterId, room, rows, newType, updatePrice = true } = req.body;
+
+    if (!theaterId || !room || !rows || !rows.length || !newType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ rạp, phòng chiếu, danh sách hàng ghế và loại ghế mới.',
+      });
+    }
+
+    const typeConfig = await SeatType.findOne({ code: newType.toLowerCase() });
+    if (!typeConfig) {
+      return res.status(400).json({
+        success: false,
+        message: `Loại ghế "${newType}" không tồn tại trong hệ thống.`,
+      });
+    }
+
+    const parsedRows = rows.map((r) => String(r).trim().toUpperCase()).filter(Boolean);
+    const updateData = { type: newType.toLowerCase() };
+
+    if (updatePrice && typeConfig.basePrice) {
+      updateData.price = typeConfig.basePrice;
+      updateData.priceFormatted = formatPriceVND(typeConfig.basePrice);
+    }
+
+    const result = await Seat.updateMany(
+      {
+        theaterId,
+        room,
+        row: { $in: parsedRows },
+      },
+      { $set: updateData }
+    );
+
+    return res.json({
+      success: true,
+      message: `Đã chuyển đổi thành công ${result.modifiedCount} ghế ở hàng ${parsedRows.join(', ')} sang loại ${typeConfig.name}.`,
+      updatedCount: result.modifiedCount,
+      theaterId,
+      room,
+      rows: parsedRows,
+      newType: typeConfig.code,
+    });
+  } catch (err) {
+    console.error('[POST /api/seats/types/batch-assign-row] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi chuyển đổi loại ghế theo hàng: ' + err.message,
+    });
+  }
+});
+
+// POST /api/seats/types/reset-defaults - Khôi phục cấu hình mặc định cho 3 loại ghế
+router.post('/types/reset-defaults', async (req, res) => {
+  try {
+    await SeatType.deleteMany({});
+    const inserted = await SeatType.insertMany(DEFAULT_SEAT_TYPES);
+    return res.json({
+      success: true,
+      message: 'Đã khôi phục 3 loại ghế chuẩn (Thường, VIP, Đôi Sweetbox) thành công!',
+      seatTypes: inserted,
+    });
+  } catch (err) {
+    console.error('[POST /api/seats/types/reset-defaults] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi khôi phục loại ghế mặc định: ' + err.message,
     });
   }
 });
