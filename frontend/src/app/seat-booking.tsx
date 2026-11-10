@@ -16,8 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useAuth } from '@/context/auth-context';
-import { SeatAPI } from '@/services/api';
+import { SeatAPI, ShowtimeAPI } from '@/services/api';
 import { ShowtimeSeatItem, ShowtimeSeatMapResponse } from '@/types/seat';
+import { ShowtimePricingResponse } from '@/types/showtime';
 
 export default function SeatBookingScreen() {
   const router = useRouter();
@@ -51,6 +52,11 @@ export default function SeatBookingScreen() {
   const [successBooking, setSuccessBooking] = useState<any | null>(null);
   const [seatNotice, setSeatNotice] = useState<string | null>(null);
   const [orphanWarning, setOrphanWarning] = useState<string | null>(null);
+
+  // ─── UC27: View Ticket Prices State ──────────────────────────────────────────
+  const [pricingModalVisible, setPricingModalVisible] = useState<boolean>(false);
+  const [pricingData, setPricingData] = useState<ShowtimePricingResponse | null>(null);
+  const [pricingLoading, setPricingLoading] = useState<boolean>(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,6 +200,48 @@ export default function SeatBookingScreen() {
   const totalAmountFormatted = useMemo(() => {
     return `${totalAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
   }, [totalAmount]);
+
+  // ─── UC27: Phân rã giá vé chi tiết theo từng loại ghế ───────────────────────
+  const selectedSeatBreakdown = useMemo(() => {
+    if (!selectedSeatDetails.length) return null;
+    const stdSeats = selectedSeatDetails.filter((s) => s.type === 'standard');
+    const vipSeats = selectedSeatDetails.filter((s) => s.type === 'vip');
+    const coupleSeats = selectedSeatDetails.filter((s) => s.type === 'couple');
+
+    return {
+      standard: {
+        count: stdSeats.length,
+        seats: stdSeats.map((s) => s.seatCode),
+        subtotal: stdSeats.reduce((sum, s) => sum + s.price, 0),
+      },
+      vip: {
+        count: vipSeats.length,
+        seats: vipSeats.map((s) => s.seatCode),
+        subtotal: vipSeats.reduce((sum, s) => sum + s.price, 0),
+      },
+      couple: {
+        count: coupleSeats.length,
+        seats: coupleSeats.map((s) => s.seatCode),
+        subtotal: coupleSeats.reduce((sum, s) => sum + s.price, 0),
+      },
+    };
+  }, [selectedSeatDetails]);
+
+  // ─── UC27: Mở Modal Bảng giá vé theo suất chiếu ─────────────────────────────
+  const handleOpenPricingModal = async () => {
+    try {
+      setPricingLoading(true);
+      setPricingModalVisible(true);
+      const res = await ShowtimeAPI.getShowtimePricing(activeShowtimeId);
+      if (res && res.success) {
+        setPricingData(res);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải bảng giá vé:', err);
+    } finally {
+      setPricingLoading(false);
+    }
+  };
 
   // ─── UC25: Xử lý chọn ghế & Kiểm tra tình trạng tránh đặt trùng ──────────────
   const handleToggleSeat = async (seat: ShowtimeSeatItem) => {
@@ -351,6 +399,15 @@ export default function SeatBookingScreen() {
               </Text>
             </View>
           )}
+
+          {/* Nút xem bảng giá vé (UC27) */}
+          <TouchableOpacity
+            style={styles.pricingBtn}
+            onPress={handleOpenPricingModal}
+            activeOpacity={0.8}>
+            <Ionicons name="pricetag" size={13} color="#FFFFFF" />
+            <Text style={styles.pricingBtnText}>Bảng giá</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Danh sách các suất chiếu khác cùng ngày để đổi nhanh */}
@@ -465,6 +522,43 @@ export default function SeatBookingScreen() {
                 </View>
               </View>
             </View>
+
+            {/* ─── 3. Thanh hiển thị nhanh giá vé các loại ghế (UC27) ────── */}
+            <TouchableOpacity
+              style={styles.quickPricingBar}
+              onPress={handleOpenPricingModal}
+              activeOpacity={0.8}>
+              <View style={styles.quickPricingItem}>
+                <View style={[styles.miniSeatDot, { backgroundColor: '#E5E7EB' }]} />
+                <Text style={styles.quickPricingText}>
+                  Thường:{' '}
+                  <Text style={styles.quickPricingBold}>
+                    {data?.pricing?.standardPriceFormatted || data?.showtime?.priceFormatted || '95.000đ'}
+                  </Text>
+                </Text>
+              </View>
+              <View style={styles.quickPricingDivider} />
+              <View style={styles.quickPricingItem}>
+                <View style={[styles.miniSeatDot, { backgroundColor: '#F59E0B' }]} />
+                <Text style={styles.quickPricingText}>
+                  VIP:{' '}
+                  <Text style={styles.quickPricingBold}>
+                    {data?.pricing?.vipPriceFormatted || '120.000đ'}
+                  </Text>
+                </Text>
+              </View>
+              <View style={styles.quickPricingDivider} />
+              <View style={styles.quickPricingItem}>
+                <View style={[styles.miniSeatDot, { backgroundColor: '#EC4899' }]} />
+                <Text style={styles.quickPricingText}>
+                  Sweetbox:{' '}
+                  <Text style={styles.quickPricingBold}>
+                    {data?.pricing?.couplePriceFormatted || '200.000đ'}
+                  </Text>
+                </Text>
+              </View>
+              <Ionicons name="information-circle-outline" size={16} color="#E50914" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
 
             {/* Banner Cảnh báo ghế lẻ loi (Orphan Seat Rule) */}
             {orphanWarning && (
@@ -599,6 +693,47 @@ export default function SeatBookingScreen() {
 
       {/* ─── Thanh thanh toán & chọn ghế cố định phía dưới (Bottom Bar) ──────── */}
       <View style={styles.bottomBar}>
+        {/* Phân rã giá vé chi tiết theo từng loại ghế (UC27) */}
+        {selectedSeatBreakdown &&
+          (selectedSeatBreakdown.standard.count > 0 ||
+            selectedSeatBreakdown.vip.count > 0 ||
+            selectedSeatBreakdown.couple.count > 0) && (
+            <View style={styles.breakdownRow}>
+              {selectedSeatBreakdown.standard.count > 0 && (
+                <View style={styles.breakdownChip}>
+                  <View style={[styles.miniSeatDot, { backgroundColor: '#64748B' }]} />
+                  <Text style={styles.breakdownChipText}>
+                    {selectedSeatBreakdown.standard.count}x Thường ({selectedSeatBreakdown.standard.subtotal.toLocaleString('vi-VN')}đ)
+                  </Text>
+                </View>
+              )}
+              {selectedSeatBreakdown.vip.count > 0 && (
+                <View
+                  style={[
+                    styles.breakdownChip,
+                    { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#F59E0B' },
+                  ]}>
+                  <View style={[styles.miniSeatDot, { backgroundColor: '#F59E0B' }]} />
+                  <Text style={[styles.breakdownChipText, { color: '#F59E0B' }]}>
+                    {selectedSeatBreakdown.vip.count}x VIP ({selectedSeatBreakdown.vip.subtotal.toLocaleString('vi-VN')}đ)
+                  </Text>
+                </View>
+              )}
+              {selectedSeatBreakdown.couple.count > 0 && (
+                <View
+                  style={[
+                    styles.breakdownChip,
+                    { backgroundColor: 'rgba(236, 72, 153, 0.15)', borderColor: '#EC4899' },
+                  ]}>
+                  <View style={[styles.miniSeatDot, { backgroundColor: '#EC4899' }]} />
+                  <Text style={[styles.breakdownChipText, { color: '#EC4899' }]}>
+                    {selectedSeatBreakdown.couple.count}x Sweetbox ({selectedSeatBreakdown.couple.subtotal.toLocaleString('vi-VN')}đ)
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
         <View style={styles.bottomInfoRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedCountText}>
@@ -839,6 +974,249 @@ export default function SeatBookingScreen() {
                 <Text style={styles.successBackExploreText}>Về Lịch Chiếu</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL 3: BẢNG GIÁ VÉ THEO SUẤT CHIẾU VÀ LOẠI GHẾ (UC27)
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={pricingModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPricingModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '88%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.pricingIconCircle, { backgroundColor: '#E50914' }]}>
+                <Ionicons name="pricetag" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>Bảng Giá Vé Suất Chiếu</Text>
+                <Text style={styles.modalSubtitle} numberOfLines={1}>
+                  {data?.movie?.title} • {data?.showtime?.format}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setPricingModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {pricingLoading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#E50914" />
+                <Text style={{ color: '#9CA3AF', marginTop: 10, fontSize: 13 }}>
+                  Đang tải bảng giá vé từ MongoDB Atlas...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Thông tin suất chiếu & phân loại thời gian */}
+                <View style={styles.pricingShowtimeCard}>
+                  <View style={styles.pricingShowtimeRow}>
+                    <Ionicons name="film-outline" size={16} color="#E50914" />
+                    <Text style={styles.pricingShowtimeText}>
+                      {data?.theater?.name} • {data?.showtime?.room}
+                    </Text>
+                  </View>
+                  <View style={styles.pricingShowtimeRow}>
+                    <Ionicons name="calendar-outline" size={16} color="#9CA3AF" />
+                    <Text style={styles.pricingShowtimeText}>
+                      {data?.showtime?.dateStr} ({data?.showtime?.startTime} ~ {data?.showtime?.endTime})
+                    </Text>
+                  </View>
+                  <View style={styles.pricingFactorsPills}>
+                    <View style={styles.pricingFactorPill}>
+                      <Text style={styles.pricingFactorPillText}>
+                        {pricingData?.pricing?.factors?.dayBadge || 'Cuối tuần / Ngày thường'}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.pricingFactorPill,
+                        { backgroundColor: 'rgba(59, 130, 246, 0.15)' },
+                      ]}>
+                      <Text style={[styles.pricingFactorPillText, { color: '#60A5FA' }]}>
+                        {pricingData?.pricing?.factors?.timeSlot || data?.showtime?.format}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 3 Thẻ Loại Ghế và Giá Vé */}
+                <Text style={styles.pricingSectionHeading}>Giá vé theo từng loại ghế:</Text>
+
+                {/* Ghế Thường */}
+                <View style={[styles.pricingTypeCard, { borderLeftColor: '#64748B' }]}>
+                  <View style={styles.pricingTypeHeader}>
+                    <View style={styles.pricingTypeTitleRow}>
+                      <View
+                        style={[
+                          styles.miniSeatDot,
+                          { backgroundColor: '#64748B', width: 14, height: 14, borderRadius: 7 },
+                        ]}
+                      />
+                      <Text style={styles.pricingTypeName}>Ghế Thường (Standard)</Text>
+                      <View style={styles.capacityBadgeSmall}>
+                        <Text style={styles.capacityBadgeSmallText}>1 khách</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.pricingTypePrice}>
+                      {data?.pricing?.standardPriceFormatted || data?.showtime?.priceFormatted || '95.000đ'}
+                    </Text>
+                  </View>
+                  <Text style={styles.pricingTypeDesc}>
+                    Vị trí tiêu chuẩn, tầm nhìn toàn cảnh, đệm êm ái.
+                  </Text>
+                  <View style={styles.audiencePriceGrid}>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>Người lớn</Text>
+                      <Text style={styles.audienceVal}>
+                        {data?.pricing?.standardPriceFormatted || data?.showtime?.priceFormatted || '95.000đ'}
+                      </Text>
+                    </View>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>HSSV (U22)</Text>
+                      <Text style={[styles.audienceVal, { color: '#10B981' }]}>
+                        {data?.pricing?.standardPrice
+                          ? `${(data.pricing.standardPrice - 20000).toLocaleString('vi-VN')}đ`
+                          : '75.000đ'}
+                      </Text>
+                    </View>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>CineMax VIP</Text>
+                      <Text style={[styles.audienceVal, { color: '#F59E0B' }]}>
+                        {data?.pricing?.standardPrice
+                          ? `${(data.pricing.standardPrice - 10000).toLocaleString('vi-VN')}đ`
+                          : '85.000đ'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ghế VIP */}
+                <View style={[styles.pricingTypeCard, { borderLeftColor: '#F59E0B' }]}>
+                  <View style={styles.pricingTypeHeader}>
+                    <View style={styles.pricingTypeTitleRow}>
+                      <View
+                        style={[
+                          styles.miniSeatDot,
+                          { backgroundColor: '#F59E0B', width: 14, height: 14, borderRadius: 7 },
+                        ]}
+                      />
+                      <Text style={styles.pricingTypeName}>Ghế VIP (Prime)</Text>
+                      <View
+                        style={[
+                          styles.capacityBadgeSmall,
+                          { backgroundColor: 'rgba(245, 158, 11, 0.2)' },
+                        ]}>
+                        <Text style={[styles.capacityBadgeSmallText, { color: '#F59E0B' }]}>
+                          Sweet Spot
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.pricingTypePrice, { color: '#F59E0B' }]}>
+                        {data?.pricing?.vipPriceFormatted || '120.000đ'}
+                      </Text>
+                      <Text style={styles.pricingSurchargeText}>+25.000đ phụ thu</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.pricingTypeDesc}>
+                    Vị trí trung tâm phòng chiếu, góc nhìn và âm thanh vòm Dolby tối ưu.
+                  </Text>
+                  <View style={styles.audiencePriceGrid}>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>Người lớn</Text>
+                      <Text style={styles.audienceVal}>
+                        {data?.pricing?.vipPriceFormatted || '120.000đ'}
+                      </Text>
+                    </View>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>HSSV (U22)</Text>
+                      <Text style={[styles.audienceVal, { color: '#10B981' }]}>
+                        {data?.pricing?.vipPrice
+                          ? `${(data.pricing.vipPrice - 15000).toLocaleString('vi-VN')}đ`
+                          : '105.000đ'}
+                      </Text>
+                    </View>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>CineMax VIP</Text>
+                      <Text style={[styles.audienceVal, { color: '#F59E0B' }]}>
+                        {data?.pricing?.vipPrice
+                          ? `${(data.pricing.vipPrice - 10000).toLocaleString('vi-VN')}đ`
+                          : '110.000đ'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ghế Đôi Sweetbox */}
+                <View style={[styles.pricingTypeCard, { borderLeftColor: '#EC4899' }]}>
+                  <View style={styles.pricingTypeHeader}>
+                    <View style={styles.pricingTypeTitleRow}>
+                      <View
+                        style={[
+                          styles.miniSeatDot,
+                          { backgroundColor: '#EC4899', width: 14, height: 14, borderRadius: 7 },
+                        ]}
+                      />
+                      <Text style={styles.pricingTypeName}>Ghế Đôi Sweetbox</Text>
+                      <View
+                        style={[
+                          styles.capacityBadgeSmall,
+                          { backgroundColor: 'rgba(236, 72, 153, 0.2)' },
+                        ]}>
+                        <Text style={[styles.capacityBadgeSmallText, { color: '#EC4899' }]}>
+                          2 khách
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.pricingTypePrice, { color: '#EC4899' }]}>
+                        {data?.pricing?.couplePriceFormatted || '200.000đ'}
+                      </Text>
+                      <Text style={styles.pricingSurchargeText}>Trọn gói 2 vé</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.pricingTypeDesc}>
+                    Ghế sofa đôi rộng rãi cho 2 người ở hàng ghế cuối, riêng tư, lãng mạn.
+                  </Text>
+                  <View style={styles.audiencePriceGrid}>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>Trọn gói đôi</Text>
+                      <Text style={styles.audienceVal}>
+                        {data?.pricing?.couplePriceFormatted || '200.000đ'}
+                      </Text>
+                    </View>
+                    <View style={styles.audiencePriceItem}>
+                      <Text style={styles.audienceLabel}>CineMax VIP</Text>
+                      <Text style={[styles.audienceVal, { color: '#EC4899' }]}>
+                        {data?.pricing?.couplePrice
+                          ? `${(data.pricing.couplePrice - 15000).toLocaleString('vi-VN')}đ`
+                          : '185.000đ'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ghi chú chính sách giá */}
+                <View style={styles.pricingNoteBox}>
+                  <Ionicons name="information-circle" size={16} color="#9CA3AF" />
+                  <Text style={styles.pricingNoteText}>
+                    Giá vé đã bao gồm thuế GTGT. Áp dụng ưu đãi thành viên khi quét mã hội viên tại quầy hoặc đăng nhập trên ứng dụng.
+                  </Text>
+                </View>
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={styles.pricingCloseBtn}
+              onPress={() => setPricingModalVisible(false)}
+              activeOpacity={0.8}>
+              <Text style={styles.pricingCloseBtnText}>Đã hiểu & Tiếp tục chọn ghế</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1480,5 +1858,226 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  // ─── UC27: Ticket Pricing Styles ───────────────────────────────────────────
+  pricingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+    marginLeft: 6,
+  },
+  pricingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quickPricingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1E1E22',
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quickPricingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickPricingDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: '#374151',
+  },
+  quickPricingText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  quickPricingBold: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  miniSeatDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  breakdownChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(100, 116, 139, 0.15)',
+    borderWidth: 1,
+    borderColor: '#64748B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 5,
+  },
+  breakdownChipText: {
+    color: '#D1D5DB',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pricingIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pricingShowtimeCard: {
+    backgroundColor: '#1E1E22',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    gap: 6,
+  },
+  pricingShowtimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pricingShowtimeText: {
+    color: '#D1D5DB',
+    fontSize: 13,
+  },
+  pricingFactorsPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  pricingFactorPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  pricingFactorPillText: {
+    color: '#F87171',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pricingSectionHeading: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  pricingTypeCard: {
+    backgroundColor: '#1E1E22',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+    borderLeftWidth: 4,
+  },
+  pricingTypeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  pricingTypeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pricingTypeName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  capacityBadgeSmall: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  capacityBadgeSmallText: {
+    color: '#9CA3AF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  pricingTypePrice: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  pricingSurchargeText: {
+    color: '#F59E0B',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  pricingTypeDesc: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  audiencePriceGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#141416',
+    borderRadius: 8,
+    padding: 8,
+  },
+  audiencePriceItem: {
+    alignItems: 'center',
+  },
+  audienceLabel: {
+    color: '#9CA3AF',
+    fontSize: 10,
+  },
+  audienceVal: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  pricingNoteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E22',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 6,
+    marginBottom: 14,
+    gap: 8,
+  },
+  pricingNoteText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 16,
+  },
+  pricingCloseBtn: {
+    backgroundColor: '#E50914',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  pricingCloseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

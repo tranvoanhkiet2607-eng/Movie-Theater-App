@@ -12,9 +12,11 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  PricingMatrixResponse,
   ShowtimeFilterParams,
   ShowtimeFormPayload,
   ShowtimeMutationResponse,
+  ShowtimePricingResponse,
   ShowtimesResponse,
 } from '@/types/showtime';
 import { FoodItem, FoodMutationPayload } from '@/types/food';
@@ -348,6 +350,14 @@ export const ShowtimeAPI = {
     apiRequest<ShowtimeMutationResponse>(`/showtimes/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+
+  /** UC27: Lấy chi tiết bảng giá vé theo suất chiếu và loại ghế */
+  getShowtimePricing: (id: string): Promise<ShowtimePricingResponse> =>
+    apiRequest<ShowtimePricingResponse>(`/showtimes/${encodeURIComponent(id)}/pricing`),
+
+  /** UC27: Lấy bảng ma trận giá vé niêm yết của rạp */
+  getPricingMatrix: (): Promise<PricingMatrixResponse> =>
+    apiRequest<PricingMatrixResponse>('/showtimes/pricing-matrix'),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

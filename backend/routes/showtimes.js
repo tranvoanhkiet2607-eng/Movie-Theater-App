@@ -5,6 +5,8 @@ const router = express.Router();
 const Movie = require('../models/Movie');
 const Theater = require('../models/Theater');
 const Showtime = require('../models/Showtime');
+const Seat = require('../models/Seat');
+const SeatType = require('../models/SeatType');
 const { SHOWTIME_DATES, SHOWTIME_FORMATS } = require('../seed/seedShowtimes');
 const { requireAdmin } = require('../middleware/auth');
 
@@ -66,6 +68,192 @@ function isTimeOverlapping(startTimeA, durationA, startTimeB, durationB) {
   const startB = timeToMinutes(startTimeB);
   const endB = startB + Number(durationB || 120);
   return startA < endB && startB < endA;
+}
+
+// ─── UC27: Helper tính toán chi tiết giá vé theo suất chiếu và loại ghế ────────
+function calculateShowtimePricing(showtime, seatTypesConfig = [], roomSeats = []) {
+  const baseShowtimePrice = Number(showtime.price) || 90000;
+
+  // Xác định ngày trong tuần
+  let dayOfWeek = 0;
+  let dayName = 'Ngày thường';
+  let isWeekend = false;
+  let isHappyWednesday = false;
+
+  if (showtime.dateKey) {
+    const d = new Date(showtime.dateKey);
+    if (!isNaN(d.getTime())) {
+      dayOfWeek = d.getDay();
+      isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+      isHappyWednesday = dayOfWeek === 3;
+      const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+      dayName = dayNames[dayOfWeek];
+    }
+  }
+
+  // Khung giờ
+  const hour = parseInt(String(showtime.startTime).split(':')[0], 10);
+  const isEarlyBird = hour < 12;
+  const isPrimeTime = hour >= 18 && hour < 22;
+  const isLateNight = hour >= 22;
+
+  // Tính giá theo từng loại ghế
+  const standardBase = baseShowtimePrice;
+  const vipBase = Math.round((baseShowtimePrice * 1.25) / 5000) * 5000;
+  const vipSurcharge = vipBase - standardBase;
+  const coupleBase = Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000;
+  const coupleSurcharge = coupleBase - standardBase;
+
+  // Thống kê ghế phòng
+  const totalStandard = roomSeats.filter((s) => s.type === 'standard').length;
+  const totalVip = roomSeats.filter((s) => s.type === 'vip').length;
+  const totalCouple = roomSeats.filter((s) => s.type === 'couple').length;
+
+  const bookedSet = new Set(showtime.bookedSeats || []);
+  const availStandard = roomSeats.filter(
+    (s) => s.type === 'standard' && s.status === 'available' && !bookedSet.has(s.seatCode)
+  ).length;
+  const availVip = roomSeats.filter(
+    (s) => s.type === 'vip' && s.status === 'available' && !bookedSet.has(s.seatCode)
+  ).length;
+  const availCouple = roomSeats.filter(
+    (s) => s.type === 'couple' && s.status === 'available' && !bookedSet.has(s.seatCode)
+  ).length;
+
+  return {
+    basePrice: standardBase,
+    basePriceFormatted: formatPriceVND(standardBase),
+    factors: {
+      dayName,
+      isWeekend,
+      isHappyWednesday,
+      isEarlyBird,
+      isPrimeTime,
+      isLateNight,
+      format: showtime.format || '2D Phụ Đề',
+      timeSlot: isEarlyBird
+        ? 'Suất sáng (< 12:00)'
+        : isPrimeTime
+        ? 'Suất giờ vàng (18:00 - 22:00)'
+        : isLateNight
+        ? 'Suất khuya (> 22:00)'
+        : 'Suất ban ngày (12:00 - 17:00)',
+      dayBadge: isHappyWednesday ? 'Thứ 4 Vui Vẻ' : isWeekend ? 'Cuối tuần' : 'Ngày thường',
+    },
+    seatTypes: [
+      {
+        type: 'standard',
+        name: 'Ghế Thường',
+        nameEn: 'Standard Seat',
+        color: '#64748B',
+        capacity: 1,
+        price: standardBase,
+        priceFormatted: formatPriceVND(standardBase),
+        surcharge: 0,
+        surchargeFormatted: '+0đ',
+        totalSeats: totalStandard,
+        availableSeats: availStandard,
+        audiencePrices: [
+          {
+            segment: 'adult',
+            label: 'Người lớn tiêu chuẩn',
+            price: standardBase,
+            priceFormatted: formatPriceVND(standardBase),
+            discount: 'Giá gốc',
+          },
+          {
+            segment: 'student',
+            label: 'Học sinh / Sinh viên (U22)',
+            price: Math.max(50000, standardBase - 20000),
+            priceFormatted: formatPriceVND(Math.max(50000, standardBase - 20000)),
+            discount: '-20.000đ',
+          },
+          {
+            segment: 'childSenior',
+            label: 'Trẻ em / Người cao tuổi',
+            price: Math.max(50000, standardBase - 20000),
+            priceFormatted: formatPriceVND(Math.max(50000, standardBase - 20000)),
+            discount: '-20.000đ',
+          },
+          {
+            segment: 'member',
+            label: 'Thành viên CineMax VIP',
+            price: Math.max(50000, standardBase - 10000),
+            priceFormatted: formatPriceVND(Math.max(50000, standardBase - 10000)),
+            discount: '-10.000đ',
+          },
+        ],
+        description: 'Vị trí tiêu chuẩn, tầm nhìn toàn cảnh, đệm ngồi êm ái.',
+      },
+      {
+        type: 'vip',
+        name: 'Ghế VIP',
+        nameEn: 'VIP Prime Seat',
+        color: '#F59E0B',
+        capacity: 1,
+        price: vipBase,
+        priceFormatted: formatPriceVND(vipBase),
+        surcharge: vipSurcharge,
+        surchargeFormatted: `+${formatPriceVND(vipSurcharge)}`,
+        totalSeats: totalVip,
+        availableSeats: availVip,
+        audiencePrices: [
+          {
+            segment: 'adult',
+            label: 'Người lớn tiêu chuẩn',
+            price: vipBase,
+            priceFormatted: formatPriceVND(vipBase),
+            discount: 'Giá gốc',
+          },
+          {
+            segment: 'student',
+            label: 'Học sinh / Sinh viên (U22)',
+            price: Math.max(70000, vipBase - 15000),
+            priceFormatted: formatPriceVND(Math.max(70000, vipBase - 15000)),
+            discount: '-15.000đ',
+          },
+          {
+            segment: 'member',
+            label: 'Thành viên CineMax VIP',
+            price: Math.max(70000, vipBase - 10000),
+            priceFormatted: formatPriceVND(Math.max(70000, vipBase - 10000)),
+            discount: '-10.000đ',
+          },
+        ],
+        description: 'Vị trí trung tâm (Sweet spot), góc nhìn và âm thanh vòm Dolby hoàn hảo nhất.',
+      },
+      {
+        type: 'couple',
+        name: 'Ghế Đôi Sweetbox',
+        nameEn: 'Sweetbox Couple Seat',
+        color: '#EC4899',
+        capacity: 2,
+        price: coupleBase,
+        priceFormatted: formatPriceVND(coupleBase),
+        surcharge: coupleSurcharge,
+        surchargeFormatted: `+${formatPriceVND(coupleSurcharge)} (Gói 2 vé)`,
+        totalSeats: totalCouple,
+        availableSeats: availCouple,
+        audiencePrices: [
+          {
+            segment: 'couple',
+            label: 'Trọn gói dành cho 2 người',
+            price: coupleBase,
+            priceFormatted: formatPriceVND(coupleBase),
+            discount: 'Bao gồm 2 vé',
+          },
+          {
+            segment: 'member',
+            label: 'Thành viên CineMax VIP',
+            price: Math.max(120000, coupleBase - 15000),
+            priceFormatted: formatPriceVND(Math.max(120000, coupleBase - 15000)),
+            discount: '-15.000đ',
+          },
+        ],
+        description: 'Ghế sofa đôi rộng rãi cho 2 người ở hàng ghế cuối, vách ngăn riêng tư cao, lãng mạn.',
+      },
+    ],
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -190,6 +378,176 @@ router.get('/', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Lỗi máy chủ khi tải lịch chiếu từ MongoDB Atlas.',
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// UC27: HIỂN THỊ GIÁ VÉ THEO SUẤT CHIẾU VÀ LOẠI GHẾ (PRICING)
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/showtimes/pricing-matrix - Bảng ma trận giá vé niêm yết toàn hệ thống
+router.get('/pricing-matrix', async (req, res) => {
+  try {
+    const seatTypes = await SeatType.find().sort({ sortOrder: 1 });
+
+    const matrix = {
+      formats: [
+        {
+          format: '2D Phụ Đề / Lồng Tiếng',
+          description: 'Hình ảnh sắc nét kỹ thuật số, âm thanh vòm tiêu chuẩn 7.1',
+          days: [
+            {
+              dayType: 'Thứ 2 - Thứ 5 (Ngày thường)',
+              slots: [
+                { time: 'Trước 12:00', standard: 75000, vip: 95000, couple: 160000 },
+                { time: '12:00 - 17:00', standard: 85000, vip: 105000, couple: 180000 },
+                { time: '17:00 - 22:00 (Giờ vàng)', standard: 95000, vip: 115000, couple: 200000 },
+                { time: 'Sau 22:00', standard: 80000, vip: 100000, couple: 170000 },
+              ],
+            },
+            {
+              dayType: 'Thứ 4 Vui Vẻ (Happy Wednesday)',
+              badge: 'Đồng giá ưu đãi',
+              slots: [
+                { time: 'Mọi khung giờ', standard: 65000, vip: 85000, couple: 150000 },
+              ],
+            },
+            {
+              dayType: 'Thứ 6, Thứ 7, CN & Ngày Lễ',
+              slots: [
+                { time: 'Trước 12:00', standard: 90000, vip: 110000, couple: 190000 },
+                { time: '12:00 - 17:00', standard: 100000, vip: 125000, couple: 210000 },
+                { time: '17:00 - 22:00 (Giờ vàng)', standard: 110000, vip: 135000, couple: 230000 },
+                { time: 'Sau 22:00', standard: 95000, vip: 115000, couple: 200000 },
+              ],
+            },
+          ],
+        },
+        {
+          format: '3D Kỹ Thuật Số',
+          description: 'Hiệu ứng nổi sống động 3 chiều, kính lọc quang học cao cấp',
+          days: [
+            {
+              dayType: 'Thứ 2 - Thứ 5',
+              slots: [
+                { time: 'Mọi khung giờ', standard: 115000, vip: 140000, couple: 240000 },
+              ],
+            },
+            {
+              dayType: 'Thứ 6, Thứ 7, CN & Lễ',
+              slots: [
+                { time: 'Mọi khung giờ', standard: 135000, vip: 165000, couple: 280000 },
+              ],
+            },
+          ],
+        },
+        {
+          format: 'IMAX Laser 2D / 3D',
+          description: 'Màn hình siêu đại uốn cong, âm thanh đa tầng sống động bậc nhất',
+          days: [
+            {
+              dayType: 'Mọi ngày trong tuần',
+              slots: [
+                { time: 'Mọi khung giờ', standard: 160000, vip: 195000, couple: 340000 },
+              ],
+            },
+          ],
+        },
+      ],
+      audienceDiscounts: [
+        { label: 'Học sinh / Sinh viên (U22)', rule: 'Giảm 20.000đ cho Ghế Thường các ngày Thứ 2 đến Thứ 5' },
+        { label: 'Trẻ em (dưới 1.3m)', rule: 'Giảm 20.000đ áp dụng cho mọi suất chiếu trước 22:00' },
+        { label: 'Người cao tuổi (trên 55 tuổi)', rule: 'Đồng giá 60.000đ trước 17:00 từ Thứ 2 đến Thứ 6' },
+        { label: 'Thành viên CineMax VIP', rule: 'Tích 10% điểm thưởng và giảm 10.000đ/vé' },
+      ],
+      seatTypes: seatTypes.map((st) => ({
+        code: st.code,
+        name: st.name,
+        color: st.color,
+        capacity: st.capacity,
+        description: st.description,
+        surcharge: st.surcharge,
+        surchargeFormatted: formatPriceVND(st.surcharge),
+      })),
+    };
+
+    return res.json({ success: true, matrix });
+  } catch (err) {
+    console.error('[GET /api/showtimes/pricing-matrix]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy bảng ma trận giá vé.' });
+  }
+});
+
+// GET /api/showtimes/:id/pricing - Hiển thị giá vé theo suất chiếu và loại ghế (UC27)
+router.get('/:id/pricing', async (req, res) => {
+  try {
+    const { id } = req.params;
+    let slotDoc = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      slotDoc = await Showtime.findById(id);
+    }
+    if (!slotDoc) {
+      slotDoc = await Showtime.findOne({ code: id });
+    }
+
+    if (!slotDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy suất chiếu yêu cầu.',
+      });
+    }
+
+    const [movieDoc, theaterDoc, roomSeats, seatTypesConfig] = await Promise.all([
+      Movie.findOne({ code: slotDoc.movieId }),
+      Theater.findOne({ code: slotDoc.theaterId }),
+      Seat.find({ theaterId: slotDoc.theaterId, room: slotDoc.room }),
+      SeatType.find().sort({ sortOrder: 1 }),
+    ]);
+
+    const pricing = calculateShowtimePricing(slotDoc, seatTypesConfig, roomSeats);
+
+    return res.json({
+      success: true,
+      showtime: {
+        id: slotDoc.code,
+        code: slotDoc.code,
+        room: slotDoc.room,
+        format: slotDoc.format,
+        startTime: slotDoc.startTime,
+        endTime: slotDoc.endTime,
+        dateStr: slotDoc.dateStr,
+        dateKey: slotDoc.dateKey,
+        totalSeats: slotDoc.totalSeats,
+        availableSeats: slotDoc.availableSeats,
+        status: slotDoc.status,
+      },
+      movie: movieDoc
+        ? {
+            id: movieDoc.code,
+            code: movieDoc.code,
+            title: movieDoc.title,
+            duration: movieDoc.duration,
+            posterUrl: movieDoc.posterUrl,
+            ageRating: movieDoc.ageRating,
+          }
+        : null,
+      theater: theaterDoc
+        ? {
+            id: theaterDoc.code,
+            code: theaterDoc.code,
+            name: theaterDoc.name,
+            shortName: theaterDoc.shortName,
+            address: theaterDoc.address,
+          }
+        : null,
+      pricing,
+    });
+  } catch (err) {
+    console.error('[GET /api/showtimes/:id/pricing]', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy bảng giá vé của suất chiếu: ' + err.message,
     });
   }
 });

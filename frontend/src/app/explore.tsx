@@ -20,12 +20,14 @@ import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { ShowtimeAPI } from '@/services/api';
 import {
   AgeRating,
+  PricingMatrixResponse,
   SeatAvailabilityStatus,
   ShowtimeDateOption,
   ShowtimeFormat,
   ShowtimeFormPayload,
   ShowtimeItem,
   ShowtimeMovie,
+  ShowtimePricingResponse,
   ShowtimeTheater,
   ShowtimeViewMode,
   TimeSlotPeriod,
@@ -237,6 +239,26 @@ export default function ExploreScreen() {
   useEffect(() => {
     fetchShowtimes();
   }, [fetchShowtimes]);
+
+  // ─── UC27: Cinema Ticket Pricing Matrix State ──────────────────────────────
+  const [pricingMatrixModalVisible, setPricingMatrixModalVisible] = useState<boolean>(false);
+  const [pricingMatrixData, setPricingMatrixData] = useState<PricingMatrixResponse | null>(null);
+  const [pricingMatrixLoading, setPricingMatrixLoading] = useState<boolean>(false);
+
+  const handleOpenPricingMatrix = async () => {
+    try {
+      setPricingMatrixLoading(true);
+      setPricingMatrixModalVisible(true);
+      const res = await ShowtimeAPI.getPricingMatrix();
+      if (res && res.success) {
+        setPricingMatrixData(res);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải bảng ma trận giá vé:', err);
+    } finally {
+      setPricingMatrixLoading(false);
+    }
+  };
 
   // ─── Handlers Quản lý Lịch chiếu (Thêm mới / Sửa / Xóa) ────────────────────
   const handleOpenCreateModal = (presetMovieId?: string, presetTheaterId?: string) => {
@@ -647,6 +669,28 @@ export default function ExploreScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+
+              {/* Nút xem Bảng Giá Vé Toàn Hệ Thống (UC27) */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#1E2330',
+                  borderWidth: 1,
+                  borderColor: '#E50914',
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  marginLeft: 6,
+                }}
+                onPress={handleOpenPricingMatrix}
+                activeOpacity={0.8}>
+                <Ionicons name="pricetag-outline" size={14} color="#E50914" />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>
+                  Bảng Giá Vé
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* ─── BẢNG QUẢN LÝ LỊCH CHIẾU (TỰ ĐỘNG HIỆN KHI ĐĂNG NHẬP ADMIN) ─── */}
@@ -1612,6 +1656,39 @@ export default function ExploreScreen() {
                       {selectedShowtime.priceFormatted} / ghế
                     </Text>
                   </View>
+
+                  {/* Bảng giá vé theo loại ghế của suất chiếu (UC27) */}
+                  <View style={styles.showtimePriceBreakdownCard}>
+                    <View style={styles.showtimePriceCardHeader}>
+                      <Ionicons name="pricetag" size={14} color="#E50914" />
+                      <Text style={styles.showtimePriceCardTitle}>Bảng giá vé theo loại ghế</Text>
+                    </View>
+                    <View style={styles.showtimePriceTypesRow}>
+                      <View style={styles.showtimePriceTypeItem}>
+                        <Text style={styles.showtimePriceTypeName}>Ghế Thường</Text>
+                        <Text style={styles.showtimePriceTypeVal}>
+                          {selectedShowtime.priceFormatted}
+                        </Text>
+                      </View>
+                      <View style={styles.showtimePriceDivider} />
+                      <View style={styles.showtimePriceTypeItem}>
+                        <Text style={[styles.showtimePriceTypeName, { color: '#F59E0B' }]}>Ghế VIP</Text>
+                        <Text style={[styles.showtimePriceTypeVal, { color: '#F59E0B' }]}>
+                          {(Math.round((selectedShowtime.price * 1.25) / 5000) * 5000).toLocaleString('vi-VN')}đ
+                        </Text>
+                      </View>
+                      <View style={styles.showtimePriceDivider} />
+                      <View style={styles.showtimePriceTypeItem}>
+                        <Text style={[styles.showtimePriceTypeName, { color: '#EC4899' }]}>Sweetbox (Đôi)</Text>
+                        <Text style={[styles.showtimePriceTypeVal, { color: '#EC4899' }]}>
+                          {(Math.round((selectedShowtime.price * 2 * 0.95) / 5000) * 5000).toLocaleString('vi-VN')}đ
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.showtimePriceDiscountHint}>
+                      💡 HSSV (U22) & Trẻ em giảm -20.000đ • Thành viên VIP giảm -10.000đ
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Cảnh báo độ tuổi */}
@@ -2286,6 +2363,132 @@ export default function ExploreScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL BẢNG GIÁ VÉ TOÀN HỆ THỐNG (UC27) ─── */}
+      <Modal
+        visible={pricingMatrixModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPricingMatrixModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: '90%', paddingBottom: 16 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.pricingIconBadge}>
+                  <Ionicons name="pricetags" size={18} color="#E50914" />
+                </View>
+                <View>
+                  <Text style={styles.pricingModalTitle}>Bảng Giá Vé Rạp</Text>
+                  <Text style={styles.pricingModalSubtitle}>Áp dụng trên toàn hệ thống rạp CineMax</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setPricingMatrixModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {pricingMatrixLoading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center', gap: 12 }}>
+                <ActivityIndicator size="large" color="#E50914" />
+                <Text style={{ color: '#9CA3AF', fontSize: 13 }}>Đang tải bảng giá vé...</Text>
+              </View>
+            ) : pricingMatrixData?.matrix ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 10, gap: 14 }}>
+                {/* Danh mục định dạng (2D, 3D, IMAX) */}
+                {pricingMatrixData.matrix.formats.map((fmt, fIdx) => (
+                  <View key={fIdx} style={styles.pricingFormatSection}>
+                    <View style={styles.pricingFormatHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="film-outline" size={16} color="#E50914" />
+                        <Text style={styles.pricingFormatTitle}>{fmt.format}</Text>
+                      </View>
+                      <Text style={styles.pricingFormatDesc}>{fmt.description}</Text>
+                    </View>
+
+                    {fmt.days.map((d, dIdx) => (
+                      <View key={dIdx} style={styles.pricingDayBlock}>
+                        <View style={styles.pricingDayHeader}>
+                          <Text style={styles.pricingDayTitle}>{d.dayType}</Text>
+                          {d.badge ? (
+                            <View style={styles.pricingDayBadge}>
+                              <Text style={styles.pricingDayBadgeText}>{d.badge}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* Bảng giá theo khung giờ */}
+                        <View style={styles.pricingTableHeader}>
+                          <Text style={[styles.pricingTh, { flex: 1.5 }]}>Khung giờ</Text>
+                          <Text style={[styles.pricingTh, { flex: 1, textAlign: 'center' }]}>Thường</Text>
+                          <Text style={[styles.pricingTh, { flex: 1, textAlign: 'center', color: '#F59E0B' }]}>VIP</Text>
+                          <Text style={[styles.pricingTh, { flex: 1.2, textAlign: 'center', color: '#EC4899' }]}>Sweetbox</Text>
+                        </View>
+                        {d.slots.map((s, sIdx) => (
+                          <View
+                            key={sIdx}
+                            style={[
+                              styles.pricingTableRow,
+                              sIdx % 2 === 1 && { backgroundColor: 'rgba(255,255,255,0.02)' },
+                            ]}>
+                            <Text style={[styles.pricingTd, { flex: 1.5, color: '#D1D5DB' }]}>{s.time}</Text>
+                            <Text style={[styles.pricingTd, { flex: 1, textAlign: 'center', fontWeight: '700' }]}>
+                              {s.standard.toLocaleString('vi-VN')}đ
+                            </Text>
+                            <Text
+                              style={[
+                                styles.pricingTd,
+                                { flex: 1, textAlign: 'center', fontWeight: '700', color: '#F59E0B' },
+                              ]}>
+                              {s.vip.toLocaleString('vi-VN')}đ
+                            </Text>
+                            <Text
+                              style={[
+                                styles.pricingTd,
+                                { flex: 1.2, textAlign: 'center', fontWeight: '700', color: '#EC4899' },
+                              ]}>
+                              {s.couple.toLocaleString('vi-VN')}đ
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+
+                {/* Ưu đãi theo đối tượng */}
+                <View style={styles.pricingDiscountsCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Ionicons name="gift-outline" size={16} color="#10B981" />
+                    <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#FFFFFF' }}>
+                      Chính Sách Giảm Giá Đối Tượng
+                    </Text>
+                  </View>
+                  {pricingMatrixData.matrix.audienceDiscounts?.map((disc, idx) => (
+                    <View key={idx} style={styles.pricingDiscountRow}>
+                      <Text style={styles.pricingDiscountLabel}>• {disc.label}:</Text>
+                      <Text style={styles.pricingDiscountRule}>{disc.rule}</Text>
+                    </View>
+                  ))}
+                  <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 6, fontStyle: 'italic' }}>
+                    * Vui lòng xuất trình giấy tờ tuỳ thân (Thẻ HSSV, CCCD) tại quầy kiểm soát vé. Giá vé đã bao gồm 5% thuế GTGT.
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.pricingMatrixCloseBtn}
+                  onPress={() => setPricingMatrixModalVisible(false)}
+                  activeOpacity={0.8}>
+                  <Text style={styles.pricingMatrixCloseText}>Đóng bảng giá</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -3720,5 +3923,188 @@ const styles = StyleSheet.create({
   deleteSummaryMeta: {
     color: '#9CA3AF',
     fontSize: 12,
+  },
+  showtimePriceBreakdownCard: {
+    marginTop: 10,
+    backgroundColor: '#161A26',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#262D40',
+    padding: 10,
+    gap: 8,
+  },
+  showtimePriceCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  showtimePriceCardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  showtimePriceTypesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F121C',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  showtimePriceTypeItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  showtimePriceTypeName: {
+    fontSize: 10.5,
+    color: '#9CA3AF',
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  showtimePriceTypeVal: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  showtimePriceDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#262D40',
+  },
+  showtimePriceDiscountHint: {
+    fontSize: 10.5,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  pricingModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  pricingModalSubtitle: {
+    fontSize: 11.5,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  pricingIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(229, 9, 20, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pricingFormatSection: {
+    backgroundColor: '#161924',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#262D40',
+    padding: 12,
+    gap: 10,
+  },
+  pricingFormatHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#262D40',
+    paddingBottom: 8,
+  },
+  pricingFormatTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  pricingFormatDesc: {
+    fontSize: 11.5,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  pricingDayBlock: {
+    backgroundColor: '#0F121C',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  pricingDayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pricingDayTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  pricingDayBadge: {
+    backgroundColor: 'rgba(229, 9, 20, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(229, 9, 20, 0.4)',
+  },
+  pricingDayBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#E50914',
+  },
+  pricingTableHeader: {
+    flexDirection: 'row',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#262D40',
+  },
+  pricingTh: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+  },
+  pricingTableRow: {
+    flexDirection: 'row',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  pricingTd: {
+    fontSize: 11.5,
+    color: '#FFFFFF',
+  },
+  pricingDiscountsCard: {
+    backgroundColor: '#161924',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    padding: 12,
+  },
+  pricingDiscountRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 4,
+  },
+  pricingDiscountLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D1D5DB',
+  },
+  pricingDiscountRule: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600',
+    flex: 1,
+  },
+  pricingMatrixCloseBtn: {
+    backgroundColor: '#E50914',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  pricingMatrixCloseText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

@@ -116,3 +116,116 @@ export interface ShowtimeMutationResponse {
   showtime?: ShowtimeItem;
   deletedId?: string;
 }
+
+// ─── UC27: View Ticket Prices (Pricing) ──────────────────────────────────────
+export interface AudiencePrice {
+  segment: string;
+  label: string;
+  price: number;
+  priceFormatted: string;
+  discount: string;
+}
+
+export interface ShowtimeSeatTypePricing {
+  type: string;
+  name: string;
+  nameEn?: string;
+  color: string;
+  capacity: number;
+  price: number;
+  priceFormatted: string;
+  surcharge: number;
+  surchargeFormatted: string;
+  totalSeats: number;
+  availableSeats: number;
+  audiencePrices?: AudiencePrice[];
+  description?: string;
+}
+
+export interface ShowtimePricingFactors {
+  dayName: string;
+  isWeekend: boolean;
+  isHappyWednesday: boolean;
+  isEarlyBird: boolean;
+  isPrimeTime: boolean;
+  isLateNight: boolean;
+  format: string;
+  timeSlot: string;
+  dayBadge: string;
+}
+
+export interface ShowtimePricingDetails {
+  basePrice: number;
+  basePriceFormatted: string;
+  factors: ShowtimePricingFactors;
+  seatTypes: ShowtimeSeatTypePricing[];
+}
+
+export interface ShowtimePricingResponse {
+  success: boolean;
+  showtime: {
+    id: string;
+    code: string;
+    room: string;
+    format: string;
+    startTime: string;
+    endTime: string;
+    dateStr: string;
+    dateKey: string;
+    totalSeats: number;
+    availableSeats: number;
+    status: string;
+  };
+  movie: {
+    id: string;
+    code: string;
+    title: string;
+    duration?: number;
+    posterUrl?: string;
+    poster?: string;
+    ageRating?: string;
+  } | null;
+  theater: {
+    id: string;
+    code: string;
+    name: string;
+    shortName: string;
+    address: string;
+  } | null;
+  pricing: ShowtimePricingDetails;
+  message?: string;
+}
+
+export interface PricingMatrixResponse {
+  success: boolean;
+  matrix: {
+    formats: Array<{
+      format: string;
+      description: string;
+      days: Array<{
+        dayType: string;
+        badge?: string;
+        slots: Array<{
+          time: string;
+          standard: number;
+          vip: number;
+          couple: number;
+        }>;
+      }>;
+    }>;
+    audienceDiscounts: Array<{
+      label: string;
+      rule: string;
+    }>;
+    seatTypes: Array<{
+      code: string;
+      name: string;
+      color: string;
+      capacity: number;
+      description: string;
+      surcharge: number;
+      surchargeFormatted: string;
+    }>;
+  };
+}
+

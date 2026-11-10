@@ -152,6 +152,15 @@ export interface ShowtimeSeatMapResponse {
   } | null;
   summary: ShowtimeSeatMapSummary;
   seatMap: ShowtimeSeatItem[];
+  pricing?: {
+    standardPrice: number;
+    standardPriceFormatted: string;
+    vipPrice: number;
+    vipPriceFormatted: string;
+    couplePrice: number;
+    couplePriceFormatted: string;
+    format: string;
+  };
   myHold?: {
     seatCodes: string[];
     expiresAt: string;
