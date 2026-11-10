@@ -24,10 +24,13 @@ import { NotificationItem, NotificationMutationPayload } from '@/types/notificat
 import { Order, CreateOrderPayload, OrderStatus } from '@/types/order';
 import { ReportSummary, TopMovieStat, TopFoodStat, RevenueTrend } from '@/types/report';
 import {
+  BookSeatsPayload,
+  BookSeatsResponse,
   GenerateRoomData,
   GetSeatsResponse,
   SeatFormData,
   SeatItem,
+  ShowtimeSeatMapResponse,
 } from '@/types/seat';
 
 function getBaseUrl(): string {
@@ -636,5 +639,16 @@ export const SeatAPI = {
     apiRequest('/seats/batch-delete', {
       method: 'POST',
       body: JSON.stringify({ ids }),
+    }),
+
+  /** UC24: Lấy sơ đồ ghế chi tiết và trạng thái còn trống/đã đặt của một suất chiếu */
+  getShowtimeSeatMap: (showtimeId: string): Promise<ShowtimeSeatMapResponse> =>
+    apiRequest<ShowtimeSeatMapResponse>(`/seats/showtime/${encodeURIComponent(showtimeId)}`),
+
+  /** UC24: Đặt giữ ghế cho suất chiếu và lưu vé lên MongoDB Atlas */
+  bookSeats: (payload: BookSeatsPayload): Promise<BookSeatsResponse> =>
+    apiRequest<BookSeatsResponse>('/seats/book', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };

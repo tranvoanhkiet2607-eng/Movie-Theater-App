@@ -36,6 +36,7 @@ export default function AppTabs() {
           <TabTrigger name="profile" href="/profile" asChild>
             <TabButton>Tài khoản</TabButton>
           </TabTrigger>
+          <TabTrigger name="seat-booking" href="/seat-booking" style={{ display: 'none' }} />
           <TabTrigger name="login" href="/login" style={{ display: 'none' }} />
           <TabTrigger name="register" href="/register" style={{ display: 'none' }} />
         </CustomTabList>

@@ -723,6 +723,17 @@ export default function SeatsScreen() {
               💡 Chạm vào từng ghế để xem thông tin chi tiết
               {isManageMode ? ' hoặc chỉnh sửa/xóa ghế.' : '.'}
             </Text>
+
+            <TouchableOpacity
+              style={styles.viewBookingMapBtn}
+              onPress={() => router.push('/seat-booking')}
+              activeOpacity={0.8}>
+              <Ionicons name="ticket-outline" size={16} color="#E50914" />
+              <Text style={styles.viewBookingMapBtnText}>
+                Xem sơ đồ ghế & trạng thái đặt vé theo suất chiếu
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color="#E50914" />
+            </TouchableOpacity>
           </View>
         ) : (
           /* ── Danh Sách Thẻ Ghế (List View) ── */
@@ -1704,6 +1715,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 16,
     textAlign: 'center',
+  },
+  viewBookingMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(229, 9, 20, 0.12)',
+    borderWidth: 1,
+    borderColor: '#E50914',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 14,
+    gap: 8,
+  },
+  viewBookingMapBtnText: {
+    color: '#E50914',
+    fontSize: 12.5,
+    fontWeight: '700',
+    flex: 1,
   },
   listContainer: {
     paddingHorizontal: 16,

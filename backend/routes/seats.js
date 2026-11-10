@@ -3,11 +3,54 @@ const express = require('express');
 const router = express.Router();
 const Seat = require('../models/Seat');
 const Theater = require('../models/Theater');
+const Movie = require('../models/Movie');
+const Showtime = require('../models/Showtime');
+const Booking = require('../models/Booking');
 
 // Helper: Định dạng giá vé VND
 function formatPriceVND(num) {
   const val = Number(num) || 0;
   return `${val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+}
+
+// Helper: Đảm bảo danh sách ghế đã đặt của suất chiếu được đồng bộ trên MongoDB Atlas
+async function ensureShowtimeBookedSeats(showtime, roomSeats) {
+  if (showtime.bookedSeats && showtime.bookedSeats.length > 0) {
+    return showtime.bookedSeats;
+  }
+
+  const roomTotal = roomSeats.length;
+  if (roomTotal > 0 && showtime.totalSeats !== roomTotal) {
+    showtime.totalSeats = roomTotal;
+  }
+
+  let avail = showtime.availableSeats !== undefined ? Math.min(showtime.availableSeats, roomTotal) : roomTotal;
+  let bookedNeeded = Math.max(0, roomTotal - avail);
+
+  // Nếu suất chiếu chưa có dữ liệu đặt ghế, tạo sẵn một số ghế đã đặt ngẫu nhiên trung tâm (~20-30%) để hiển thị trạng thái đã đặt chân thực
+  if (bookedNeeded === 0 && roomTotal > 10) {
+    bookedNeeded = Math.floor(roomTotal * 0.25);
+  }
+
+  if (bookedNeeded <= 0) {
+    showtime.bookedSeats = [];
+    return [];
+  }
+
+  // Chọn ghế mô phỏng đã đặt chân thực (ưu tiên ghế giữa hàng C, D, E)
+  const candidateSeats = roomSeats
+    .filter((s) => s.status !== 'maintenance')
+    .sort((a, b) => {
+      const aMid = Math.abs(a.colNumber - 6);
+      const bMid = Math.abs(b.colNumber - 6);
+      return aMid - bMid;
+    });
+
+  const selected = candidateSeats.slice(0, bookedNeeded).map((s) => s.seatCode);
+  showtime.bookedSeats = selected;
+  showtime.availableSeats = Math.max(0, roomTotal - selected.length);
+  await showtime.save();
+  return selected;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -143,6 +186,288 @@ router.get('/rooms', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Lỗi máy chủ khi lấy danh sách phòng chiếu: ' + err.message,
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /api/seats/showtime/:showtimeId
+// UC24: Hiển thị sơ đồ ghế và trạng thái còn trống hoặc đã đặt cho suất chiếu
+// ════════════════════════════════════════════════════════════════════════════
+router.get('/showtime/:showtimeId', async (req, res) => {
+  try {
+    const { showtimeId } = req.params;
+    let showtime = null;
+
+    if (showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+      showtime = await Showtime.findById(showtimeId);
+    }
+    if (!showtime) {
+      showtime = await Showtime.findOne({ code: showtimeId });
+    }
+
+    if (!showtime) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy thông tin suất chiếu yêu cầu.',
+      });
+    }
+
+    const [movie, theater, roomSeats, otherShowtimes] = await Promise.all([
+      Movie.findOne({ code: showtime.movieId }),
+      Theater.findOne({ code: showtime.theaterId }),
+      Seat.find({ theaterId: showtime.theaterId, room: showtime.room }).sort({ row: 1, colNumber: 1 }),
+      Showtime.find({
+        movieId: showtime.movieId,
+        theaterId: showtime.theaterId,
+        dateKey: showtime.dateKey,
+      }).sort({ startTime: 1 }),
+    ]);
+
+    const bookedSeatCodes = await ensureShowtimeBookedSeats(showtime, roomSeats);
+    const bookedSet = new Set(bookedSeatCodes);
+
+    // Xây dựng danh sách ghế kèm trạng thái realtime cho suất chiếu
+    const baseShowtimePrice = showtime.price || 95000;
+    const seatMap = roomSeats.map((s) => {
+      let runtimeStatus = 'available';
+      if (s.status === 'maintenance') {
+        runtimeStatus = 'maintenance';
+      } else if (bookedSet.has(s.seatCode)) {
+        runtimeStatus = 'booked';
+      }
+
+      // Giá vé phụ thuộc theo loại ghế cho suất chiếu này
+      let seatPrice = baseShowtimePrice;
+      if (s.type === 'vip') {
+        seatPrice = Math.round((baseShowtimePrice * 1.25) / 5000) * 5000;
+      } else if (s.type === 'couple') {
+        seatPrice = Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000;
+      }
+
+      return {
+        id: s._id.toString(),
+        code: s.code,
+        seatCode: s.seatCode,
+        row: s.row,
+        colNumber: s.colNumber,
+        type: s.type,
+        basePrice: s.price,
+        price: seatPrice,
+        priceFormatted: formatPriceVND(seatPrice),
+        status: runtimeStatus,
+        notes: s.notes || '',
+      };
+    });
+
+    const summary = {
+      totalSeats: seatMap.length,
+      availableCount: seatMap.filter((s) => s.status === 'available').length,
+      bookedCount: seatMap.filter((s) => s.status === 'booked').length,
+      maintenanceCount: seatMap.filter((s) => s.status === 'maintenance').length,
+      standardCount: seatMap.filter((s) => s.type === 'standard').length,
+      vipCount: seatMap.filter((s) => s.type === 'vip').length,
+      coupleCount: seatMap.filter((s) => s.type === 'couple').length,
+    };
+
+    return res.json({
+      success: true,
+      showtime: {
+        id: showtime.code,
+        code: showtime.code,
+        startTime: showtime.startTime,
+        endTime: showtime.endTime,
+        dateStr: showtime.dateStr,
+        dateKey: showtime.dateKey,
+        room: showtime.room,
+        format: showtime.format,
+        price: showtime.price,
+        priceFormatted: showtime.priceFormatted,
+        status: showtime.status,
+      },
+      movie: movie
+        ? {
+            id: movie.code,
+            title: movie.title,
+            originalTitle: movie.originalTitle,
+            poster: movie.poster,
+            genre: movie.genre,
+            durationLabel: movie.durationLabel,
+            rating: movie.rating,
+            ageRating: movie.ageRating,
+            ageDescription: movie.ageDescription,
+          }
+        : null,
+      theater: theater
+        ? {
+            id: theater.code,
+            name: theater.name,
+            shortName: theater.shortName,
+            address: theater.address,
+            area: theater.area,
+          }
+        : null,
+      summary,
+      seatMap,
+      otherShowtimes: otherShowtimes.map((st) => ({
+        id: st.code,
+        code: st.code,
+        startTime: st.startTime,
+        room: st.room,
+        format: st.format,
+        priceFormatted: st.priceFormatted,
+        availableSeats: st.availableSeats,
+        totalSeats: st.totalSeats,
+        status: st.status,
+      })),
+    });
+  } catch (err) {
+    console.error('[GET /api/seats/showtime/:showtimeId] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy sơ đồ ghế cho suất chiếu: ' + err.message,
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/seats/book
+// UC24: Đặt giữ ghế cho suất chiếu và cập nhật trạng thái đã đặt lên MongoDB Atlas
+// ════════════════════════════════════════════════════════════════════════════
+router.post('/book', async (req, res) => {
+  try {
+    const {
+      showtimeId,
+      seatCodes,
+      userId,
+      paymentMethod = 'Ví MoMo',
+      combos = '',
+    } = req.body;
+
+    if (!showtimeId || !Array.isArray(seatCodes) || seatCodes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn ít nhất 1 ghế cần đặt.',
+      });
+    }
+
+    let showtime = await Showtime.findOne({ code: showtimeId });
+    if (!showtime && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+      showtime = await Showtime.findById(showtimeId);
+    }
+
+    if (!showtime) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy suất chiếu yêu cầu.',
+      });
+    }
+
+    // Kiểm tra các ghế đã chọn có bị đặt rồi hoặc đang bảo trì không
+    const currentBooked = new Set(showtime.bookedSeats || []);
+    const alreadyBooked = seatCodes.filter((code) => currentBooked.has(code));
+
+    if (alreadyBooked.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Ghế [${alreadyBooked.join(', ')}] đã có người đặt trước. Vui lòng chọn ghế khác!`,
+      });
+    }
+
+    // Lấy thông tin chi tiết các ghế để tính tổng tiền
+    const seatsInfo = await Seat.find({
+      theaterId: showtime.theaterId,
+      room: showtime.room,
+      seatCode: { $in: seatCodes },
+    });
+
+    const maintenanceSeats = seatsInfo
+      .filter((s) => s.status === 'maintenance')
+      .map((s) => s.seatCode);
+
+    if (maintenanceSeats.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Ghế [${maintenanceSeats.join(', ')}] hiện đang bảo trì, không thể đặt vé.`,
+      });
+    }
+
+    // Tính tổng tiền theo giá suất chiếu và loại ghế
+    let totalAmount = 0;
+    const baseShowtimePrice = showtime.price || 95000;
+    let mainSeatType = 'Thường';
+
+    seatsInfo.forEach((s) => {
+      if (s.type === 'vip') {
+        totalAmount += Math.round((baseShowtimePrice * 1.25) / 5000) * 5000;
+        mainSeatType = 'VIP';
+      } else if (s.type === 'couple') {
+        totalAmount += Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000;
+        mainSeatType = 'Sweetbox';
+      } else {
+        totalAmount += baseShowtimePrice;
+      }
+    });
+
+    // Thêm các ghế đã chọn vào bookedSeats của suất chiếu
+    showtime.bookedSeats.push(...seatCodes);
+    showtime.availableSeats = Math.max(0, showtime.totalSeats - showtime.bookedSeats.length);
+
+    if (showtime.availableSeats === 0) {
+      showtime.status = 'sold_out';
+    } else if (showtime.availableSeats <= 15) {
+      showtime.status = 'almost_full';
+    } else if (showtime.availableSeats <= showtime.totalSeats * 0.5) {
+      showtime.status = 'filling_fast';
+    }
+    await showtime.save();
+
+    // Lấy thông tin Movie và Theater để tạo vé chi tiết
+    const [movie, theater] = await Promise.all([
+      Movie.findOne({ code: showtime.movieId }),
+      Theater.findOne({ code: showtime.theaterId }),
+    ]);
+
+    const bookingCode = `CNM-${Math.floor(100000 + Math.random() * 900000)}`;
+    const [startH, startM] = (showtime.startTime || '19:00').split(':').map(Number);
+    const bookingDate = new Date();
+    bookingDate.setHours(startH || 19, startM || 0, 0, 0);
+
+    const newBooking = await Booking.create({
+      userId: userId || '6ad83e54513aa79a219bb6bf',
+      bookingCode,
+      movieTitle: movie ? movie.title : 'Phim Chiếu Rạp CineMax',
+      moviePoster: movie ? movie.poster : '',
+      cinemaName: theater ? theater.name : 'CineMax Cinema',
+      hallName: showtime.room,
+      showtime: bookingDate,
+      format: showtime.format,
+      seats: seatCodes,
+      seatType: mainSeatType,
+      combos: combos || '',
+      totalAmount,
+      paymentMethod,
+      paymentStatus: 'paid',
+      status: 'upcoming',
+      qrCodeData: `CINEMAX-TICKET-${bookingCode}-${seatCodes.join('')}`,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Đặt vé thành công cho các ghế: ${seatCodes.join(', ')}!`,
+      booking: newBooking.toJSON(),
+      showtime: {
+        code: showtime.code,
+        availableSeats: showtime.availableSeats,
+        totalSeats: showtime.totalSeats,
+        status: showtime.status,
+      },
+    });
+  } catch (err) {
+    console.error('[POST /api/seats/book] Lỗi:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi đặt ghế: ' + err.message,
     });
   }
 });

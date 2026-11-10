@@ -60,6 +60,10 @@ const ShowtimeSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    bookedSeats: {
+      type: [String],
+      default: [],
+    },
     status: {
       type: String,
       enum: ['available', 'filling_fast', 'almost_full', 'sold_out'],

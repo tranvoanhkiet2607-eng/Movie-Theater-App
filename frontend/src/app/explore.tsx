@@ -1640,14 +1640,14 @@ export default function ExploreScreen() {
                     const slot = selectedShowtime;
                     setSelectedShowtime(null);
                     router.push({
-                      pathname: '/seats',
-                      params: { theaterId: slot.theaterId, room: slot.room },
+                      pathname: '/seat-booking',
+                      params: { showtimeId: slot.code || slot.id },
                     });
                   }}
                   activeOpacity={0.8}>
                   <Ionicons name="grid-outline" size={16} color="#3B82F6" />
                   <Text style={styles.modalSeatMapText}>
-                    Xem sơ đồ ghế {selectedShowtime.room}
+                    Xem sơ đồ ghế & Chọn chỗ ({selectedShowtime.room})
                   </Text>
                 </TouchableOpacity>
 

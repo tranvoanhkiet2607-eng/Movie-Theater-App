@@ -76,6 +76,14 @@ export default function AppTabs() {
       />
 
       <Tabs.Screen
+        name="seat-booking"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+
+      <Tabs.Screen
         name="login"
         options={{
           href: null,
