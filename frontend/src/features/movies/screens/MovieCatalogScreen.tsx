@@ -1,5 +1,6 @@
-// Màn hình Phân hệ Movie Catalog
-// Tích hợp: UC11 (View Movies), UC12 (Search Movies), UC13 (Filter Movies)
+// Màn hình Phân hệ Movie Catalog & Movie Management
+// UC11: View Movies | UC12: Search Movies | UC13: Filter Movies
+// UC14: Manage Movies (Admin) | UC15: Manage Genres (Admin) | UC16: View Movie Trailer
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -10,28 +11,38 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
-  Dimensions,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
+import { useAuth } from '@/context/auth-context';
 import { MovieAPI } from '../services/movieApi';
 import {
   Movie,
   MovieFilterState,
   MovieStatusFilter,
   MovieSortOption,
+  MovieFormPayload,
 } from '../types/movie.types';
 import MovieCard from '../components/MovieCard';
 import MovieDetailModal from '../components/MovieDetailModal';
+import MovieTrailerModal from '../components/MovieTrailerModal';
+import MovieFormModal from '../components/MovieFormModal';
+import GenreManagementModal from '../components/GenreManagementModal';
 import MovieSearchBar from '../components/MovieSearchBar';
 import MovieFilterBar from '../components/MovieFilterBar';
 import MovieFilterModal from '../components/MovieFilterModal';
 import { MaxContentWidth } from '@/constants/theme';
 
 export default function MovieCatalogScreen() {
+  const { user, session } = useAuth();
+  // Phân quyền: Chỉ admin và manager mới có quyền thao tác CRUD
+  const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'manager'));
+  const authToken = session?.token || '';
+
   // ─── Filter State (UC12, UC13) ──────────────────────────────────────────────
   const [filters, setFilters] = useState<MovieFilterState>({
     search: '',
@@ -49,19 +60,37 @@ export default function MovieCatalogScreen() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // ─── Modal State ────────────────────────────────────────────────────────────
+  // ─── Modals State ───────────────────────────────────────────────────────────
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
   const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
 
-  // Tải danh sách thể loại từ database khi khởi động (UC13)
-  useEffect(() => {
-    MovieAPI.getGenres()
-      .then((data) => setGenres(data))
-      .catch((err) => console.log('[Fetch Genres Error]', err));
+  // UC16: Trailer Modal
+  const [trailerMovie, setTrailerMovie] = useState<Movie | null>(null);
+  const [trailerModalVisible, setTrailerModalVisible] = useState<boolean>(false);
+
+  // UC14: Movie Form Modal (Thêm / Sửa)
+  const [formModalVisible, setFormModalVisible] = useState<boolean>(false);
+  const [movieToEdit, setMovieToEdit] = useState<Movie | null>(null);
+
+  // UC15: Genre Management Modal
+  const [genreModalVisible, setGenreModalVisible] = useState<boolean>(false);
+
+  // Tải danh sách thể loại từ database (UC13, UC15)
+  const loadGenres = useCallback(async () => {
+    try {
+      const data = await MovieAPI.getGenres();
+      setGenres(data);
+    } catch (err) {
+      console.log('[Fetch Genres Error]', err);
+    }
   }, []);
 
-  // Tải danh sách phim theo bộ lọc hiện tại (UC11, UC12, UC13)
+  useEffect(() => {
+    loadGenres();
+  }, [loadGenres]);
+
+  // Tải danh sách phim (UC11, UC12, UC13)
   const fetchMovies = useCallback(async (showLoadingIndicator = true) => {
     if (showLoadingIndicator) setIsLoading(true);
     setApiError(null);
@@ -125,7 +154,6 @@ export default function MovieCatalogScreen() {
     });
   };
 
-  // Đếm số lượng bộ lọc nâng cao đang kích hoạt
   const activeAdvancedFilterCount = useMemo(() => {
     let count = 0;
     if (filters.ageRating !== 'all') count++;
@@ -152,6 +180,46 @@ export default function MovieCatalogScreen() {
     });
   };
 
+  // ─── Handlers UC16 (View Trailer) ───────────────────────────────────────────
+  const handleOpenTrailer = (movie: Movie) => {
+    setTrailerMovie(movie);
+    setTrailerModalVisible(true);
+  };
+
+  const handleCloseTrailer = () => {
+    setTrailerModalVisible(false);
+    setTrailerMovie(null);
+  };
+
+  // ─── Handlers UC14 (Manage Movies - CRUD) ────────────────────────────────────
+  const handleOpenCreateMovie = () => {
+    setMovieToEdit(null);
+    setFormModalVisible(true);
+  };
+
+  const handleOpenEditMovie = (movie: Movie) => {
+    setMovieToEdit(movie);
+    setFormModalVisible(true);
+  };
+
+  const handleSaveMovie = async (payload: MovieFormPayload, movieId?: string) => {
+    if (movieId) {
+      await MovieAPI.updateMovie(movieId, payload, authToken);
+    } else {
+      await MovieAPI.createMovie(payload, authToken);
+    }
+    await fetchMovies(false);
+  };
+
+  const handleDeleteMovie = async (movie: Movie) => {
+    try {
+      await MovieAPI.deleteMovie(movie.code || movie.id, authToken);
+      await fetchMovies(false);
+    } catch (err: any) {
+      Alert.alert('Không thể xóa phim', err.message || 'Lỗi khi xóa phim.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -163,16 +231,42 @@ export default function MovieCatalogScreen() {
             </View>
             <View>
               <Text style={styles.headerTitle}>Kho Phim CineMax</Text>
-              <Text style={styles.headerSub}>Xem danh sách, tìm kiếm & bộ lọc phim</Text>
+              <Text style={styles.headerSub}>
+                {isAdmin ? '🛡️ Quản trị viên • Toàn quyền chỉnh sửa' : 'Xem danh sách, tìm kiếm & bộ lọc phim'}
+              </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.homeLinkBtn}
-            onPress={() => router.push('/')}
-            activeOpacity={0.8}>
-            <Ionicons name="home-outline" size={16} color="#E5E7EB" />
-          </TouchableOpacity>
+          {/* Action Header Tools */}
+          <View style={styles.topRightActions}>
+            {/* UC14 & UC15: Admin Toolbar Buttons (Chỉ hiển thị khi isAdmin === true) */}
+            {isAdmin ? (
+              <>
+                <TouchableOpacity
+                  style={styles.adminActionToolBtn}
+                  onPress={() => setGenreModalVisible(true)}
+                  activeOpacity={0.8}>
+                  <Ionicons name="pricetags" size={15} color="#F59E0B" />
+                  <Text style={styles.adminActionToolText}>Thể loại</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.adminActionToolBtn, styles.createMovieBtn]}
+                  onPress={handleOpenCreateMovie}
+                  activeOpacity={0.8}>
+                  <Ionicons name="add" size={16} color="#FFFFFF" />
+                  <Text style={styles.createMovieBtnText}>Thêm phim</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.homeLinkBtn}
+              onPress={() => router.push('/')}
+              activeOpacity={0.8}>
+              <Ionicons name="home-outline" size={16} color="#E5E7EB" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Content List & Filters */}
@@ -284,6 +378,10 @@ export default function MovieCatalogScreen() {
               movie={item}
               onPress={handleOpenDetail}
               onViewShowtimes={handleViewShowtimes}
+              onViewTrailer={handleOpenTrailer} // UC16: Xem Trailer
+              isAdmin={isAdmin} // UC14: Phân quyền Quản trị viên
+              onEditMovie={handleOpenEditMovie}
+              onDeleteMovie={handleDeleteMovie}
             />
           )}
           ListEmptyComponent={
@@ -335,6 +433,41 @@ export default function MovieCatalogScreen() {
               params: { movieId },
             });
           }}
+          onWatchTrailer={handleOpenTrailer} // UC16
+        />
+
+        {/* UC16: Phát Trailer Modal */}
+        <MovieTrailerModal
+          movie={trailerMovie}
+          visible={trailerModalVisible}
+          onClose={handleCloseTrailer}
+          isAdmin={isAdmin}
+          onBookTicket={(movieId) => {
+            router.push({
+              pathname: '/explore',
+              params: { movieId },
+            });
+          }}
+        />
+
+        {/* UC14: Thêm / Sửa Phim Modal (Admin) */}
+        <MovieFormModal
+          visible={formModalVisible}
+          onClose={() => setFormModalVisible(false)}
+          movieToEdit={movieToEdit}
+          onSave={handleSaveMovie}
+          availableGenres={genres}
+        />
+
+        {/* UC15: Quản lý Thể loại Modal (Admin) */}
+        <GenreManagementModal
+          visible={genreModalVisible}
+          onClose={() => setGenreModalVisible(false)}
+          token={authToken}
+          onGenresUpdated={() => {
+            loadGenres();
+            fetchMovies(false);
+          }}
         />
 
         {/* UC13: Bộ lọc nâng cao Modal */}
@@ -377,6 +510,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   headerIconBox: {
     width: 36,
@@ -396,9 +530,39 @@ const styles = StyleSheet.create({
     color: '#828B9E',
     fontSize: 11,
   },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adminActionToolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1E2436',
+    borderWidth: 1,
+    borderColor: '#323E5A',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  adminActionToolText: {
+    color: '#E5E7EB',
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  createMovieBtn: {
+    backgroundColor: '#E50914',
+    borderColor: '#E50914',
+  },
+  createMovieBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
   homeLinkBtn: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: '#151821',
     borderWidth: 1,
