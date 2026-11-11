@@ -31,16 +31,34 @@ async function ensureDefaultRoomsForTheater(theaterCode) {
 router.get('/', async (req, res) => {
   try {
     const { area = 'all', search = '' } = req.query;
-    const mongoQuery = {};
+    const conditions = [];
 
     if (area && area !== 'all') {
-      mongoQuery.area = String(area).trim();
+      const trimmedArea = String(area).trim();
+      // Nếu lọc Hồ Chí Minh / HCM: bao quát cả địa chỉ TP. HCM, TP.HCM, Sài Gòn, các quận huyện
+      if (/Hồ Chí Minh|HCM/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Hồ Chí Minh|HCM|Quận|Bình Thạnh|Tân Bình|Thủ Đức/i },
+            { address: /Hồ Chí Minh|TP\.? ?HCM|Sài Gòn|Thủ Đức/i },
+          ],
+        });
+      } else {
+        const areaRegex = new RegExp(trimmedArea, 'i');
+        conditions.push({
+          $or: [{ area: areaRegex }, { address: areaRegex }],
+        });
+      }
     }
 
     if (search && String(search).trim()) {
       const q = new RegExp(String(search).trim(), 'i');
-      mongoQuery.$or = [{ name: q }, { shortName: q }, { address: q }, { area: q }];
+      conditions.push({
+        $or: [{ name: q }, { shortName: q }, { address: q }, { area: q }],
+      });
     }
+
+    const mongoQuery = conditions.length > 0 ? { $and: conditions } : {};
 
     const theaterDocs = await Theater.find(mongoQuery).sort({ code: 1 });
     const theaters = theaterDocs.map((t) => t.toJSON());

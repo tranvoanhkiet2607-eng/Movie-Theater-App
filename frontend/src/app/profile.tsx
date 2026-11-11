@@ -30,8 +30,8 @@ import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { MembershipModal } from '@/components/membership-modal';
 import NotificationModal from '@/components/NotificationModal';
 import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
-import { NotificationAPI, OrderAPI } from '@/services/api';
-import { LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
+import { BookingAPI, NotificationAPI, OrderAPI } from '@/services/api';
+import { BookingItem, LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
 import { Order } from '@/types/order';
 
 
@@ -86,25 +86,35 @@ export default function ProfileScreen() {
   // Session Info Modal
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
-  // Notifications (UC43) & Admin Management Hub (UC37, 39, 41, 42, 44, 45)
+  // Notifications & Admin Management Hub
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [adminHubVisible, setAdminHubVisible] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
+  const [myBookings, setMyBookings] = useState<BookingItem[]>([]);
 
   const fetchProfileData = useCallback(async () => {
     if (!user) return;
     try {
-      const [notifRes, orderRes] = await Promise.all([
+      const promises: Promise<any>[] = [
         NotificationAPI.getUnreadCount(user.id),
         OrderAPI.getOrders({ userId: user.id }),
-      ]);
-      if (notifRes.success) setUnreadNotifs(notifRes.count || 0);
-      if (orderRes.success) setMyOrders(orderRes.orders || []);
+      ];
+      if (session?.token) {
+        promises.push(BookingAPI.getMyBookings(session.token));
+      }
+      const [notifRes, orderRes, bookingRes] = await Promise.all(promises);
+      if (notifRes?.success) setUnreadNotifs(notifRes.count || 0);
+      if (orderRes?.success) setMyOrders(orderRes.orders || []);
+      if (bookingRes?.success && bookingRes.upcoming) {
+        setMyBookings(bookingRes.upcoming || []);
+      } else {
+        setMyBookings([]);
+      }
     } catch (err) {
       console.log('[Load Profile Data Error]', err);
     }
-  }, [user]);
+  }, [user, session?.token]);
 
   useEffect(() => {
     fetchProfileData();
@@ -239,17 +249,10 @@ export default function ProfileScreen() {
 
 
 
-  // Mock booked tickets for this customer
-  const sampleTickets = [
-    {
-      id: 'TCK-8821',
-      movieTitle: 'Dune: Part Two (Hành Tinh Cát)',
-      theater: 'CineMax Vincom Đồng Khởi - Rạp 03',
-      showtime: '20:15 - Hôm nay',
-      seats: 'F08, F09 (VIP)',
-      status: 'Đã xác nhận',
-    },
-  ];
+  // Vé sắp chiếu gần nhất của người dùng từ cơ sở dữ liệu
+  const latestUpcomingBooking = myBookings.length > 0 ? myBookings[0] : null;
+  const latestUpcomingOrder =
+    myOrders.length > 0 ? myOrders.find((o) => o.orderStatus !== 'cancelled') : null;
 
   // Current avatar icon determination
   const currentAvatarIcon = user.avatarUrl?.startsWith('cinema_avatar_')
@@ -352,22 +355,58 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.ticketPreviewCard}
-            onPress={() => setBookingHistoryVisible(true)}
-            activeOpacity={0.85}>
-            <View style={styles.ticketPreviewBadge}>
-              <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU HÔM NAY</Text>
+          {latestUpcomingBooking ? (
+            <TouchableOpacity
+              style={styles.ticketPreviewCard}
+              onPress={() => setBookingHistoryVisible(true)}
+              activeOpacity={0.85}>
+              <View style={styles.ticketPreviewBadge}>
+                <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+              </View>
+              <Text style={styles.ticketPreviewTitle}>
+                {latestUpcomingBooking.movieTitle} {latestUpcomingBooking.format ? `(${latestUpcomingBooking.format})` : ''}
+              </Text>
+              <Text style={styles.ticketPreviewMeta}>
+                📍 {latestUpcomingBooking.cinemaName} • {latestUpcomingBooking.hallName} • Ghế: {latestUpcomingBooking.seats.join(', ')}
+              </Text>
+              <View style={styles.ticketPreviewActionRow}>
+                <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+              </View>
+            </TouchableOpacity>
+          ) : latestUpcomingOrder ? (
+            <TouchableOpacity
+              style={styles.ticketPreviewCard}
+              onPress={() => setBookingHistoryVisible(true)}
+              activeOpacity={0.85}>
+              <View style={styles.ticketPreviewBadge}>
+                <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+              </View>
+              <Text style={styles.ticketPreviewTitle}>
+                {latestUpcomingOrder.movie?.title || 'Phim rạp'}
+              </Text>
+              <Text style={styles.ticketPreviewMeta}>
+                📍 {latestUpcomingOrder.theater?.name} • {latestUpcomingOrder.theater?.room} • Ghế: {(latestUpcomingOrder.tickets || []).map((t) => t.seatNumber).join(', ')}
+              </Text>
+              <View style={styles.ticketPreviewActionRow}>
+                <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.emptyTicketPreviewBox}>
+              <Ionicons name="ticket-outline" size={28} color="#6B7280" />
+              <Text style={styles.emptyTicketPreviewTitle}>Bạn chưa có vé xem phim nào sắp chiếu</Text>
+              <Text style={styles.emptyTicketPreviewSub}>Khám phá các phim hot và đặt vé ngay hôm nay</Text>
+              <TouchableOpacity
+                style={styles.emptyTicketPreviewBtn}
+                onPress={() => router.push('/explore')}
+                activeOpacity={0.85}>
+                <Ionicons name="film-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.emptyTicketPreviewBtnText}>Đặt vé xem phim ngay</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.ticketPreviewTitle}>Dune: Hành Tinh Cát - Phần 2 (IMAX 3D)</Text>
-            <Text style={styles.ticketPreviewMeta}>
-              📍 CineMax Vincom Đồng Khởi • Rạp 03 • Ghế: F08, F09 (VIP)
-            </Text>
-            <View style={styles.ticketPreviewActionRow}>
-              <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
-              <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
-            </View>
-          </TouchableOpacity>
+          )}
         </View>
 
         {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN */}
@@ -516,13 +555,11 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tickets & Food Orders (UC38 & UC44) */}
+        {/* Tickets & Food Orders */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
-            <Text style={styles.ticketCount}>
-              {myOrders.length > 0 ? `${myOrders.length} đơn` : `${sampleTickets.length} vé`}
-            </Text>
+            <Text style={styles.ticketCount}>{myOrders.length} đơn</Text>
           </View>
 
           {myOrders.length > 0 ? (
@@ -593,19 +630,13 @@ export default function ProfileScreen() {
               </View>
             ))
           ) : (
-            sampleTickets.map((ticket) => (
-              <View key={ticket.id} style={styles.ticketItem}>
-                <View style={styles.ticketHeader}>
-                  <Ionicons name="film-outline" size={18} color="#E50914" />
-                  <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
-                </View>
-                <Text style={styles.ticketTheater}>{ticket.theater}</Text>
-                <View style={styles.ticketFooter}>
-                  <Text style={styles.ticketShowtime}>🕒 {ticket.showtime}</Text>
-                  <Text style={styles.ticketSeats}>Ghế: {ticket.seats}</Text>
-                </View>
-              </View>
-            ))
+            <View style={styles.emptyOrdersContainer}>
+              <Ionicons name="receipt-outline" size={36} color="#6B7280" />
+              <Text style={styles.emptyOrdersTitle}>Chưa có đơn vé hoặc bắp nước</Text>
+              <Text style={styles.emptyOrdersSub}>
+                Toàn bộ đơn đặt vé và combo bắp nước bạn đã đặt sẽ hiển thị ở đây.
+              </Text>
+            </View>
           )}
         </View>
 
@@ -1323,6 +1354,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#60A5FA',
     fontWeight: '600',
+  },
+  emptyTicketPreviewBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    borderStyle: 'dashed',
+  },
+  emptyTicketPreviewTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyTicketPreviewSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptyTicketPreviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E50914',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  emptyTicketPreviewBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyOrdersContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyOrdersTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyOrdersSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
   roleTag: {
     backgroundColor: '#1E3A8A',

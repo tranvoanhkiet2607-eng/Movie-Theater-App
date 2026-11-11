@@ -22,90 +22,6 @@ interface BookingHistoryModalProps {
   onBookingAdded?: (newPoints: number) => void;
 }
 
-// Fallback mock bookings
-const INITIAL_MOCK_BOOKINGS: { upcoming: BookingItem[]; past: BookingItem[] } = {
-  upcoming: [
-    {
-      id: 'bkg_1',
-      bookingCode: 'CNM-882194',
-      movieTitle: 'Dune: Hành Tinh Cát - Phần 2',
-      moviePoster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500',
-      cinemaName: 'CineMax Vincom Đồng Khởi',
-      hallName: 'Rạp 03 (IMAX Laser)',
-      showtime: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
-      format: 'IMAX 3D Laser',
-      seats: ['F08', 'F09'],
-      seatType: 'VIP',
-      combos: '1 Bắp phô mai lớn + 2 Coca Cola Zero',
-      totalAmount: 380000,
-      paymentMethod: 'Ví MoMo',
-      paymentStatus: 'paid',
-      status: 'upcoming',
-      qrCodeData: 'CINEMAX-TICKET-F08F09-882194',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'bkg_2',
-      bookingCode: 'CNM-542109',
-      movieTitle: 'Deadpool & Wolverine',
-      moviePoster: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=500',
-      cinemaName: 'CineMax Landmark 81',
-      hallName: 'Rạp Gold Class 01',
-      showtime: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
-      format: '2D VIP Luxury',
-      seats: ['H05', 'H06'],
-      seatType: 'Sweetbox',
-      combos: '1 Combo Bắp Caramel + 2 Nước ép đào',
-      totalAmount: 420000,
-      paymentMethod: 'Thẻ tín dụng Visa',
-      paymentStatus: 'paid',
-      status: 'upcoming',
-      qrCodeData: 'CINEMAX-TICKET-H05H06-542109',
-      createdAt: new Date().toISOString(),
-    },
-  ],
-  past: [
-    {
-      id: 'bkg_3',
-      bookingCode: 'CNM-319482',
-      movieTitle: 'Godzilla x Kong: Đế Chế Mới',
-      moviePoster: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=500',
-      cinemaName: 'CineMax Crescent Mall',
-      hallName: 'Rạp 02',
-      showtime: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
-      format: '2D Phụ đề',
-      seats: ['G12', 'G13'],
-      seatType: 'Standard',
-      combos: '1 Bắp bơ ngọt + 1 Sprite',
-      totalAmount: 220000,
-      paymentMethod: 'Ví MoMo',
-      paymentStatus: 'paid',
-      status: 'completed',
-      qrCodeData: 'CINEMAX-TICKET-G12G13-319482',
-      createdAt: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
-    },
-    {
-      id: 'bkg_4',
-      bookingCode: 'CNM-102934',
-      movieTitle: 'Kung Fu Panda 4',
-      moviePoster: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=500',
-      cinemaName: 'CineMax Landmark 81',
-      hallName: 'Rạp 04',
-      showtime: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-      format: '2D Lồng tiếng',
-      seats: ['E05'],
-      seatType: 'Standard',
-      combos: '',
-      totalAmount: 95000,
-      paymentMethod: 'ZaloPay',
-      paymentStatus: 'refunded',
-      status: 'cancelled',
-      qrCodeData: 'CINEMAX-TICKET-E05-102934',
-      createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-    },
-  ],
-};
-
 export function BookingHistoryModal({
   visible,
   onClose,
@@ -113,8 +29,8 @@ export function BookingHistoryModal({
   onBookingAdded,
 }: BookingHistoryModalProps) {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
-  const [upcomingList, setUpcomingList] = useState<BookingItem[]>(INITIAL_MOCK_BOOKINGS.upcoming);
-  const [pastList, setPastList] = useState<BookingItem[]>(INITIAL_MOCK_BOOKINGS.past);
+  const [upcomingList, setUpcomingList] = useState<BookingItem[]>([]);
+  const [pastList, setPastList] = useState<BookingItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // E-ticket modal state
@@ -123,16 +39,26 @@ export function BookingHistoryModal({
 
   useEffect(() => {
     let isCancelled = false;
-    if (!visible || !token) return;
+    if (!visible || !token) {
+      setUpcomingList([]);
+      setPastList([]);
+      return;
+    }
 
+    setIsLoading(true);
     BookingAPI.getMyBookings(token)
       .then((res) => {
         if (!isCancelled && res.success) {
-          if (res.upcoming) setUpcomingList(res.upcoming);
-          if (res.past) setPastList(res.past);
+          setUpcomingList(res.upcoming || []);
+          setPastList(res.past || []);
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!isCancelled) {
+          setUpcomingList([]);
+          setPastList([]);
+        }
+      })
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
       });
