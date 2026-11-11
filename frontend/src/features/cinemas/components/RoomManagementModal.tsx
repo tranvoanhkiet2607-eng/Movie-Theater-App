@@ -48,7 +48,6 @@ export default function RoomManagementModal({
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [roomName, setRoomName] = useState('');
   const [format, setFormat] = useState('2D Phụ đề');
-  const [totalSeats, setTotalSeats] = useState('120');
   const [status, setStatus] = useState<'active' | 'maintenance'>('active');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -77,7 +76,6 @@ export default function RoomManagementModal({
     setEditingRoom(room);
     setRoomName(room.name);
     setFormat(room.format);
-    setTotalSeats(String(room.totalSeats || 120));
     setStatus(room.status || 'active');
     setErrorMessage(null);
   };
@@ -86,7 +84,6 @@ export default function RoomManagementModal({
     setEditingRoom(null);
     setRoomName('');
     setFormat('2D Phụ đề');
-    setTotalSeats('120');
     setStatus('active');
     setErrorMessage(null);
   };
@@ -94,11 +91,6 @@ export default function RoomManagementModal({
   const handleSaveRoom = async () => {
     if (!roomName.trim()) {
       setErrorMessage('Tên phòng chiếu không được để trống.');
-      return;
-    }
-    const seatsNum = Number(totalSeats);
-    if (isNaN(seatsNum) || seatsNum < 10) {
-      setErrorMessage('Số lượng ghế tối thiểu là 10.');
       return;
     }
 
@@ -111,7 +103,7 @@ export default function RoomManagementModal({
       const payload: RoomFormPayload = {
         name: roomName.trim(),
         format,
-        totalSeats: seatsNum,
+        totalSeats: editingRoom?.totalSeats || 120,
         status,
       };
 
@@ -198,29 +190,15 @@ export default function RoomManagementModal({
                 {editingRoom ? `Chỉnh sửa: ${editingRoom.name}` : 'Thêm phòng chiếu mới'}
               </Text>
 
-              <View style={styles.rowTwoCols}>
-                <View style={[styles.inputGroup, { flex: 1.3 }]}>
-                  <Text style={styles.inputLabel}>Tên phòng *</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={roomName}
-                    onChangeText={setRoomName}
-                    placeholder="Ví dụ: Rạp 07, Rạp IMAX 2"
-                    placeholderTextColor="#6B7280"
-                  />
-                </View>
-
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Số ghế *</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={totalSeats}
-                    onChangeText={setTotalSeats}
-                    keyboardType="numeric"
-                    placeholder="120"
-                    placeholderTextColor="#6B7280"
-                  />
-                </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tên phòng *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={roomName}
+                  onChangeText={setRoomName}
+                  placeholder="Ví dụ: Rạp 07, Rạp IMAX 2"
+                  placeholderTextColor="#6B7280"
+                />
               </View>
 
               {/* Định dạng */}
@@ -330,7 +308,7 @@ export default function RoomManagementModal({
                         </View>
 
                         <Text style={styles.roomCardSub}>
-                          Định dạng: <Text style={{ color: '#E50914', fontWeight: '700' }}>{r.format}</Text> • {r.totalSeats} ghế
+                          Định dạng: <Text style={{ color: '#E50914', fontWeight: '700' }}>{r.format}</Text>
                         </Text>
                       </View>
 
