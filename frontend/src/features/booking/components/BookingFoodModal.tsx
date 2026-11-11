@@ -89,8 +89,9 @@ export default function BookingFoodModal({
     }));
   }, [rawSeats]);
 
-  // Tính giá vé động cho các loại ghế
+  // Tính giá vé động cho các loại ghế đồng bộ chuẩn xác với Backend
   const seatPricing = useMemo(() => {
+    const basePrice = Number(showtime?.price) || 90000;
     let std = 0;
     let vip = 0;
     let cpl = 0;
@@ -101,9 +102,9 @@ export default function BookingFoodModal({
       if (s.type === 'couple' && (!cpl || p < cpl)) cpl = p;
     });
     return {
-      standard: std || (showtime?.price || 90000),
-      vip: vip || Math.round((showtime?.price || 90000) * 1.3),
-      couple: cpl || Math.round((showtime?.price || 90000) * 2.2),
+      standard: std || basePrice,
+      vip: vip || Math.round((basePrice * 1.25) / 5000) * 5000,
+      couple: cpl || Math.round((basePrice * 2 * 0.95) / 5000) * 5000,
     };
   }, [rawSeats, showtime?.price]);
 
