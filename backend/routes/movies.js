@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // Module Movie Catalog & Movie Management
 // UC11: View Movies | UC12: Search Movies | UC13: Filter Movies
 // UC14: Manage Movies (CRUD) | UC16: View Movie Trailer

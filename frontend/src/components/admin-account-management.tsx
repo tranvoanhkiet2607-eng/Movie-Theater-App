@@ -23,65 +23,6 @@ interface AdminAccountManagementProps {
   currentUser: User;
 }
 
-// Mock fallback accounts in case server is offline
-const INITIAL_MOCK_ACCOUNTS: User[] = [
-  {
-    id: 'usr_admin_1',
-    fullName: 'Quản Trị Viên Hệ Thống',
-    email: 'admin@cinema.com',
-    phone: '0912345678',
-    role: 'admin',
-    isActive: true,
-    membershipTier: 'VIP',
-    loyaltyPoints: 9999,
-    createdAt: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'usr_staff_1',
-    fullName: 'Lê Hoàng Nhân Viên',
-    email: 'staff@cinema.com',
-    phone: '0933445566',
-    role: 'staff',
-    isActive: true,
-    membershipTier: 'Silver',
-    loyaltyPoints: 150,
-    createdAt: new Date(Date.now() - 45 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'usr_cust_1',
-    fullName: 'Nguyễn Văn A',
-    email: 'customer@cinema.com',
-    phone: '0901234567',
-    role: 'customer',
-    isActive: true,
-    membershipTier: 'Gold',
-    loyaltyPoints: 350,
-    createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'usr_cust_2',
-    fullName: 'Trần Thị Bích Ngọc',
-    email: 'vip@cinema.com',
-    phone: '0987654321',
-    role: 'customer',
-    isActive: true,
-    membershipTier: 'VIP',
-    loyaltyPoints: 1250,
-    createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'usr_cust_3',
-    fullName: 'Phạm Minh Khang (Tạm khóa)',
-    email: 'locked@cinema.com',
-    phone: '0977889900',
-    role: 'customer',
-    isActive: false,
-    membershipTier: 'Standard',
-    loyaltyPoints: 50,
-    createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
-  },
-];
-
 const DEFAULT_ROLE_MATRIX: Record<UserRole, RoleInfo> = {
   customer: {
     roleName: 'Khách hàng',
@@ -136,7 +77,7 @@ export function AdminAccountManagementModal({
   token,
   currentUser,
 }: AdminAccountManagementProps) {
-  const [accounts, setAccounts] = useState<User[]>(INITIAL_MOCK_ACCOUNTS);
+  const [accounts, setAccounts] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');

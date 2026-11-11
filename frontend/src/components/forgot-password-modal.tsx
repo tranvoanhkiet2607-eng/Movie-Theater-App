@@ -82,12 +82,6 @@ function ForgotPasswordContent({
 
   const strength = getPasswordStrength(newPassword);
 
-  // Quick fill sample account
-  const handleQuickFillCustomer = () => {
-    setIdentifier('customer@cinema.com');
-    setErrorMessage(null);
-  };
-
   // Step 1: Request Password Reset
   const handleRequestReset = async () => {
     setErrorMessage(null);
@@ -273,15 +267,6 @@ function ForgotPasswordContent({
                     keyboardType="email-address"
                   />
                 </View>
-
-                {/* Sample Account Quick Button */}
-                <TouchableOpacity
-                  style={styles.quickFillBtn}
-                  onPress={handleQuickFillCustomer}
-                  activeOpacity={0.8}>
-                  <Ionicons name="sparkles" size={14} color="#F59E0B" style={{ marginRight: 4 }} />
-                  <Text style={styles.quickFillText}>Điền tài khoản mẫu demo: customer@cinema.com</Text>
-                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.submitBtn}

@@ -440,7 +440,7 @@ export default function AdminManagementHubModal({
             </View>
             <Text style={styles.accessDeniedTitle}>Yêu Cầu Quyền Quản Trị</Text>
             <Text style={styles.accessDeniedDesc}>
-              Chức năng này được bảo vệ bởi phân quyền RBAC. Chỉ tài khoản với vai trò Quản trị viên (Admin) như admin@cinema.com mới được phép truy cập và quản lý dữ liệu.
+              Chức năng này được bảo vệ bởi phân quyền RBAC. Chỉ tài khoản với vai trò Quản trị viên (Admin) mới được phép truy cập và quản lý dữ liệu.
             </Text>
             <TouchableOpacity style={styles.accessDeniedBtn} onPress={onClose}>
               <Text style={styles.accessDeniedBtnText}>Đóng lại</Text>

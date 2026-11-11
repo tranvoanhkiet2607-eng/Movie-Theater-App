@@ -147,33 +147,6 @@ const DEFAULT_REWARDS: RewardCatalogItem[] = [
   },
 ];
 
-const INITIAL_POINT_HISTORY: PointTransaction[] = [
-  {
-    date: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-    description: 'Tích điểm vé xem phim Dune: Part Two IMAX',
-    pointsChange: +35,
-    balanceAfter: 350,
-  },
-  {
-    date: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
-    description: 'Tích điểm mua combo bắp nước tại quầy',
-    pointsChange: +15,
-    balanceAfter: 315,
-  },
-  {
-    date: new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString(),
-    description: 'Tích điểm vé xem phim Godzilla x Kong',
-    pointsChange: +50,
-    balanceAfter: 300,
-  },
-  {
-    date: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-    description: 'Điểm thưởng chào mừng gia nhập CineMax',
-    pointsChange: +250,
-    balanceAfter: 250,
-  },
-];
-
 export function MembershipModal({
   visible,
   onClose,
@@ -184,17 +157,8 @@ export function MembershipModal({
   const [activeTab, setActiveTab] = useState<'benefits' | 'rewards' | 'history'>('benefits');
   const [viewTier, setViewTier] = useState<MembershipTier>(user.membershipTier);
   const [currentPoints, setCurrentPoints] = useState<number>(user.loyaltyPoints || 0);
-  const [pointHistory, setPointHistory] = useState<PointTransaction[]>(INITIAL_POINT_HISTORY);
-  const [vouchers, setVouchers] = useState<VoucherItem[]>([
-    {
-      code: 'CNM-VCH-8821',
-      title: '01 Ly Nước Ngọt Lớn Miễn Phí',
-      discount: 'Đồ uống',
-      pointsCost: 80,
-      expiryDate: '30/12/2026',
-      isUsed: false,
-    },
-  ]);
+  const [pointHistory, setPointHistory] = useState<PointTransaction[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [isRedeeming, setIsRedeeming] = useState(false);
 
   // Load history from backend

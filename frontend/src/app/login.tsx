@@ -84,14 +84,6 @@ export default function LoginScreen({ isTab = false }: LoginScreenProps = {}) {
     );
   }
 
-  // Quick fill demo account for convenient testing
-  const handleQuickFillDemo = () => {
-    setIdentifier('customer@cinema.com');
-    setPassword('password123');
-    setErrors({});
-    setErrorMessage(null);
-  };
-
   const handleLogin = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -197,31 +189,6 @@ export default function LoginScreen({ isTab = false }: LoginScreenProps = {}) {
               Trải nghiệm điện ảnh đỉnh cao cùng đặc quyền thành viên
             </Text>
           </View>
-
-          {/* Quick Demo Fill Button */}
-          <TouchableOpacity
-            style={styles.demoBanner}
-            onPress={handleQuickFillDemo}
-            activeOpacity={0.8}>
-            <Ionicons name="flash" size={16} color="#F59E0B" />
-            <Text style={styles.demoBannerText}>
-              Điền nhanh Khách hàng: <Text style={styles.demoBold}>customer@cinema.com</Text>
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.demoBanner, { marginTop: -8 }]}
-            onPress={() => {
-              setIdentifier('admin@cinema.com');
-              setPassword('password123');
-              setErrors({});
-              setErrorMessage(null);
-            }}
-            activeOpacity={0.8}>
-            <Ionicons name="shield-checkmark" size={16} color="#10B981" />
-            <Text style={styles.demoBannerText}>
-              Điền nhanh Quản trị viên: <Text style={styles.demoBold}>admin@cinema.com</Text>
-            </Text>
-          </TouchableOpacity>
 
           {/* Alert Messages */}
           {errorMessage && (

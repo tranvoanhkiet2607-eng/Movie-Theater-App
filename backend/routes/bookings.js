@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
@@ -90,22 +91,29 @@ router.post('/', authUser, async (req, res) => {
   try {
     const { movieTitle, moviePoster, cinemaName, hallName, showtime, format, seats, seatType, combos, totalAmount, paymentMethod } = req.body;
 
+    if (!movieTitle || !cinemaName || !hallName || !seats || !Array.isArray(seats) || seats.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ thông tin: phim, cụm rạp, phòng chiếu và danh sách ghế đặt.',
+      });
+    }
+
     const bookingCode = `CNM-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const newBooking = await Booking.create({
       userId: req.user._id,
       bookingCode,
-      movieTitle: movieTitle || 'Dune: Hành Tinh Cát - Phần 2',
-      moviePoster: moviePoster || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500',
-      cinemaName: cinemaName || 'CineMax Vincom Đồng Khởi',
-      hallName: hallName || 'Rạp 03 (IMAX)',
-      showtime: showtime ? new Date(showtime) : new Date(Date.now() + 2 * 3600 * 1000),
+      movieTitle: String(movieTitle).trim(),
+      moviePoster: moviePoster || '',
+      cinemaName: String(cinemaName).trim(),
+      hallName: String(hallName).trim(),
+      showtime: showtime ? new Date(showtime) : new Date(),
       format: format || '2D Phụ đề',
-      seats: seats && seats.length > 0 ? seats : ['F08', 'F09'],
-      seatType: seatType || 'VIP',
-      combos: combos || '1 Bắp + 2 Nước ngọt',
-      totalAmount: totalAmount || 260000,
-      paymentMethod: paymentMethod || 'Ví MoMo',
+      seats,
+      seatType: seatType || 'standard',
+      combos: combos || '',
+      totalAmount: Number(totalAmount) || 0,
+      paymentMethod: paymentMethod || 'Thẻ ATM / QR',
       paymentStatus: 'paid',
       status: 'upcoming',
       qrCodeData: `CINEMAX-TICKET-${bookingCode}-${req.user.id}`,

@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // UC15: Manage Genres - Genre Management Router
 const express = require('express');
 const router = express.Router();
@@ -5,36 +6,12 @@ const Genre = require('../models/Genre');
 const Movie = require('../models/Movie');
 const { requireAdmin } = require('../middleware/auth');
 
-// Helper: Tự động khởi tạo dữ liệu thể loại từ Movie nếu collection Genre trống
-async function ensureDefaultGenres() {
-  const count = await Genre.countDocuments();
-  if (count === 0) {
-    const defaultList = [
-      { code: 'g-action', name: 'Hành động', description: 'Phim có nhiều pha hành động gay cấn, kịch tính' },
-      { code: 'g-scifi', name: 'Khoa học viễn tưởng', description: 'Đề tài tương lai, công nghệ cao, vũ trụ' },
-      { code: 'g-adventure', name: 'Phiêu lưu', description: 'Hành trình khám phá thế giới mới' },
-      { code: 'g-animation', name: 'Hoạt hình', description: 'Phim hoạt hình dành cho gia đình và giới trẻ' },
-      { code: 'g-comedy', name: 'Hài hước', description: 'Phim mang lại tiếng cười sảng khoái' },
-      { code: 'g-drama', name: 'Tâm lý', description: 'Phim đào sâu tâm lý, cảm xúc nhân vật' },
-      { code: 'g-romance', name: 'Tình cảm', description: 'Phim về tình yêu đôi lứa, tình cảm gia đình' },
-      { code: 'g-crime', name: 'Tội phạm', description: 'Đề tài phá án, trinh thám hình sự' },
-      { code: 'g-musical', name: 'Nhạc kịch', description: 'Âm nhạc và giai điệu là linh hồn bộ phim' },
-      { code: 'g-monster', name: 'Quái vật', description: 'Đại chiến giữa các sinh vật khổng lồ' },
-      { code: 'g-family', name: 'Gia đình', description: 'Phù hợp mọi lứa tuổi gia đình cùng xem' },
-      { code: 'g-superhero', name: 'Siêu anh hùng', description: 'Vũ trụ siêu anh hùng Marvel & DC' },
-    ];
-    await Genre.insertMany(defaultList);
-  }
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/genres
 // UC15: Lấy danh sách thể loại kèm số lượng phim tương ứng (Công khai)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/', async (req, res) => {
   try {
-    await ensureDefaultGenres();
-
     const [genresDocs, movies] = await Promise.all([
       Genre.find().sort({ name: 1 }),
       Movie.find({}, 'genre'),

@@ -208,8 +208,8 @@ export default function BookingFoodModal({
         user: {
           id: user?.id || 'guest',
           fullName: user?.fullName || 'Khách hàng CineMax',
-          email: user?.email || 'customer@cinema.com',
-          phone: user?.phone || '0901234567',
+          email: user?.email || '',
+          phone: user?.phone || '',
         },
         showtimeId: showtime?.id,
         movie: {
