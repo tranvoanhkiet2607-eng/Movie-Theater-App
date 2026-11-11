@@ -19,7 +19,11 @@ import { validateLoginForm } from '@/utils/validation';
 import { LoginErrors } from '@/types/auth';
 import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 
-export default function LoginScreen() {
+export interface LoginScreenProps {
+  isTab?: boolean;
+}
+
+export default function LoginScreen({ isTab = false }: LoginScreenProps = {}) {
   const { login, logout, savedIdentifier, user, isAuthenticated } = useAuth();
 
   const [rawIdentifier, setRawIdentifier] = useState<string | null>(null);
@@ -147,12 +151,21 @@ export default function LoginScreen() {
           
           {/* Header Navigation */}
           <View style={styles.navBar}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-              accessibilityLabel="Quay lại">
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
+            {!isTab ? (
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => router.back()}
+                accessibilityLabel="Quay lại">
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => router.replace('/')}
+                accessibilityLabel="Về trang chủ">
+                <Ionicons name="home-outline" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
             <Text style={styles.navTitle}>Tài Khoản Thành Viên</Text>
             <View style={{ width: 40 }} />
           </View>
