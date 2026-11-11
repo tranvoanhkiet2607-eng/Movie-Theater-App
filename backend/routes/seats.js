@@ -117,39 +117,7 @@ async function ensureShowtimeBookedSeats(showtime, roomSeats) {
   if (showtime.bookedSeats && showtime.bookedSeats.length > 0) {
     return showtime.bookedSeats;
   }
-
-  const roomTotal = roomSeats.length;
-  if (roomTotal > 0 && showtime.totalSeats !== roomTotal) {
-    showtime.totalSeats = roomTotal;
-  }
-
-  let avail = showtime.availableSeats !== undefined ? Math.min(showtime.availableSeats, roomTotal) : roomTotal;
-  let bookedNeeded = Math.max(0, roomTotal - avail);
-
-  // Nếu suất chiếu chưa có dữ liệu đặt ghế, tạo sẵn một số ghế đã đặt ngẫu nhiên trung tâm (~20-30%) để hiển thị trạng thái đã đặt chân thực
-  if (bookedNeeded === 0 && roomTotal > 10) {
-    bookedNeeded = Math.floor(roomTotal * 0.25);
-  }
-
-  if (bookedNeeded <= 0) {
-    showtime.bookedSeats = [];
-    return [];
-  }
-
-  // Chọn ghế mô phỏng đã đặt chân thực (ưu tiên ghế giữa hàng C, D, E)
-  const candidateSeats = roomSeats
-    .filter((s) => s.status !== 'maintenance')
-    .sort((a, b) => {
-      const aMid = Math.abs(a.colNumber - 6);
-      const bMid = Math.abs(b.colNumber - 6);
-      return aMid - bMid;
-    });
-
-  const selected = candidateSeats.slice(0, bookedNeeded).map((s) => s.seatCode);
-  showtime.bookedSeats = selected;
-  showtime.availableSeats = Math.max(0, roomTotal - selected.length);
-  await showtime.save();
-  return selected;
+  return [];
 }
 
 // ════════════════════════════════════════════════════════════════════════════

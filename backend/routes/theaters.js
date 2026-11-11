@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 const express = require('express');
 const router = express.Router();
 const Theater = require('../models/Theater');
@@ -5,54 +6,12 @@ const Room = require('../models/Room');
 const Showtime = require('../models/Showtime');
 const { requireAdmin } = require('../middleware/auth');
 
-// Helper: Tự động khởi tạo các phòng chiếu mẫu cho cụm rạp nếu chưa có
-async function ensureDefaultRoomsForTheater(theaterCode) {
-  const count = await Room.countDocuments({ theaterId: theaterCode });
-  if (count === 0) {
-    const defaultRooms = [
-      { code: `room-${theaterCode}-01`, name: 'Rạp 01', theaterId: theaterCode, format: '2D Phụ đề', totalSeats: 140, rows: 10, cols: 14, status: 'active' },
-      { code: `room-${theaterCode}-02`, name: 'Rạp 02', theaterId: theaterCode, format: '2D Lồng tiếng', totalSeats: 120, rows: 10, cols: 12, status: 'active' },
-      { code: `room-${theaterCode}-03`, name: 'Rạp 03 (IMAX)', theaterId: theaterCode, format: 'IMAX 3D', totalSeats: 180, rows: 12, cols: 15, status: 'active' },
-      { code: `room-${theaterCode}-04`, name: 'Rạp 04', theaterId: theaterCode, format: '3D Phụ đề', totalSeats: 120, rows: 10, cols: 12, status: 'active' },
-      { code: `room-${theaterCode}-05`, name: 'Rạp 4DX', theaterId: theaterCode, format: '4DX', totalSeats: 96, rows: 8, cols: 12, status: 'active' },
-      { code: `room-${theaterCode}-06`, name: 'Rạp Gold Class VIP', theaterId: theaterCode, format: 'Gold Class VIP', totalSeats: 48, rows: 6, cols: 8, status: 'active' },
-    ];
-    await Room.insertMany(defaultRooms);
-  }
-}
-
-// Helper: Đảm bảo có ít nhất một cụm rạp tại Bình Dương cho hệ thống
-async function ensureDefaultTheaters() {
-  try {
-    const hasBinhDuong = await Theater.countDocuments({
-      $or: [{ area: /Bình Dương/i }, { address: /Bình Dương|Dĩ An|Thuận An|Thủ Dầu Một/i }],
-    });
-    if (hasBinhDuong === 0) {
-      await Theater.create({
-        code: 't6',
-        name: 'CineMax Vincom Plaza Dĩ An',
-        shortName: 'Vincom Dĩ An',
-        area: 'Bình Dương',
-        address: 'Tầng 4, TTTM Vincom Plaza Dĩ An, 79 ĐT743, KP. Thống Nhất 1, Dĩ An, Bình Dương',
-        distance: '',
-        hotline: '1900 6017 (Nhánh 6)',
-        totalRooms: 6,
-        supportedFormats: ['2D Phụ đề', '2D Lồng tiếng', '3D Phụ đề', 'IMAX 3D'],
-        amenities: ['IMAX Laser', 'Bãi đỗ xe rộng rãi', 'Khu ẩm thực TTTM'],
-      });
-    }
-  } catch (e) {
-    // Không gián đoạn nếu đã tồn tại
-  }
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/theaters
 // Lấy danh sách toàn bộ cụm rạp (Công khai)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/', async (req, res) => {
   try {
-    await ensureDefaultTheaters();
 
     const { area = 'all', search = '' } = req.query;
     const conditions = [];
@@ -156,8 +115,7 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Đảm bảo có phòng chiếu và lấy danh sách phòng chiếu
-    await ensureDefaultRoomsForTheater(theaterDoc.code);
+    // Lấy danh sách phòng chiếu
     const roomDocs = await Room.find({ theaterId: theaterDoc.code }).sort({ name: 1 });
 
     const theater = theaterDoc.toJSON();
@@ -224,9 +182,6 @@ router.post('/', requireAdmin, async (req, res) => {
       supportedFormats: Array.isArray(supportedFormats) ? supportedFormats : ['2D Phụ đề'],
       amenities: Array.isArray(amenities) ? amenities : ['Bãi giữ xe', 'Quầy bắp nước'],
     });
-
-    // Tạo sẵn các phòng chiếu mặc định cho rạp mới
-    await ensureDefaultRoomsForTheater(newTheater.code);
 
     return res.status(201).json({
       success: true,
@@ -347,7 +302,6 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 router.get('/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
-    await ensureDefaultRoomsForTheater(id);
 
     const rooms = await Room.find({ theaterId: id }).sort({ name: 1 });
     return res.json({
