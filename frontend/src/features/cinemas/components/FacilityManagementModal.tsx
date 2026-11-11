@@ -117,7 +117,7 @@ export default function FacilityManagementModal({
                 <Text style={styles.headerTitle} numberOfLines={1}>
                   Tiện ích: {theater.shortName}
                 </Text>
-                <Text style={styles.headerSub}>Cập nhật tiện ích & dịch vụ hoạt động (UC20)</Text>
+                <Text style={styles.headerSub}>Cập nhật tiện ích & dịch vụ hoạt động</Text>
               </View>
             </View>
 

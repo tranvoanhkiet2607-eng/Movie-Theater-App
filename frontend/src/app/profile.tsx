@@ -332,17 +332,17 @@ export default function ProfileScreen() {
 
           <View style={styles.cardActionFooter}>
             <Ionicons name="gift-outline" size={14} color="#F59E0B" />
-            <Text style={styles.cardActionFooterText}>Xem đặc quyền hạng & Đổi thưởng tích lũy (UC10)</Text>
+            <Text style={styles.cardActionFooterText}>Xem đặc quyền hạng & Đổi thưởng tích lũy</Text>
             <Ionicons name="chevron-forward" size={14} color="#F59E0B" />
           </View>
         </TouchableOpacity>
 
-        {/* UC09: Booking History & Upcoming Tickets Section */}
+        {/* Booking History & Upcoming Tickets Section */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="ticket" size={18} color="#E50914" />
-              <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé (UC09)</Text>
+              <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé</Text>
             </View>
             <TouchableOpacity
               style={styles.openFeatureBtn}
@@ -370,13 +370,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* UC07 & UC08: Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN / MANAGER */}
+        {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN / MANAGER */}
         {(user.role === 'admin' || user.role === 'manager') && (
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="shield-checkmark" size={18} color="#3B82F6" />
-                <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền (UC07, UC08)</Text>
+                <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền</Text>
               </View>
               <View style={styles.roleTag}>
                 <Text style={styles.roleTagText}>
@@ -386,7 +386,7 @@ export default function ProfileScreen() {
             </View>
 
             <Text style={styles.adminSectionDesc}>
-              Khu vực dành riêng cho quản trị viên: Quản lý danh sách tài khoản (UC07), xem/thay đổi trạng thái hoạt động và thiết lập ma trận phân quyền người dùng (UC08).
+              Khu vực dành riêng cho quản trị viên: Quản lý danh sách tài khoản, xem/thay đổi trạng thái hoạt động và thiết lập phân quyền người dùng.
             </Text>
 
             <TouchableOpacity
@@ -395,14 +395,14 @@ export default function ProfileScreen() {
               activeOpacity={0.85}>
               <Ionicons name="people-outline" size={18} color="#FFFFFF" />
               <Text style={styles.adminLaunchBtnText}>
-                Mở Quản Trị Tài Khoản & Phân Quyền (UC07, UC08)
+                Mở Quản Trị Tài Khoản & Phân Quyền
               </Text>
               <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Admin Management Hub Access (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
+        {/* Admin Management Hub Access - Chỉ hiển thị cho Admin */}
         {user.role === 'admin' && (
           <TouchableOpacity
             style={styles.adminHubCard}
@@ -420,7 +420,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <Text style={styles.adminHubSub}>
-                  Quản lý Đồ ăn (UC37), Khuyến mãi (UC39), Đánh giá (UC41), Thông báo (UC42), Đơn đồ ăn (UC44) & Báo cáo doanh thu (UC45)
+                  Quản lý Đồ ăn, Khuyến mãi, Đánh giá, Thông báo, Đơn đồ ăn & Báo cáo doanh thu
                 </Text>
               </View>
             </View>
@@ -554,7 +554,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}>
             <Ionicons name="ticket-outline" size={20} color="#E50914" />
             <Text style={styles.hubActionBtnTitle}>Vé xem phim</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket (UC09)</Text>
+            <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -563,7 +563,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}>
             <Ionicons name="ribbon-outline" size={20} color="#F59E0B" />
             <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm (UC10)</Text>
+            <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm</Text>
           </TouchableOpacity>
         </View>
 
@@ -685,7 +685,7 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.demoTestingDesc}>
             {user.role === 'customer'
-              ? '🟢 Đang ở vai trò Khách hàng (customer): Toàn bộ chức năng quản trị viên (UC07, UC08, UC37-UC45) được ẩn tuyệt đối theo đúng ma trận phân quyền.'
+              ? '🟢 Đang ở vai trò Khách hàng (customer): Toàn bộ chức năng quản trị viên được ẩn tuyệt đối theo đúng phân quyền vai trò.'
               : `🟡 Đang ở vai trò ${user.role === 'admin' ? 'Quản trị viên (admin)' : user.role === 'manager' ? 'Quản lý rạp' : 'Nhân viên'}: Quyền quản trị hệ thống đã được mở khóa và hiển thị đầy đủ trên màn hình.`}
           </Text>
           <View style={styles.demoRoleButtonsRow}>
@@ -836,7 +836,7 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chi tiết kỹ thuật phiên (UC02)</Text>
+              <Text style={styles.modalTitle}>Chi tiết kỹ thuật phiên đăng nhập</Text>
               <TouchableOpacity onPress={() => setSessionModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#9CA3AF" />
               </TouchableOpacity>

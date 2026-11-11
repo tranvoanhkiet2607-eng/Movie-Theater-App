@@ -774,7 +774,7 @@ export default function ExploreScreen() {
                   onPress={() => setAdminHubVisible(true)}>
                   <Ionicons name="apps" size={16} color="#3B82F6" />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#60A5FA' }}>
-                    Trung Tâm Quản Trị Đồ Ăn, Khuyến Mãi & Báo Cáo (UC37, 39, 41, 42, 44, 45)
+                    Trung Tâm Quản Trị Đồ Ăn, Khuyến Mãi & Báo Cáo
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1788,7 +1788,7 @@ export default function ExploreScreen() {
                     }}>
                     <Ionicons name="ticket" size={16} color="#FFFFFF" />
                     <Text style={styles.modalPrimaryText}>
-                      Đặt vé & Chọn bắp nước (UC38)
+                      Đặt vé & Chọn bắp nước
                     </Text>
                   </TouchableOpacity>
                 </View>

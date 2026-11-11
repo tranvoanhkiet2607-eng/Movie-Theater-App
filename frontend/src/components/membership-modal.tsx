@@ -359,7 +359,7 @@ export function MembershipModal({
             </View>
             <View>
               <Text style={styles.headerTitle}>Hội Viên CineMax Privilege</Text>
-              <Text style={styles.headerSubtitle}>UC10: Manage Membership & Loyalty Points</Text>
+              <Text style={styles.headerSubtitle}>Quản lý thẻ thành viên & Điểm tích lũy</Text>
             </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>

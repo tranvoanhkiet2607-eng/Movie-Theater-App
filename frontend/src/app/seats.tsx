@@ -1780,7 +1780,7 @@ export default function SeatsScreen() {
               <View>
                 <Text style={styles.modalTitle}>Khởi Tạo Sơ Đồ Phòng Chiếu</Text>
                 <Text style={styles.modalSubtitle}>
-                  Tự động sinh ma trận ghế cho {selectedRoom}
+                  Tự động sinh sơ đồ ghế cho {selectedRoom}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setGenModalVisible(false)}>

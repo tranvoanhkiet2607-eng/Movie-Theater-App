@@ -278,7 +278,7 @@ export function BookingHistoryModal({
             </View>
             <View>
               <Text style={styles.headerTitle}>Vé & Lịch Sử Đặt Vé</Text>
-              <Text style={styles.headerSubtitle}>UC09: View Booking History & E-Tickets</Text>
+              <Text style={styles.headerSubtitle}>Lịch sử đặt vé & Vé điện tử</Text>
             </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>

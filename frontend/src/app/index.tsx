@@ -140,7 +140,7 @@ export default function HomeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.adminHubTitle}>Trung Tâm Quản Trị Rạp & Báo Cáo</Text>
                   <Text style={styles.adminHubSub}>
-                    Quản lý Đồ ăn (UC37), Khuyến mãi (UC39), Đơn hàng (UC44) & Doanh thu (UC45)
+                    Quản lý Đồ ăn, Khuyến mãi, Đơn hàng & Doanh thu
                   </Text>
                 </View>
               </View>

@@ -292,7 +292,7 @@ export default function BookingFoodModal({
                 <View style={[styles.stepCircle, currentStep >= 2 && styles.stepCircleActive]}>
                   <Text style={[styles.stepNum, currentStep >= 2 && styles.stepNumActive]}>2</Text>
                 </View>
-                <Text style={[styles.stepLabel, currentStep >= 2 && styles.stepLabelActive]}>Bắp & Nước (UC38)</Text>
+                <Text style={[styles.stepLabel, currentStep >= 2 && styles.stepLabelActive]}>Bắp & Nước</Text>
               </View>
 
               <View style={[styles.stepLine, currentStep >= 3 && styles.stepLineActive]} />
@@ -522,9 +522,9 @@ export default function BookingFoodModal({
                 </View>
               </View>
 
-              {/* Promotion Code Section (UC39) */}
+              {/* Promotion Code Section */}
               <View style={styles.couponSection}>
-                <Text style={styles.sectionSubtitle}>Mã khuyến mãi & Ưu đãi (UC39)</Text>
+                <Text style={styles.sectionSubtitle}>Mã khuyến mãi & Ưu đãi</Text>
 
                 <View style={styles.couponInputRow}>
                   <TextInput
@@ -656,7 +656,7 @@ export default function BookingFoodModal({
                       </Text>
                     ))}
                     <Text style={styles.foodStatusBadge}>
-                      Trạng thái quầy: Đang chuẩn bị (UC44)
+                      Trạng thái quầy: Đang chuẩn bị
                     </Text>
                   </View>
                 )}
@@ -702,7 +702,7 @@ export default function BookingFoodModal({
                     style={styles.nextStepBtn}
                     onPress={() => setCurrentStep((s) => s + 1)}>
                     <Text style={styles.nextStepBtnText}>
-                      {currentStep === 1 ? 'Chọn bắp nước (UC38)' : 'Tiếp tục thanh toán'}
+                      {currentStep === 1 ? 'Chọn bắp nước' : 'Tiếp tục thanh toán'}
                     </Text>
                     <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                   </TouchableOpacity>

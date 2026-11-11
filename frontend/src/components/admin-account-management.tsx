@@ -449,7 +449,7 @@ export function AdminAccountManagementModal({
             </View>
             <View>
               <Text style={styles.headerTitle}>Quản Trị Tài Khoản & Phân Quyền</Text>
-              <Text style={styles.headerSubtitle}>UC07 (Manage Accounts) • UC08 (Manage Roles)</Text>
+              <Text style={styles.headerSubtitle}>Quản lý tài khoản • Phân quyền vai trò</Text>
             </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -464,7 +464,7 @@ export function AdminAccountManagementModal({
             onPress={() => setMatrixModalVisible(true)}
             activeOpacity={0.8}>
             <Ionicons name="git-network-outline" size={16} color="#3B82F6" />
-            <Text style={styles.matrixBtnText}>Ma Trận Phân Quyền</Text>
+            <Text style={styles.matrixBtnText}>Bảng Phân Quyền</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -706,7 +706,7 @@ export function AdminAccountManagementModal({
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="git-network" size={22} color="#3B82F6" style={{ marginRight: 8 }} />
-                  <Text style={styles.modalTitle}>Bảng Ma Trận Phân Quyền</Text>
+                  <Text style={styles.modalTitle}>Bảng Phân Quyền Vai Trò</Text>
                 </View>
                 <TouchableOpacity onPress={() => setMatrixModalVisible(false)}>
                   <Ionicons name="close" size={24} color="#9CA3AF" />
@@ -998,7 +998,7 @@ export function AdminAccountManagementModal({
             <View style={styles.matrixModalCard}>
               <View style={styles.modalHeader}>
                 <View>
-                  <Text style={styles.modalTitle}>Phân Quyền Vai Trò (UC08)</Text>
+                  <Text style={styles.modalTitle}>Phân Quyền Vai Trò</Text>
                   <Text style={styles.modalSubtitle}>
                     Tài khoản: <Text style={{ color: '#E50914', fontWeight: 'bold' }}>{targetAccount?.fullName}</Text>
                   </Text>

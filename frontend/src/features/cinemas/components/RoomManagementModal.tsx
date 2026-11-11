@@ -176,7 +176,7 @@ export default function RoomManagementModal({
                 <Text style={styles.headerTitle} numberOfLines={1}>
                   Quản lý phòng chiếu: {theater.shortName}
                 </Text>
-                <Text style={styles.headerSub}>Thêm, xem, sửa & xóa phòng chiếu (UC18)</Text>
+                <Text style={styles.headerSub}>Thêm, xem, sửa & xóa phòng chiếu</Text>
               </View>
             </View>
 
