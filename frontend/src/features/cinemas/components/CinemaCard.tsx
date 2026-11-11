@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 import React from 'react';
 import {
   View,
@@ -53,7 +54,9 @@ export default function CinemaCard({
 
           <View style={styles.roomCountBadge}>
             <Ionicons name="grid-outline" size={12} color="#E50914" />
-            <Text style={styles.roomCountText}>{theater.totalRooms} Phòng chiếu</Text>
+            <Text style={styles.roomCountText}>
+              {theater.totalRooms > 0 ? `${theater.totalRooms} Phòng chiếu` : 'Chưa có phòng chiếu'}
+            </Text>
           </View>
         </View>
 

@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -43,7 +44,7 @@ export default function CinemaFormModal({
   const [area, setArea] = useState('Hồ Chí Minh');
   const [address, setAddress] = useState('');
   const [hotline, setHotline] = useState('1900 6017');
-  const [totalRooms, setTotalRooms] = useState('6');
+  const [totalRooms, setTotalRooms] = useState('0');
   const [selectedFormats, setSelectedFormats] = useState<string[]>([
     '2D Phụ đề',
     '3D Phụ đề',
@@ -60,7 +61,7 @@ export default function CinemaFormModal({
       setArea(theaterToEdit.area || 'Hồ Chí Minh');
       setAddress(theaterToEdit.address || '');
       setHotline(theaterToEdit.hotline || '1900 6017');
-      setTotalRooms(String(theaterToEdit.totalRooms || 6));
+      setTotalRooms(String(theaterToEdit.totalRooms || 0));
       setSelectedFormats(theaterToEdit.supportedFormats || ['2D Phụ đề']);
     } else {
       setName('');
@@ -68,7 +69,7 @@ export default function CinemaFormModal({
       setArea('Hồ Chí Minh');
       setAddress('');
       setHotline('1900 6017');
-      setTotalRooms('6');
+      setTotalRooms('0');
       setSelectedFormats(['2D Phụ đề', '3D Phụ đề', 'IMAX 3D']);
     }
     setErrorMessage(null);
@@ -107,7 +108,7 @@ export default function CinemaFormModal({
         area: area.trim(),
         address: address.trim(),
         hotline: hotline.trim(),
-        totalRooms: Number(totalRooms) || 6,
+        totalRooms: Number(totalRooms) || 0,
         supportedFormats: selectedFormats,
       };
 

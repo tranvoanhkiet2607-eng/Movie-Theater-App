@@ -39,7 +39,7 @@ const TheaterSchema = new mongoose.Schema(
     },
     totalRooms: {
       type: Number,
-      default: 6,
+      default: 0,
     },
     supportedFormats: {
       type: [String],

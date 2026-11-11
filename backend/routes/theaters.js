@@ -79,7 +79,26 @@ router.get('/', async (req, res) => {
     const mongoQuery = conditions.length > 0 ? { $and: conditions } : {};
 
     const theaterDocs = await Theater.find(mongoQuery).sort({ code: 1 });
-    const theaters = theaterDocs.map((t) => t.toJSON());
+
+    // Đếm số lượng phòng chiếu thực tế từ collection Room cho từng rạp
+    const roomCounts = await Room.aggregate([
+      { $group: { _id: '$theaterId', count: { $sum: 1 } } },
+    ]);
+    const roomCountMap = new Map();
+    roomCounts.forEach((rc) => {
+      roomCountMap.set(String(rc._id), rc.count);
+    });
+
+    const theaters = theaterDocs.map((t) => {
+      const doc = t.toJSON();
+      const realCount = roomCountMap.get(t.code) || roomCountMap.get(String(t._id)) || 0;
+      doc.totalRooms = realCount;
+      // Tự động đồng bộ số phòng thực tế vào Theater nếu bị lệch
+      if (t.totalRooms !== realCount) {
+        Theater.updateOne({ _id: t._id }, { totalRooms: realCount }).catch(() => {});
+      }
+      return doc;
+    });
 
     return res.json({
       success: true,
@@ -148,7 +167,7 @@ router.post('/', requireAdmin, async (req, res) => {
       address,
       distance = '',
       hotline = '1900 6017',
-      totalRooms = 6,
+      totalRooms = 0,
       supportedFormats = ['2D Phụ đề', '3D Phụ đề', 'IMAX 3D'],
       amenities = ['Bãi giữ xe ô tô & xe máy', 'Quầy bắp nước cao cấp', 'Wifi tốc độ cao miễn phí'],
     } = req.body;
@@ -178,7 +197,7 @@ router.post('/', requireAdmin, async (req, res) => {
       address: String(address).trim(),
       distance: String(distance).trim(),
       hotline: String(hotline).trim(),
-      totalRooms: Number(totalRooms) || 6,
+      totalRooms: Number(totalRooms) || 0,
       supportedFormats: Array.isArray(supportedFormats) ? supportedFormats : ['2D Phụ đề'],
       amenities: Array.isArray(amenities) ? amenities : ['Bãi giữ xe', 'Quầy bắp nước'],
     });

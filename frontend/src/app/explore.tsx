@@ -1151,7 +1151,7 @@ export default function ExploreScreen() {
                     </Text>
                   </View>
                   <Text style={styles.theaterFilterSub} numberOfLines={1}>
-                    {theater.area} • {theater.totalRooms} phòng chiếu
+                    {theater.area} • {theater.totalRooms > 0 ? `${theater.totalRooms} phòng chiếu` : 'Chưa có phòng chiếu'}
                   </Text>
                 </TouchableOpacity>
               );
