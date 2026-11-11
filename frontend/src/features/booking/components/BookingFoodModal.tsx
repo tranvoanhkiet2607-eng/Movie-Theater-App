@@ -27,6 +27,7 @@ interface BookingFoodModalProps {
   theater: any;
   showtime: any;
   dateLabel?: string;
+  initialSeats?: { seatNumber: string; seatType: string; price: number }[];
   onBookingComplete?: (order: Order) => void;
 }
 
@@ -37,6 +38,7 @@ export default function BookingFoodModal({
   theater,
   showtime,
   dateLabel = 'Hôm nay',
+  initialSeats,
   onBookingComplete,
 }: BookingFoodModalProps) {
   const { user } = useAuth();
@@ -130,12 +132,18 @@ export default function BookingFoodModal({
   // Load Real Seats & Food Menu on Modal Open
   useEffect(() => {
     if (visible) {
-      setCurrentStep(1);
+      if (initialSeats && initialSeats.length > 0) {
+        setSelectedSeats(initialSeats);
+        setCurrentStep(2);
+      } else {
+        setSelectedSeats([]);
+        setCurrentStep(1);
+      }
       setCompletedOrder(null);
-      setSelectedSeats([]);
 
       // 1. Tải thực đơn bắp nước (UC38)
       setLoadingFoods(true);
+
       FoodAPI.getFoods({ availableOnly: true })
         .then((res) => {
           if (res.success) {
@@ -198,7 +206,7 @@ export default function BookingFoodModal({
         setLoadingSeats(false);
       }
     }
-  }, [visible, showtime?.id, showtime?.code, theater?.id, theater?.code, showtime?.theaterId, showtime?.room]);
+  }, [visible, initialSeats, showtime?.id, showtime?.code, theater?.id, theater?.code, showtime?.theaterId, showtime?.room]);
 
   // Seat toggle handler
   const toggleSeat = (seatNumber: string, seatType: string, price: number) => {
@@ -1103,6 +1111,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
+  seatBoxBooked: {
+    backgroundColor: '#27272A',
+    borderColor: '#3F3F46',
+    opacity: 0.5,
+  },
   seatNumberText: {
     fontSize: 10,
     fontWeight: '700',
@@ -1131,6 +1144,10 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  seatNumberTextBooked: {
+    color: '#71717A',
+    fontWeight: '700',
   },
   selectedSeatsBox: {
     backgroundColor: '#1A1D24',

@@ -9,7 +9,9 @@ const User = require('../models/User');
 const Promotion = require('../models/Promotion');
 const Notification = require('../models/Notification');
 const Showtime = require('../models/Showtime');
-const { requireAdmin, optionalAuth } = require('../middleware/auth');
+const Booking = require('../models/Booking');
+const User = require('../models/User');
+const { requireAdmin, requireStaffOrAdmin, optionalAuth } = require('../middleware/auth');
 
 // ════════════════════════════════════════════════════════════
 // POST /api/orders  (UC38: Đặt vé kèm đồ ăn thức uống)
@@ -307,7 +309,7 @@ router.get('/', async (req, res) => {
 // ════════════════════════════════════════════════════════════
 // GET /api/orders/food-orders  (UC44: Danh sách đơn đồ ăn quản lý quầy)
 // ════════════════════════════════════════════════════════════
-router.get('/food-orders', requireAdmin, async (req, res) => {
+router.get('/food-orders', requireStaffOrAdmin, async (req, res) => {
   try {
     const { status, search } = req.query;
     const query = {
@@ -359,7 +361,7 @@ router.get('/:id', async (req, res) => {
 // ════════════════════════════════════════════════════════════
 // PATCH /api/orders/:id/status  (UC44: Cập nhật trạng thái đơn hàng F&B)
 // ════════════════════════════════════════════════════════════
-router.patch('/:id/status', requireAdmin, async (req, res) => {
+router.patch('/:id/status', requireStaffOrAdmin, async (req, res) => {
   try {
     const { orderStatus } = req.body;
     const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];

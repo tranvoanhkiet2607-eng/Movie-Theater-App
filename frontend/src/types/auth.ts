@@ -1,5 +1,5 @@
 export type MembershipTier = 'Standard' | 'Silver' | 'Gold' | 'VIP';
-export type UserRole = 'customer' | 'staff' | 'admin';
+export type UserRole = 'customer' | 'staff' | 'manager' | 'admin';
 
 export interface User {
   id: string;

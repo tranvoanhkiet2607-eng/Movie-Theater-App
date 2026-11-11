@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Movie } from '../types/movie.types';
 import { getAgeBadgeColors } from './MovieCard';
+import MovieReviewsSection from '@/features/reviews/components/MovieReviewsSection';
 
 interface MovieDetailModalProps {
   movie: Movie | null;
@@ -225,6 +226,14 @@ export default function MovieDetailModal({
                 </View>
               </View>
             ) : null}
+
+            {/* Đánh giá & Xếp hạng phim */}
+            <View style={{ marginTop: 24, paddingHorizontal: 4 }}>
+              <MovieReviewsSection
+                movieId={movie.code || movie.id}
+                movieTitle={movie.title}
+              />
+            </View>
           </ScrollView>
 
           {/* Bottom Action Footer */}
