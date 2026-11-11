@@ -1,6 +1,4 @@
 // Service kết nối API cho Module Cinema, Room & Facility Management
-// UC17: Manage Cinemas | UC18: Manage Rooms
-// UC19: View Cinema Details | UC20: Manage Cinema Facilities
 
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -55,7 +53,7 @@ function authHeader(token?: string): HeadersInit {
 
 export const CinemaAPI = {
   /**
-   * UC17, UC19: Lấy danh sách toàn bộ cụm rạp
+   * Lấy danh sách toàn bộ cụm rạp
    */
   getTheaters: async (params: { area?: string; search?: string } = {}): Promise<TheatersResponse> => {
     const query = new URLSearchParams();
@@ -67,7 +65,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC19: Lấy chi tiết cụm rạp kèm danh sách phòng chiếu & tiện ích
+   * Lấy chi tiết cụm rạp kèm danh sách phòng chiếu & tiện ích
    */
   getTheaterById: async (id: string): Promise<Theater> => {
     const res = await apiRequest<TheaterDetailResponse>(`/theaters/${encodeURIComponent(id)}`);
@@ -75,7 +73,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC17: Thêm cụm rạp mới (Admin)
+   * Thêm cụm rạp mới (Admin)
    */
   createTheater: async (payload: TheaterFormPayload, token: string): Promise<Theater> => {
     const res = await apiRequest<{ success: boolean; message: string; theater: Theater }>('/theaters', {
@@ -87,7 +85,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC17: Cập nhật thông tin cụm rạp (Admin)
+   * Cập nhật thông tin cụm rạp (Admin)
    */
   updateTheater: async (
     id: string,
@@ -106,7 +104,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC17: Xóa cụm rạp (Admin)
+   * Xóa cụm rạp (Admin)
    */
   deleteTheater: async (id: string, token: string): Promise<{ success: boolean; message: string }> => {
     return apiRequest(`/theaters/${encodeURIComponent(id)}`, {
@@ -116,7 +114,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC18, UC19: Lấy danh sách các phòng chiếu của rạp
+   * Lấy danh sách các phòng chiếu của rạp
    */
   getRooms: async (theaterId: string): Promise<Room[]> => {
     const res = await apiRequest<RoomsResponse>(`/theaters/${encodeURIComponent(theaterId)}/rooms`);
@@ -124,7 +122,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC18: Thêm phòng chiếu mới cho rạp (Admin)
+   * Thêm phòng chiếu mới cho rạp (Admin)
    */
   createRoom: async (theaterId: string, payload: RoomFormPayload, token: string): Promise<Room> => {
     const res = await apiRequest<{ success: boolean; message: string; room: Room }>(
@@ -139,7 +137,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC18: Sửa thông tin phòng chiếu (Admin)
+   * Sửa thông tin phòng chiếu (Admin)
    */
   updateRoom: async (
     theaterId: string,
@@ -159,7 +157,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC18: Xóa phòng chiếu (Admin)
+   * Xóa phòng chiếu (Admin)
    */
   deleteRoom: async (
     theaterId: string,
@@ -176,7 +174,7 @@ export const CinemaAPI = {
   },
 
   /**
-   * UC20: Cập nhật tiện ích và thông tin hoạt động rạp (Admin)
+   * Cập nhật tiện ích và thông tin hoạt động rạp (Admin)
    */
   updateFacilities: async (
     theaterId: string,

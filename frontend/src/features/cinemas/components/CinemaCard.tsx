@@ -1,7 +1,3 @@
-// UC17: Manage Cinemas | UC18: Manage Rooms
-// UC19: View Cinema Details | UC20: Manage Cinema Facilities
-// CinemaCard Component
-
 import React from 'react';
 import {
   View,
@@ -12,12 +8,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theater } from '../types/cinema.types';
+import { autoCalculateCinemaDistance, Coordinates } from '../utils/locationService';
 
 interface CinemaCardProps {
   theater: Theater;
   onPress: (theater: Theater) => void;
   onViewShowtimes?: (theater: Theater) => void;
   isAdmin?: boolean;
+  userLocation?: Coordinates | null;
   onEditTheater?: (theater: Theater) => void;
   onDeleteTheater?: (theater: Theater) => void;
   onManageRooms?: (theater: Theater) => void;
@@ -29,11 +27,19 @@ export default function CinemaCard({
   onPress,
   onViewShowtimes,
   isAdmin = false,
+  userLocation,
   onEditTheater,
   onDeleteTheater,
   onManageRooms,
   onManageFacilities,
 }: CinemaCardProps) {
+  const displayDistance = userLocation
+    ? autoCalculateCinemaDistance(theater.address, theater.area, userLocation)
+    : theater.distance
+    ? theater.distance.startsWith('Cách')
+      ? theater.distance
+      : `Cách bạn ${theater.distance}`
+    : autoCalculateCinemaDistance(theater.address, theater.area, null);
   return (
     <View style={styles.cardContainer}>
       <TouchableOpacity
@@ -78,10 +84,10 @@ export default function CinemaCard({
               </View>
             ) : null}
 
-            {theater.distance ? (
+            {displayDistance ? (
               <View style={styles.metaInline}>
                 <Ionicons name="navigate-outline" size={13} color="#3B82F6" />
-                <Text style={[styles.metaSubText, { color: '#3B82F6' }]}>{theater.distance}</Text>
+                <Text style={[styles.metaSubText, { color: '#3B82F6' }]}>{displayDistance}</Text>
               </View>
             ) : null}
           </View>

@@ -1,5 +1,4 @@
-// UC19: View Cinema Details - CinemaDetailModal Component
-// Hiển thị địa chỉ, tiện ích và thông tin phòng chiếu của rạp
+// Hiển thị chi tiết thông tin, tiện ích và phòng chiếu của cụm rạp CineMax
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -147,7 +146,7 @@ export default function CinemaDetailModal({
               </View>
             ) : null}
 
-            {/* UC18, UC19: Danh sách phòng chiếu (Rooms) */}
+            {/* Danh sách phòng chiếu (Rooms) */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="film-outline" size={16} color="#E50914" />

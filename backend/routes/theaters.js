@@ -1,6 +1,3 @@
-// UC17: Manage Cinemas | UC18: Manage Rooms
-// UC19: View Cinema Details | UC20: Manage Cinema Facilities
-
 const express = require('express');
 const router = express.Router();
 const Theater = require('../models/Theater');
@@ -24,12 +21,39 @@ async function ensureDefaultRoomsForTheater(theaterCode) {
   }
 }
 
+// Helper: Đảm bảo có ít nhất một cụm rạp tại Bình Dương cho hệ thống
+async function ensureDefaultTheaters() {
+  try {
+    const hasBinhDuong = await Theater.countDocuments({
+      $or: [{ area: /Bình Dương/i }, { address: /Bình Dương|Dĩ An|Thuận An|Thủ Dầu Một/i }],
+    });
+    if (hasBinhDuong === 0) {
+      await Theater.create({
+        code: 't6',
+        name: 'CineMax Vincom Plaza Dĩ An',
+        shortName: 'Vincom Dĩ An',
+        area: 'Bình Dương',
+        address: 'Tầng 4, TTTM Vincom Plaza Dĩ An, 79 ĐT743, KP. Thống Nhất 1, Dĩ An, Bình Dương',
+        distance: 'Cách bạn 2.1 km',
+        hotline: '1900 6017 (Nhánh 6)',
+        totalRooms: 6,
+        supportedFormats: ['2D Phụ đề', '2D Lồng tiếng', '3D Phụ đề', 'IMAX 3D'],
+        amenities: ['IMAX Laser', 'Bãi đỗ xe rộng rãi', 'Khu ẩm thực TTTM'],
+      });
+    }
+  } catch (e) {
+    // Không gián đoạn nếu đã tồn tại
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/theaters
-// UC17, UC19: Lấy danh sách toàn bộ cụm rạp (Công khai)
+// Lấy danh sách toàn bộ cụm rạp (Công khai)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/', async (req, res) => {
   try {
+    await ensureDefaultTheaters();
+
     const { area = 'all', search = '' } = req.query;
     const conditions = [];
 
@@ -41,6 +65,41 @@ router.get('/', async (req, res) => {
           $or: [
             { area: /Hồ Chí Minh|HCM|Quận|Bình Thạnh|Tân Bình|Thủ Đức/i },
             { address: /Hồ Chí Minh|TP\.? ?HCM|Sài Gòn|Thủ Đức/i },
+          ],
+        });
+      } else if (/Bình Dương/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Bình Dương|Dĩ An|Thuận An|Thủ Dầu Một|Bến Cát|Tân Uyên/i },
+            { address: /Bình Dương|Dĩ An|Thuận An|Thủ Dầu Một|Bến Cát|Tân Uyên/i },
+          ],
+        });
+      } else if (/Hà Nội/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Hà Nội|Ba Đình|Cầu Giấy|Hoàn Kiếm|Hai Bà Trưng|Đống Đa|Thanh Xuân|Long Biên/i },
+            { address: /Hà Nội|Ba Đình|Cầu Giấy|Hoàn Kiếm|Hai Bà Trưng|Đống Đa|Thanh Xuân|Long Biên/i },
+          ],
+        });
+      } else if (/Đà Nẵng/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Đà Nẵng|Hải Châu|Thanh Khê|Sơn Trà|Ngũ Hành Sơn/i },
+            { address: /Đà Nẵng|Hải Châu|Thanh Khê|Sơn Trà|Ngũ Hành Sơn/i },
+          ],
+        });
+      } else if (/Cần Thơ/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Cần Thơ|Ninh Kiều|Cái Răng|Bình Thủy/i },
+            { address: /Cần Thơ|Ninh Kiều|Cái Răng|Bình Thủy/i },
+          ],
+        });
+      } else if (/Hải Phòng/i.test(trimmedArea)) {
+        conditions.push({
+          $or: [
+            { area: /Hải Phòng|Hồng Bàng|Ngô Quyền|Lê Chân/i },
+            { address: /Hải Phòng|Hồng Bàng|Ngô Quyền|Lê Chân/i },
           ],
         });
       } else {
@@ -79,7 +138,7 @@ router.get('/', async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/theaters/:id
-// UC19: Xem chi tiết cụm rạp kèm danh sách phòng chiếu & tiện ích (Công khai)
+// Xem chi tiết cụm rạp kèm danh sách phòng chiếu & tiện ích (Công khai)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/:id', async (req, res) => {
   try {
@@ -120,7 +179,7 @@ router.get('/:id', async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/theaters
-// UC17: Thêm cụm rạp chiếu mới (Yêu cầu quyền Quản trị viên)
+// Thêm cụm rạp chiếu mới (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.post('/', requireAdmin, async (req, res) => {
   try {
@@ -185,7 +244,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // PUT /api/theaters/:id
-// UC17: Cập nhật thông tin rạp chiếu (Yêu cầu quyền Quản trị viên)
+// Cập nhật thông tin rạp chiếu (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
@@ -236,7 +295,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // DELETE /api/theaters/:id
-// UC17: Xóa rạp chiếu (Yêu cầu quyền Quản trị viên)
+// Xóa rạp chiếu (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
@@ -283,7 +342,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/theaters/:id/rooms
-// UC18, UC19: Lấy danh sách các phòng chiếu của rạp (Công khai)
+// Lấy danh sách các phòng chiếu của rạp (Công khai)
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/:id/rooms', async (req, res) => {
   try {
@@ -307,7 +366,7 @@ router.get('/:id/rooms', async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/theaters/:id/rooms
-// UC18: Thêm phòng chiếu mới cho rạp (Yêu cầu quyền Quản trị viên)
+// Thêm phòng chiếu mới cho rạp (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.post('/:id/rooms', requireAdmin, async (req, res) => {
   try {
@@ -360,7 +419,7 @@ router.post('/:id/rooms', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // PUT /api/theaters/:id/rooms/:roomId
-// UC18: Chỉnh sửa thông tin phòng chiếu (Yêu cầu quyền Quản trị viên)
+// Chỉnh sửa thông tin phòng chiếu (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.put('/:id/rooms/:roomId', requireAdmin, async (req, res) => {
   try {
@@ -404,7 +463,7 @@ router.put('/:id/rooms/:roomId', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // DELETE /api/theaters/:id/rooms/:roomId
-// UC18: Xóa phòng chiếu (Yêu cầu quyền Quản trị viên)
+// Xóa phòng chiếu (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.delete('/:id/rooms/:roomId', requireAdmin, async (req, res) => {
   try {
@@ -444,7 +503,7 @@ router.delete('/:id/rooms/:roomId', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // PUT /api/theaters/:id/facilities
-// UC20: Cập nhật tiện ích và thông tin hoạt động rạp (Yêu cầu quyền Quản trị viên)
+// Cập nhật tiện ích và thông tin hoạt động rạp (Yêu cầu quyền Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
 router.put('/:id/facilities', requireAdmin, async (req, res) => {
   try {

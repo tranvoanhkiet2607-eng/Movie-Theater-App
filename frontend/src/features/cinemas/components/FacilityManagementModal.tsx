@@ -1,5 +1,4 @@
-// UC20: Manage Cinema Facilities - FacilityManagementModal Component
-// Cập nhật tiện ích và thông tin hoạt động của rạp chiếu (Admin)
+// Quản lý tiện ích và thông tin hoạt động của rạp chiếu CineMax (Admin)
 
 import React, { useState, useEffect } from 'react';
 import {

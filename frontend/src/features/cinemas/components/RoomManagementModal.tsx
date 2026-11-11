@@ -1,5 +1,4 @@
-// UC18: Manage Rooms - RoomManagementModal Component
-// Modal Thêm, Xem, Sửa, Xóa phòng chiếu của cụm rạp (Admin)
+// Quản lý thông tin và danh sách phòng chiếu của cụm rạp CineMax (Admin)
 
 import React, { useState, useEffect } from 'react';
 import {
