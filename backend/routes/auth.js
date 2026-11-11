@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { sendPasswordResetEmail } = require('../utils/emailService');
 
 // ─── Helper: Tạo JWT token ──────────────────────────────────────────────────
 function generateToken(userId) {
@@ -233,9 +234,9 @@ router.put('/change-password', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// POST /api/auth/forgot-password  (gửi OTP)
+// POST /api/auth/forgot-password & /api/auth/forgot-password/request-otp  (gửi OTP thật qua email)
 // ════════════════════════════════════════════════════════════
-router.post('/forgot-password', async (req, res) => {
+async function handleForgotPassword(req, res) {
   try {
     const { identifier } = req.body;
     if (!identifier) {
@@ -254,30 +255,63 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tài khoản chưa được liên kết địa chỉ Email để nhận mã OTP.',
+      });
+    }
+
+    // Tạo mã OTP 6 chữ số ngẫu nhiên
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 phút
+    const expiresAt = Date.now() + 5 * 60 * 1000; // Hiệu lực 5 phút
     resetSessions.set(user.email, { code: otp, expiresAt, verified: false });
 
-    const masked = maskIdentifier(trimmed.includes('@') ? user.email : user.phone);
+    // Gửi email thực tế chứa mã OTP tới hộp thư của người dùng
+    let emailResult;
+    try {
+      emailResult = await sendPasswordResetEmail({
+        to: user.email,
+        fullName: user.fullName || user.email.split('@')[0],
+        otp,
+        expiresMinutes: 5,
+      });
+    } catch (mailError) {
+      console.error('[forgotPassword] Lỗi gửi email thực tế:', mailError.message);
+      return res.status(500).json({
+        success: false,
+        message: `Không thể gửi email OTP đến ${user.email}. Lỗi máy chủ: ${mailError.message}`,
+      });
+    }
+
+    const masked = maskIdentifier(user.email);
 
     return res.json({
       success: true,
-      message: `Mã xác minh đã được gửi đến ${masked}. Vui lòng kiểm tra và nhập mã để tiếp tục.`,
-      demoOtp: otp, // Chỉ dùng cho demo — production cần gửi qua email/SMS
+      message: `Mã xác minh OTP đã được gửi đến email ${user.email}. Vui lòng kiểm tra hộp thư đến (và thư mục Spam/Thư rác).`,
       maskedTarget: masked,
+      targetEmail: user.email,
+      previewUrl: emailResult?.previewUrl || null,
     });
   } catch (err) {
     console.error('[forgotPassword]', err);
     return res.status(500).json({ success: false, message: 'Lỗi khi yêu cầu đặt lại mật khẩu.' });
   }
-});
+}
+
+router.post('/forgot-password', handleForgotPassword);
+router.post('/forgot-password/request-otp', handleForgotPassword);
 
 // ════════════════════════════════════════════════════════════
-// POST /api/auth/verify-otp
+// POST /api/auth/verify-otp & /api/auth/forgot-password/verify-otp
 // ════════════════════════════════════════════════════════════
-router.post('/verify-otp', async (req, res) => {
+async function handleVerifyOtp(req, res) {
   try {
     const { identifier, code } = req.body;
+    if (!identifier || !code) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp mã xác minh OTP.' });
+    }
+
     const trimmed = identifier.trim();
     const user = await User.findOne({
       $or: [{ email: trimmed.toLowerCase() }, { phone: trimmed }],
@@ -296,7 +330,7 @@ router.post('/verify-otp', async (req, res) => {
     }
 
     if (session.code !== code.trim()) {
-      return res.status(400).json({ success: false, message: 'Mã xác minh không chính xác.' });
+      return res.status(400).json({ success: false, message: 'Mã xác minh OTP không chính xác. Vui lòng kiểm tra lại email.' });
     }
 
     session.verified = true;
@@ -307,12 +341,15 @@ router.post('/verify-otp', async (req, res) => {
     console.error('[verifyOtp]', err);
     return res.status(500).json({ success: false, message: 'Lỗi xác minh danh tính.' });
   }
-});
+}
+
+router.post('/verify-otp', handleVerifyOtp);
+router.post('/forgot-password/verify-otp', handleVerifyOtp);
 
 // ════════════════════════════════════════════════════════════
-// POST /api/auth/reset-password
+// POST /api/auth/reset-password & /api/auth/forgot-password/reset-password
 // ════════════════════════════════════════════════════════════
-router.post('/reset-password', async (req, res) => {
+async function handleResetPassword(req, res) {
   try {
     const { identifier, code, newPassword } = req.body;
     const trimmed = identifier.trim();
@@ -345,7 +382,10 @@ router.post('/reset-password', async (req, res) => {
     console.error('[resetPassword]', err);
     return res.status(500).json({ success: false, message: 'Không thể cập nhật mật khẩu mới.' });
   }
-});
+}
+
+router.post('/reset-password', handleResetPassword);
+router.post('/forgot-password/reset-password', handleResetPassword);
 
 // ════════════════════════════════════════════════════════════
 // DELETE /api/auth/account  (xóa tài khoản)
