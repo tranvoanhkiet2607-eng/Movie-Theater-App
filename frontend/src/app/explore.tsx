@@ -774,7 +774,7 @@ export default function ExploreScreen() {
                   onPress={() => setAdminHubVisible(true)}>
                   <Ionicons name="apps" size={16} color="#3B82F6" />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#60A5FA' }}>
-                    Trung Tâm Quản Trị Đồ Ăn, Khuyến Mãi & Báo Cáo (UC37, 39, 41, 42, 44, 45)
+                    Trung Tâm Quản Trị Đồ Ăn, Khuyến Mãi & Báo Cáo
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1096,7 +1096,6 @@ export default function ExploreScreen() {
                       numberOfLines={1}>
                       {theater.shortName}
                     </Text>
-                    <Text style={styles.theaterDistanceTag}>{theater.distance}</Text>
                   </View>
                   <Text style={styles.theaterFilterSub} numberOfLines={1}>
                     {theater.area} • {theater.totalRooms} phòng chiếu
@@ -1402,7 +1401,7 @@ export default function ExploreScreen() {
                             </View>
                             <View style={styles.theaterDistancePill}>
                               <Text style={styles.theaterDistanceText}>
-                                {theater.area} • {theater.distance}
+                                {theater.area}
                               </Text>
                             </View>
                           </View>
@@ -1450,9 +1449,9 @@ export default function ExploreScreen() {
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.theaterDistanceBadgeBig}>
-                          <Ionicons name="navigate" size={11} color="#F59E0B" />
+                          <Ionicons name="location-outline" size={12} color="#F59E0B" />
                           <Text style={styles.theaterDistanceBigText}>
-                            {theater.distance}
+                            {theater.area}
                           </Text>
                         </View>
                       )}
@@ -1788,7 +1787,7 @@ export default function ExploreScreen() {
                     }}>
                     <Ionicons name="ticket" size={16} color="#FFFFFF" />
                     <Text style={styles.modalPrimaryText}>
-                      Đặt vé & Chọn bắp nước (UC38)
+                      Đặt vé & Chọn bắp nước
                     </Text>
                   </TouchableOpacity>
                 </View>

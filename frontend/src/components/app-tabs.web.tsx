@@ -14,8 +14,12 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 
 export default function AppTabs() {
+  const { user } = useAuth();
+  const showSeatsTab = Boolean(user && user.role === 'admin');
+
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
@@ -33,9 +37,11 @@ export default function AppTabs() {
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Lịch chiếu</TabButton>
           </TabTrigger>
-          <TabTrigger name="seats" href="/seats" asChild>
-            <TabButton>Phòng & Ghế</TabButton>
-          </TabTrigger>
+          {showSeatsTab && (
+            <TabTrigger name="seats" href="/seats" asChild>
+              <TabButton>Phòng & Ghế</TabButton>
+            </TabTrigger>
+          )}
           <TabTrigger name="profile" href="/profile" asChild>
             <TabButton>Tài khoản</TabButton>
           </TabTrigger>

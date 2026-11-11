@@ -456,13 +456,13 @@ export default function AdminManagementHubModal({
           style={styles.tabsScroll}
           contentContainerStyle={styles.tabsContainer}>
           {[
-            { key: 'food', label: '🍿 Đồ ăn (UC37)' },
-            { key: 'orders', label: '📋 Đơn đồ ăn (UC44)' },
-            { key: 'promo', label: '🎟️ Khuyến mãi (UC39)' },
-            { key: 'pricing', label: '🏷️ Giá vé (UC28)' },
-            { key: 'reviews', label: '⭐ Kiểm duyệt (UC41)' },
-            { key: 'notifs', label: '🔔 Thông báo (UC42)' },
-            { key: 'reports', label: '📊 Báo cáo (UC45)' },
+            { key: 'food', label: '🍿 Đồ ăn' },
+            { key: 'orders', label: '📋 Đơn đồ ăn' },
+            { key: 'promo', label: '🎟️ Khuyến mãi' },
+            { key: 'pricing', label: '🏷️ Giá vé' },
+            { key: 'reviews', label: '⭐ Kiểm duyệt' },
+            { key: 'notifs', label: '🔔 Thông báo' },
+            { key: 'reports', label: '📊 Báo cáo' },
           ].map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -506,7 +506,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Quản Lý Menu Đồ Ăn & Nước (UC37)</Text>
+                    <Text style={styles.tabSectionTitle}>Quản Lý Menu Đồ Ăn & Nước</Text>
                     <Text style={styles.tabSectionDesc}>Thêm, xem, sửa, xóa và bật/tắt còn hàng</Text>
                   </View>
                   <TouchableOpacity style={styles.primaryAddBtn} onPress={handleOpenCreateFood}>
@@ -612,7 +612,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Quản Lý Đơn Đồ Ăn Tại Quầy (UC44)</Text>
+                    <Text style={styles.tabSectionTitle}>Quản Lý Đơn Đồ Ăn Tại Quầy</Text>
                     <Text style={styles.tabSectionDesc}>Theo dõi đơn hàng & cập nhật trạng thái pha chế</Text>
                   </View>
                 </View>
@@ -753,7 +753,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Quản Lý Mã Khuyến Mãi (UC39)</Text>
+                    <Text style={styles.tabSectionTitle}>Quản Lý Mã Khuyến Mãi</Text>
                     <Text style={styles.tabSectionDesc}>Thêm, sửa và kích hoạt / vô hiệu hóa mã</Text>
                   </View>
                   <TouchableOpacity style={styles.primaryAddBtn} onPress={handleOpenCreatePromo}>
@@ -816,7 +816,7 @@ export default function AdminManagementHubModal({
                               styles.togglePromoBtnText,
                               { color: p.isActive ? '#EF4444' : '#10B981' },
                             ]}>
-                            {p.isActive ? 'Vô hiệu hóa (UC39)' : 'Kích hoạt lại'}
+                            {p.isActive ? 'Vô hiệu hóa' : 'Kích hoạt lại'}
                           </Text>
                         </TouchableOpacity>
 
@@ -847,7 +847,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Kiểm Duyệt Đánh Giá (UC41)</Text>
+                    <Text style={styles.tabSectionTitle}>Kiểm Duyệt Đánh Giá</Text>
                     <Text style={styles.tabSectionDesc}>Duyệt, ẩn hoặc xóa các đánh giá không phù hợp</Text>
                   </View>
                 </View>
@@ -960,7 +960,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Quản Lý Thông Báo Hệ Thống (UC42)</Text>
+                    <Text style={styles.tabSectionTitle}>Quản Lý Thông Báo Hệ Thống</Text>
                     <Text style={styles.tabSectionDesc}>Tạo và phát thông báo mới tới người dùng</Text>
                   </View>
                   <TouchableOpacity
@@ -1013,7 +1013,7 @@ export default function AdminManagementHubModal({
               <View>
                 <View style={styles.tabHeaderRow}>
                   <View>
-                    <Text style={styles.tabSectionTitle}>Báo Cáo Doanh Thu & Phim Phổ Biến (UC45)</Text>
+                    <Text style={styles.tabSectionTitle}>Báo Cáo Doanh Thu & Phim Phổ Biến</Text>
                     <Text style={styles.tabSectionDesc}>Thống kê tổng hợp số liệu vé và đồ ăn thời gian thực</Text>
                   </View>
                 </View>
@@ -1117,7 +1117,7 @@ export default function AdminManagementHubModal({
           <View style={styles.popupOverlay}>
             <View style={styles.popupCard}>
               <Text style={styles.popupTitle}>
-                {editingFood ? 'Sửa Món Ăn/Nước' : 'Thêm Món Mới (UC37)'}
+                {editingFood ? 'Sửa Món Ăn/Nước' : 'Thêm Món Mới'}
               </Text>
 
               <Text style={styles.popupLabel}>Tên món:</Text>
@@ -1211,7 +1211,7 @@ export default function AdminManagementHubModal({
           <View style={styles.popupOverlay}>
             <View style={styles.popupCard}>
               <Text style={styles.popupTitle}>
-                {editingPromo ? 'Sửa Khuyến Mãi' : 'Tạo Mã Khuyến Mãi Mới (UC39)'}
+                {editingPromo ? 'Sửa Khuyến Mãi' : 'Tạo Mã Khuyến Mãi Mới'}
               </Text>
 
               <Text style={styles.popupLabel}>Mã Code (viết hoa):</Text>
@@ -1302,7 +1302,7 @@ export default function AdminManagementHubModal({
           onRequestClose={() => setNotifModalVisible(false)}>
           <View style={styles.popupOverlay}>
             <View style={styles.popupCard}>
-              <Text style={styles.popupTitle}>Phát Thông Báo Hệ Thống (UC42)</Text>
+              <Text style={styles.popupTitle}>Phát Thông Báo Hệ Thống</Text>
 
               <Text style={styles.popupLabel}>Loại thông báo:</Text>
               <View style={styles.categoryRadioRow}>

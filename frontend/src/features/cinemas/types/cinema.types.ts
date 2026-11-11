@@ -1,6 +1,4 @@
 // Định nghĩa Types & Interfaces cho Module Cinema & Room Management
-// UC17: Manage Cinemas | UC18: Manage Rooms
-// UC19: View Cinema Details | UC20: Manage Cinema Facilities
 
 export interface Room {
   id: string;

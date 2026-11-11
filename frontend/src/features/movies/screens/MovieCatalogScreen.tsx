@@ -39,8 +39,8 @@ import { MaxContentWidth } from '@/constants/theme';
 
 export default function MovieCatalogScreen() {
   const { user, session } = useAuth();
-  // Phân quyền: Chỉ admin và manager mới có quyền thao tác CRUD
-  const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'manager'));
+  // Phân quyền: Chỉ admin mới có quyền thao tác CRUD
+  const isAdmin = Boolean(user && user.role === 'admin');
   const authToken = session?.token || '';
 
   // ─── Filter State (UC12, UC13) ──────────────────────────────────────────────

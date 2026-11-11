@@ -2,10 +2,13 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/context/auth-context';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark' || scheme === 'unspecified';
+  const { user } = useAuth();
+  const showSeatsTab = Boolean(user && user.role === 'admin');
 
   return (
     <Tabs
@@ -69,6 +72,7 @@ export default function AppTabs() {
         name="seats"
         options={{
           title: 'Phòng & Ghế',
+          href: showSeatsTab ? '/seats' : null,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
           ),

@@ -1,20 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { useAuth } from '@/context/auth-context';
+import LoginScreen from './login';
 import {
   NAME_REGEX,
   VN_PHONE_REGEX,
@@ -22,544 +24,16 @@ import {
   validateRegisterForm,
 } from '@/utils/validation';
 
-import { LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
-import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { AdminAccountManagementModal } from '@/components/admin-account-management';
 import { BookingHistoryModal } from '@/components/booking-history-modal';
+import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { MembershipModal } from '@/components/membership-modal';
 import NotificationModal from '@/components/NotificationModal';
 import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
-import { NotificationAPI, OrderAPI } from '@/services/api';
+import { BookingAPI, NotificationAPI, OrderAPI } from '@/services/api';
+import { BookingItem, LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
 import { Order } from '@/types/order';
 
-
-interface GuestAuthProps {
-  login: (data: LoginFormData) => Promise<{ success: boolean; message: string }>;
-  register: (data: RegisterFormData) => Promise<{ success: boolean; message: string }>;
-  resetPassword: (email: string, newPass: string) => Promise<{ success: boolean; message: string }>;
-}
-
-function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
-  const [tab, setTab] = useState<'login' | 'register'>('login');
-
-  // Login State
-  const [loginId, setLoginId] = useState('customer@cinema.com');
-  const [loginPassword, setLoginPassword] = useState('password123');
-  const [loginShowPassword, setLoginShowPassword] = useState(false);
-  const [loginRemember, setLoginRemember] = useState(true);
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
-
-  // Register State
-  const [regFullName, setRegFullName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regConfirmPassword, setRegConfirmPassword] = useState('');
-  const [regAgreeTerms, setRegAgreeTerms] = useState(false);
-  const [regShowPassword, setRegShowPassword] = useState(false);
-  const [regLoading, setRegLoading] = useState(false);
-  const [regError, setRegError] = useState<string | null>(null);
-
-  // Forgot Password Modal State (UC04)
-  const [forgotModalVisible, setForgotModalVisible] = useState(false);
-
-  const handleQuickFillCustomer = () => {
-    setLoginId('customer@cinema.com');
-    setLoginPassword('password123');
-    setLoginError(null);
-  };
-
-  const handleQuickFillAdmin = () => {
-    setLoginId('admin@cinema.com');
-    setLoginPassword('password123');
-    setLoginError(null);
-  };
-
-  const handleLoginSubmit = async () => {
-    setLoginError(null);
-    setLoginSuccess(null);
-
-    const validation = validateLoginForm({
-      identifier: loginId,
-      password: loginPassword,
-      rememberMe: loginRemember,
-    });
-
-    if (!validation.isValid) {
-      const firstError = Object.values(validation.errors)[0];
-      setLoginError(firstError || 'Thông tin đăng nhập không hợp lệ.');
-      return;
-    }
-
-    setLoginLoading(true);
-    try {
-      const res = await login({
-        identifier: loginId.trim(),
-        password: loginPassword,
-        rememberMe: loginRemember,
-      });
-
-      if (res.success) {
-        setLoginSuccess(res.message);
-      } else {
-        setLoginError(res.message);
-      }
-    } catch {
-      setLoginError('Có lỗi kết nối. Vui lòng thử lại.');
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  const handleRegisterSubmit = async () => {
-    setRegError(null);
-
-    const validation = validateRegisterForm({
-      fullName: regFullName,
-      email: regEmail,
-      phone: regPhone,
-      password: regPassword,
-      confirmPassword: regConfirmPassword,
-      agreeTerms: regAgreeTerms,
-    });
-
-    if (!validation.isValid) {
-      const firstError = Object.values(validation.errors)[0];
-      setRegError(firstError || 'Dữ liệu đăng ký không hợp lệ.');
-      return;
-    }
-
-    setRegLoading(true);
-    try {
-      const res = await register({
-        fullName: regFullName.trim(),
-        email: regEmail.trim(),
-        phone: regPhone.trim(),
-        password: regPassword,
-        confirmPassword: regConfirmPassword,
-        agreeTerms: regAgreeTerms,
-      });
-
-      if (!res.success) {
-        setRegError(res.message);
-      }
-    } catch {
-      setRegError('Đăng ký thất bại. Vui lòng thử lại.');
-    } finally {
-      setRegLoading(false);
-    }
-  };
-
-  const handleResetSuccess = (resetId: string, resetPass: string) => {
-    setLoginId(resetId);
-    setLoginPassword(resetPass);
-    setLoginSuccess('Khôi phục mật khẩu thành công! Hãy nhấn Đăng Nhập để vào rạp.');
-  };
-
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.guestContainer} keyboardShouldPersistTaps="handled">
-        {/* Cinema Brand Hero */}
-        <View style={styles.guestHero}>
-          <View style={styles.guestIconCircle}>
-            <Ionicons name="film" size={36} color="#E50914" />
-          </View>
-          <Text style={styles.guestTitle}>CINEMAX THEATER</Text>
-          <Text style={styles.guestSubtitle}>
-            Đăng nhập hoặc đăng ký tài khoản khách hàng để nhận vé ưu đãi và tích điểm bắp nước!
-          </Text>
-        </View>
-
-        {/* Segmented Control */}
-        <View style={styles.guestTabSwitcher}>
-          <TouchableOpacity
-            style={[styles.guestTabBtn, tab === 'login' && styles.guestTabBtnActive]}
-            onPress={() => setTab('login')}
-            activeOpacity={0.85}>
-            <Ionicons
-              name="log-in-outline"
-              size={18}
-              color={tab === 'login' ? '#FFFFFF' : '#9CA3AF'}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.guestTabText, tab === 'login' && styles.guestTabTextActive]}>
-              Đăng Nhập
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.guestTabBtn, tab === 'register' && styles.guestTabBtnActive]}
-            onPress={() => setTab('register')}
-            activeOpacity={0.85}>
-            <Ionicons
-              name="person-add-outline"
-              size={18}
-              color={tab === 'register' ? '#FFFFFF' : '#9CA3AF'}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.guestTabText, tab === 'register' && styles.guestTabTextActive]}>
-              Đăng Ký
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* LOGIN TAB CONTENT */}
-        {tab === 'login' && (
-          <View style={styles.guestAuthCard}>
-            {/* Quick Demo Fill Buttons for Role-Based Access Control */}
-            <View style={{ gap: 8, marginBottom: 12 }}>
-              <TouchableOpacity
-                style={styles.guestDemoBtn}
-                onPress={handleQuickFillCustomer}
-                activeOpacity={0.8}>
-                <Ionicons name="person" size={15} color="#3B82F6" />
-                <Text style={styles.guestDemoText}>
-                  Khách hàng: <Text style={styles.guestDemoBold}>customer@cinema.com</Text> (password123)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.guestDemoBtn, { borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}
-                onPress={handleQuickFillAdmin}
-                activeOpacity={0.8}>
-                <Ionicons name="shield-checkmark" size={15} color="#F59E0B" />
-                <Text style={styles.guestDemoText}>
-                  Quản trị viên: <Text style={[styles.guestDemoBold, { color: '#F59E0B' }]}>admin@cinema.com</Text> (password123)
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {loginError && (
-              <View style={styles.guestAlertError}>
-                <Ionicons name="alert-circle" size={18} color="#EF4444" />
-                <Text style={styles.guestAlertErrorText}>{loginError}</Text>
-              </View>
-            )}
-
-            {loginSuccess && (
-              <View style={styles.guestAlertSuccess}>
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                <Text style={styles.guestAlertSuccessText}>{loginSuccess}</Text>
-              </View>
-            )}
-
-            {/* Email / SĐT */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Email hoặc Số điện thoại</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="Nhập email hoặc SĐT 10 số"
-                  placeholderTextColor="#6B7280"
-                  value={loginId}
-                  onChangeText={(val) => {
-                    setLoginId(val);
-                    setLoginError(null);
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
-              </View>
-            </View>
-
-            {/* Password */}
-            <View style={styles.guestField}>
-              <View style={styles.guestPassHeader}>
-                <Text style={styles.guestLabel}>Mật khẩu</Text>
-                <TouchableOpacity onPress={() => setForgotModalVisible(true)}>
-                  <Text style={styles.guestForgotLink}>Quên mật khẩu?</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
-                  placeholderTextColor="#6B7280"
-                  value={loginPassword}
-                  onChangeText={(val) => {
-                    setLoginPassword(val);
-                    setLoginError(null);
-                  }}
-                  secureTextEntry={!loginShowPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setLoginShowPassword(!loginShowPassword)}
-                  style={{ padding: 4 }}>
-                  <Ionicons
-                    name={loginShowPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color="#9CA3AF"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Remember Me Checkbox */}
-            <TouchableOpacity
-              style={styles.guestCheckboxRow}
-              onPress={() => setLoginRemember(!loginRemember)}
-              activeOpacity={0.8}>
-              <View style={[styles.guestCheckbox, loginRemember && styles.guestCheckboxChecked]}>
-                {loginRemember && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
-              </View>
-              <Text style={styles.guestCheckboxText}>Ghi nhớ đăng nhập trên thiết bị này</Text>
-            </TouchableOpacity>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[styles.guestSubmitBtn, loginLoading && { opacity: 0.7 }]}
-              onPress={handleLoginSubmit}
-              disabled={loginLoading}
-              activeOpacity={0.85}>
-              {loginLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="log-in-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.guestSubmitBtnText}>ĐĂNG NHẬP NGAY</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* REGISTER TAB CONTENT */}
-        {tab === 'register' && (
-          <View style={styles.guestAuthCard}>
-            {/* Promo banner */}
-            <View style={styles.guestRegPromo}>
-              <Ionicons name="gift-outline" size={18} color="#F59E0B" />
-              <Text style={styles.guestRegPromoText}>
-                Tặng ngay <Text style={{ color: '#F59E0B', fontWeight: '700' }}>50 điểm thưởng</Text> chào mừng thành viên mới!
-              </Text>
-            </View>
-
-            {regError && (
-              <View style={styles.guestAlertError}>
-                <Ionicons name="alert-circle" size={18} color="#EF4444" />
-                <Text style={styles.guestAlertErrorText}>{regError}</Text>
-              </View>
-            )}
-
-            {/* Full Name */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Họ và tên khách hàng *</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="Ví dụ: Nguyễn Văn A"
-                  placeholderTextColor="#6B7280"
-                  value={regFullName}
-                  onChangeText={(val) => {
-                    setRegFullName(val);
-                    setRegError(null);
-                  }}
-                  autoCapitalize="words"
-                />
-              </View>
-            </View>
-
-            {/* Email */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Địa chỉ Email *</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="customer@example.com"
-                  placeholderTextColor="#6B7280"
-                  value={regEmail}
-                  onChangeText={(val) => {
-                    setRegEmail(val);
-                    setRegError(null);
-                  }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
-            {/* Phone */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Số điện thoại *</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="call-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="10 chữ số (VD: 0901234567)"
-                  placeholderTextColor="#6B7280"
-                  value={regPhone}
-                  onChangeText={(val) => {
-                    setRegPhone(val);
-                    setRegError(null);
-                  }}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-              </View>
-            </View>
-
-            {/* Password */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Mật khẩu đăng nhập *</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="Tối thiểu 6 ký tự"
-                  placeholderTextColor="#6B7280"
-                  value={regPassword}
-                  onChangeText={(val) => {
-                    setRegPassword(val);
-                    setRegError(null);
-                  }}
-                  secureTextEntry={!regShowPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setRegShowPassword(!regShowPassword)}
-                  style={{ padding: 4 }}>
-                  <Ionicons
-                    name={regShowPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color="#9CA3AF"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Password checklist */}
-              {regPassword.length > 0 && (
-                <View style={styles.guestCriteriaBox}>
-                  <View style={styles.guestCriteriaItem}>
-                    <Ionicons
-                      name={regPassword.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={13}
-                      color={regPassword.length >= 6 ? '#10B981' : '#6B7280'}
-                    />
-                    <Text style={[styles.guestCriteriaText, regPassword.length >= 6 && { color: '#10B981' }]}>
-                      Tối thiểu 6 ký tự
-                    </Text>
-                  </View>
-                  <View style={styles.guestCriteriaItem}>
-                    <Ionicons
-                      name={/[a-zA-Z]/.test(regPassword) ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={13}
-                      color={/[a-zA-Z]/.test(regPassword) ? '#10B981' : '#6B7280'}
-                    />
-                    <Text style={[styles.guestCriteriaText, /[a-zA-Z]/.test(regPassword) && { color: '#10B981' }]}>
-                      Chứa chữ cái (A-Z, a-z)
-                    </Text>
-                  </View>
-                  <View style={styles.guestCriteriaItem}>
-                    <Ionicons
-                      name={/\d/.test(regPassword) ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={13}
-                      color={/\d/.test(regPassword) ? '#10B981' : '#6B7280'}
-                    />
-                    <Text style={[styles.guestCriteriaText, /\d/.test(regPassword) && { color: '#10B981' }]}>
-                      Chứa chữ số (0-9)
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Confirm Password */}
-            <View style={styles.guestField}>
-              <Text style={styles.guestLabel}>Xác nhận lại mật khẩu *</Text>
-              <View style={styles.guestInputRow}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#9CA3AF" style={styles.guestInputIcon} />
-                <TextInput
-                  style={styles.guestTextInput}
-                  placeholder="Nhập lại mật khẩu"
-                  placeholderTextColor="#6B7280"
-                  value={regConfirmPassword}
-                  onChangeText={(val) => {
-                    setRegConfirmPassword(val);
-                    setRegError(null);
-                  }}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
-            {/* Agree Terms */}
-            <TouchableOpacity
-              style={styles.guestCheckboxRow}
-              onPress={() => setRegAgreeTerms(!regAgreeTerms)}
-              activeOpacity={0.8}>
-              <View style={[styles.guestCheckbox, regAgreeTerms && styles.guestCheckboxChecked]}>
-                {regAgreeTerms && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
-              </View>
-              <Text style={styles.guestCheckboxText}>
-                Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật CineMax
-              </Text>
-            </TouchableOpacity>
-
-            {/* Register Submit Button */}
-            <TouchableOpacity
-              style={[styles.guestSubmitBtn, regLoading && { opacity: 0.7 }]}
-              onPress={handleRegisterSubmit}
-              disabled={regLoading}
-              activeOpacity={0.85}>
-              {regLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="person-add-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.guestSubmitBtnText}>ĐĂNG KÝ TÀI KHOẢN MỚI</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-
-        {/* Member Privileges Card */}
-        <View style={styles.benefitsCard}>
-          <Text style={styles.benefitsTitle}>ĐẶC QUYỀN THÀNH VIÊN CINEMAX</Text>
-          <View style={styles.benefitRow}>
-            <Ionicons name="ticket" size={20} color="#F59E0B" />
-            <View style={styles.benefitTextCol}>
-              <Text style={styles.benefitHead}>Vé xem phim sinh nhật</Text>
-              <Text style={styles.benefitDesc}>Tặng 01 vé xem phim 2D miễn phí trong tháng sinh nhật</Text>
-            </View>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="gift" size={20} color="#10B981" />
-            <View style={styles.benefitTextCol}>
-              <Text style={styles.benefitHead}>Tích lũy điểm đến 10%</Text>
-              <Text style={styles.benefitDesc}>Đổi điểm lấy vé xem phim và combo bắp nước không giới hạn</Text>
-            </View>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="fast-food" size={20} color="#3B82F6" />
-            <View style={styles.benefitTextCol}>
-              <Text style={styles.benefitHead}>Ưu đãi thứ Tư vui vẻ</Text>
-              <Text style={styles.benefitDesc}>Đồng giá vé 50.000đ cho toàn bộ phim 2D mỗi thứ Tư</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* UC04: Forgot Password Modal with Identity Verification */}
-        <ForgotPasswordModal
-          visible={forgotModalVisible}
-          initialIdentifier={loginId}
-          onClose={() => setForgotModalVisible(false)}
-          onSuccess={handleResetSuccess}
-        />
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
 
 export default function ProfileScreen() {
   const {
@@ -612,25 +86,35 @@ export default function ProfileScreen() {
   // Session Info Modal
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
-  // Notifications (UC43) & Admin Management Hub (UC37, 39, 41, 42, 44, 45)
+  // Notifications & Admin Management Hub
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [adminHubVisible, setAdminHubVisible] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
+  const [myBookings, setMyBookings] = useState<BookingItem[]>([]);
 
   const fetchProfileData = useCallback(async () => {
     if (!user) return;
     try {
-      const [notifRes, orderRes] = await Promise.all([
+      const promises: Promise<any>[] = [
         NotificationAPI.getUnreadCount(user.id),
         OrderAPI.getOrders({ userId: user.id }),
-      ]);
-      if (notifRes.success) setUnreadNotifs(notifRes.count || 0);
-      if (orderRes.success) setMyOrders(orderRes.orders || []);
+      ];
+      if (session?.token) {
+        promises.push(BookingAPI.getMyBookings(session.token));
+      }
+      const [notifRes, orderRes, bookingRes] = await Promise.all(promises);
+      if (notifRes?.success) setUnreadNotifs(notifRes.count || 0);
+      if (orderRes?.success) setMyOrders(orderRes.orders || []);
+      if (bookingRes?.success && bookingRes.upcoming) {
+        setMyBookings(bookingRes.upcoming || []);
+      } else {
+        setMyBookings([]);
+      }
     } catch (err) {
       console.log('[Load Profile Data Error]', err);
     }
-  }, [user]);
+  }, [user, session?.token]);
 
   useEffect(() => {
     fetchProfileData();
@@ -647,15 +131,9 @@ export default function ProfileScreen() {
     );
   }
 
-  // Guest State - When not logged in: Render interactive Login & Register form directly
+  // Guest State - When not logged in: Render the unified, official LoginScreen (Image 2)
   if (!isAuthenticated || !user) {
-    return (
-      <GuestAuthSection
-        login={login}
-        register={register}
-        resetPassword={resetPassword}
-      />
-    );
+    return <LoginScreen isTab={true} />;
   }
 
   // Authenticated State - Active Session
@@ -702,6 +180,7 @@ export default function ProfileScreen() {
     await logout();
     setIsLoggingOut(false);
     setLogoutModalVisible(false);
+    router.replace('/login');
   };
 
   const CINEMA_AVATARS = [
@@ -763,22 +242,17 @@ export default function ProfileScreen() {
     setDeleteModalVisible(false);
     if (!res.success) {
       Alert.alert('Lỗi', res.message);
+    } else {
+      router.replace('/login');
     }
   };
 
 
 
-  // Mock booked tickets for this customer
-  const sampleTickets = [
-    {
-      id: 'TCK-8821',
-      movieTitle: 'Dune: Part Two (Hành Tinh Cát)',
-      theater: 'CineMax Vincom Đồng Khởi - Rạp 03',
-      showtime: '20:15 - Hôm nay',
-      seats: 'F08, F09 (VIP)',
-      status: 'Đã xác nhận',
-    },
-  ];
+  // Vé sắp chiếu gần nhất của người dùng từ cơ sở dữ liệu
+  const latestUpcomingBooking = myBookings.length > 0 ? myBookings[0] : null;
+  const latestUpcomingOrder =
+    myOrders.length > 0 ? myOrders.find((o) => o.orderStatus !== 'cancelled') : null;
 
   // Current avatar icon determination
   const currentAvatarIcon = user.avatarUrl?.startsWith('cinema_avatar_')
@@ -861,114 +335,113 @@ export default function ProfileScreen() {
 
           <View style={styles.cardActionFooter}>
             <Ionicons name="gift-outline" size={14} color="#F59E0B" />
-            <Text style={styles.cardActionFooterText}>Xem đặc quyền hạng & Đổi thưởng tích lũy (UC10)</Text>
+            <Text style={styles.cardActionFooterText}>Xem đặc quyền hạng & Đổi thưởng tích lũy</Text>
             <Ionicons name="chevron-forward" size={14} color="#F59E0B" />
           </View>
         </TouchableOpacity>
 
-        {/* UC09: Booking History & Upcoming Tickets Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="ticket" size={18} color="#E50914" />
-              <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé (UC09)</Text>
+        {/* Booking History & Upcoming Tickets Section - Chỉ hiển thị cho khách hàng hoặc khi có vé thực tế */}
+        {(user.role === 'customer' || Boolean(latestUpcomingBooking || latestUpcomingOrder)) && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="ticket" size={18} color="#E50914" />
+                <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.openFeatureBtn}
+                onPress={() => setBookingHistoryVisible(true)}>
+                <Text style={styles.openFeatureBtnText}>Xem tất cả</Text>
+                <Ionicons name="chevron-forward" size={13} color="#E50914" />
+              </TouchableOpacity>
             </View>
+
+            {latestUpcomingBooking ? (
+              <TouchableOpacity
+                style={styles.ticketPreviewCard}
+                onPress={() => setBookingHistoryVisible(true)}
+                activeOpacity={0.85}>
+                <View style={styles.ticketPreviewBadge}>
+                  <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+                </View>
+                <Text style={styles.ticketPreviewTitle}>
+                  {latestUpcomingBooking.movieTitle} {latestUpcomingBooking.format ? `(${latestUpcomingBooking.format})` : ''}
+                </Text>
+                <Text style={styles.ticketPreviewMeta}>
+                  📍 {latestUpcomingBooking.cinemaName} • {latestUpcomingBooking.hallName} • Ghế: {latestUpcomingBooking.seats.join(', ')}
+                </Text>
+                <View style={styles.ticketPreviewActionRow}>
+                  <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                  <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+                </View>
+              </TouchableOpacity>
+            ) : latestUpcomingOrder ? (
+              <TouchableOpacity
+                style={styles.ticketPreviewCard}
+                onPress={() => setBookingHistoryVisible(true)}
+                activeOpacity={0.85}>
+                <View style={styles.ticketPreviewBadge}>
+                  <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+                </View>
+                <Text style={styles.ticketPreviewTitle}>
+                  {latestUpcomingOrder.movie?.title || 'Phim rạp'}
+                </Text>
+                <Text style={styles.ticketPreviewMeta}>
+                  📍 {latestUpcomingOrder.theater?.name} • {latestUpcomingOrder.theater?.room} • Ghế: {(latestUpcomingOrder.tickets || []).map((t) => t.seatNumber).join(', ')}
+                </Text>
+                <View style={styles.ticketPreviewActionRow}>
+                  <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                  <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.emptyTicketPreviewBox}>
+                <Ionicons name="ticket-outline" size={28} color="#6B7280" />
+                <Text style={styles.emptyTicketPreviewTitle}>Bạn chưa có vé xem phim nào sắp chiếu</Text>
+                <Text style={styles.emptyTicketPreviewSub}>Khám phá các phim hot và đặt vé ngay hôm nay</Text>
+                <TouchableOpacity
+                  style={styles.emptyTicketPreviewBtn}
+                  onPress={() => router.push('/explore')}
+                  activeOpacity={0.85}>
+                  <Ionicons name="film-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.emptyTicketPreviewBtnText}>Đặt vé xem phim ngay</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN */}
+        {user.role === 'admin' && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="shield-checkmark" size={18} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền</Text>
+              </View>
+              <View style={styles.roleTag}>
+                <Text style={styles.roleTagText}>Quản trị viên</Text>
+              </View>
+            </View>
+
+            <Text style={styles.adminSectionDesc}>
+              Khu vực dành riêng cho quản trị viên: Quản lý danh sách tài khoản, xem/thay đổi trạng thái hoạt động và thiết lập phân quyền người dùng.
+            </Text>
+
             <TouchableOpacity
-              style={styles.openFeatureBtn}
-              onPress={() => setBookingHistoryVisible(true)}>
-              <Text style={styles.openFeatureBtnText}>Xem tất cả</Text>
-              <Ionicons name="chevron-forward" size={13} color="#E50914" />
+              style={styles.adminLaunchBtn}
+              onPress={() => setAdminModalVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="people-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.adminLaunchBtnText}>
+                Mở Quản Trị Tài Khoản & Phân Quyền
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
+        )}
 
-          <TouchableOpacity
-            style={styles.ticketPreviewCard}
-            onPress={() => setBookingHistoryVisible(true)}
-            activeOpacity={0.85}>
-            <View style={styles.ticketPreviewBadge}>
-              <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU HÔM NAY</Text>
-            </View>
-            <Text style={styles.ticketPreviewTitle}>Dune: Hành Tinh Cát - Phần 2 (IMAX 3D)</Text>
-            <Text style={styles.ticketPreviewMeta}>
-              📍 CineMax Vincom Đồng Khởi • Rạp 03 • Ghế: F08, F09 (VIP)
-            </Text>
-            <View style={styles.ticketPreviewActionRow}>
-              <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
-              <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* UC07 & UC08: Account Administration & Role Management Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="shield-checkmark" size={18} color="#3B82F6" />
-              <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền</Text>
-            </View>
-            <View style={styles.roleTag}>
-              <Text style={styles.roleTagText}>
-                {user.role === 'admin'
-                  ? 'Quản trị viên'
-                  : user.role === 'manager'
-                  ? 'Quản lý rạp'
-                  : user.role === 'staff'
-                  ? 'Nhân viên'
-                  : 'Khách hàng'}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.adminSectionDesc}>
-            Chức năng quản trị: Thêm, sửa, xem và vô hiệu hóa tài khoản (UC07) cùng bảng ma trận phân quyền và cập nhật vai trò người dùng (UC08).
-          </Text>
-
-          {/* Quick Demo Role Switcher */}
-          <View style={styles.demoRoleSwitcher}>
-            <Text style={styles.demoRoleLabel}>Chuyển đổi vai trò demo:</Text>
-            <View style={styles.demoRoleButtonsRow}>
-              {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((r) => {
-                const isSelected = user.role === r;
-                return (
-                  <TouchableOpacity
-                    key={r}
-                    style={[
-                      styles.demoRoleChip,
-                      isSelected && styles.demoRoleChipActive,
-                    ]}
-                    onPress={() => switchDemoRole?.(r)}>
-                    <Text
-                      style={[
-                        styles.demoRoleChipText,
-                        isSelected && styles.demoRoleChipTextActive,
-                      ]}>
-                      {r === 'customer'
-                        ? 'Khách hàng'
-                        : r === 'staff'
-                        ? 'Nhân viên'
-                        : r === 'manager'
-                        ? 'Quản lý'
-                        : 'Admin'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.adminLaunchBtn}
-            onPress={() => setAdminModalVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="people-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.adminLaunchBtnText}>
-              Mở Quản Trị Tài Khoản & Phân Quyền (UC07, UC08)
-            </Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Admin Management Hub Access (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
+        {/* Admin Management Hub Access - Chỉ hiển thị cho Admin */}
         {user.role === 'admin' && (
           <TouchableOpacity
             style={styles.adminHubCard}
@@ -986,7 +459,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <Text style={styles.adminHubSub}>
-                  Quản lý Đồ ăn (UC37), Khuyến mãi (UC39), Đánh giá (UC41), Thông báo (UC42), Đơn đồ ăn (UC44) & Báo cáo doanh thu (UC45)
+                  Quản lý Đồ ăn, Khuyến mãi, Đánh giá, Thông báo, Đơn đồ ăn & Báo cáo doanh thu
                 </Text>
               </View>
             </View>
@@ -1063,84 +536,37 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Session Management Details (UC02) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, styles.sessionHeaderTitle]}>
-              Quản lý phiên đăng nhập (Session)
-            </Text>
-            <View style={styles.activeTag}>
-              <Text style={styles.activeTagText}>Đang hoạt động</Text>
-            </View>
-          </View>
-
-          <View style={styles.sessionGrid}>
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Mã phiên (Token)</Text>
-              <Text style={styles.sessionGridValue} numberOfLines={1}>
-                {session ? session.token.substring(0, 16) + '...' : 'N/A'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Thiết bị / Nền tảng</Text>
-              <Text style={styles.sessionGridValue}>
-                {session?.devicePlatform?.toUpperCase() || 'MOBILE'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Ghi nhớ đăng nhập</Text>
-              <Text style={styles.sessionGridValue}>
-                {session?.rememberMe ? 'Đã kích hoạt (30 ngày)' : '24 giờ'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Hết hạn lúc</Text>
-              <Text style={styles.sessionGridValue}>
-                {session ? new Date(session.expiresAt).toLocaleDateString('vi-VN') : 'N/A'}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.sessionDetailButton}
-            onPress={() => setSessionModalVisible(true)}>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#9CA3AF" />
-            <Text style={styles.sessionDetailButtonText}>Xem chi tiết kỹ thuật phiên đăng nhập</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Quick Hub for UC09 & UC10 Action Buttons */}
-        <View style={styles.quickHubRow}>
-          <TouchableOpacity
-            style={styles.hubActionBtn}
-            onPress={() => setBookingHistoryVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="ticket-outline" size={20} color="#E50914" />
-            <Text style={styles.hubActionBtnTitle}>Vé xem phim</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket (UC09)</Text>
-          </TouchableOpacity>
+        {/* Quick Hub for Action Buttons - Chỉ hiển thị cho khách hàng */}
+        {user.role === 'customer' && (
+          <View style={styles.quickHubRow}>
+            <TouchableOpacity
+              style={styles.hubActionBtn}
+              onPress={() => setBookingHistoryVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="ticket-outline" size={20} color="#E50914" />
+              <Text style={styles.hubActionBtnTitle}>Vé xem phim</Text>
+              <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.hubActionBtn}
-            onPress={() => setMembershipModalVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="ribbon-outline" size={20} color="#F59E0B" />
-            <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm (UC10)</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Tickets & Food Orders (UC38 & UC44) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
-            <Text style={styles.ticketCount}>
-              {myOrders.length > 0 ? `${myOrders.length} đơn` : `${sampleTickets.length} vé`}
-            </Text>
+            <TouchableOpacity
+              style={styles.hubActionBtn}
+              onPress={() => setMembershipModalVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="ribbon-outline" size={20} color="#F59E0B" />
+              <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
+              <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm</Text>
+            </TouchableOpacity>
           </View>
+        )}
+
+        {/* Tickets & Food Orders - Chỉ hiển thị cho khách hàng hoặc khi có đơn đặt thực tế */}
+        {(user.role === 'customer' || myOrders.length > 0) && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
+              <Text style={styles.ticketCount}>{myOrders.length} đơn</Text>
+            </View>
 
           {myOrders.length > 0 ? (
             myOrders.map((ord) => (
@@ -1156,8 +582,8 @@ export default function ProfileScreen() {
                           ord.orderStatus === 'ready'
                             ? '#10B98125'
                             : ord.orderStatus === 'completed'
-                            ? '#3B82F625'
-                            : '#F59E0B25',
+                              ? '#3B82F625'
+                              : '#F59E0B25',
                       },
                     ]}>
                     <Text
@@ -1168,8 +594,8 @@ export default function ProfileScreen() {
                           ord.orderStatus === 'ready'
                             ? '#10B981'
                             : ord.orderStatus === 'completed'
-                            ? '#3B82F6'
-                            : '#F59E0B',
+                              ? '#3B82F6'
+                              : '#F59E0B',
                       }}>
                       {ord.orderStatus === 'preparing' && 'Đang chuẩn bị'}
                       {ord.orderStatus === 'ready' && 'Đã sẵn sàng nhận'}
@@ -1210,21 +636,16 @@ export default function ProfileScreen() {
               </View>
             ))
           ) : (
-            sampleTickets.map((ticket) => (
-              <View key={ticket.id} style={styles.ticketItem}>
-                <View style={styles.ticketHeader}>
-                  <Ionicons name="film-outline" size={18} color="#E50914" />
-                  <Text style={styles.ticketMovieTitle}>{ticket.movieTitle}</Text>
-                </View>
-                <Text style={styles.ticketTheater}>{ticket.theater}</Text>
-                <View style={styles.ticketFooter}>
-                  <Text style={styles.ticketShowtime}>🕒 {ticket.showtime}</Text>
-                  <Text style={styles.ticketSeats}>Ghế: {ticket.seats}</Text>
-                </View>
-              </View>
-            ))
+            <View style={styles.emptyOrdersContainer}>
+              <Ionicons name="receipt-outline" size={36} color="#6B7280" />
+              <Text style={styles.emptyOrdersTitle}>Chưa có đơn vé hoặc bắp nước</Text>
+              <Text style={styles.emptyOrdersSub}>
+                Toàn bộ đơn đặt vé và combo bắp nước bạn đã đặt sẽ hiển thị ở đây.
+              </Text>
+            </View>
           )}
         </View>
+        )}
 
         {/* Logout Button */}
         <TouchableOpacity
@@ -1232,7 +653,7 @@ export default function ProfileScreen() {
           onPress={() => setLogoutModalVisible(true)}
           activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color="#EF4444" style={{ marginRight: 8 }} />
-          <Text style={styles.logoutButtonText}>ĐĂNG XUẤT PHIÊN LÀM VIỆC</Text>
+          <Text style={styles.logoutButtonText}>ĐĂNG XUẤT</Text>
         </TouchableOpacity>
 
         {/* Delete Account Button */}
@@ -1361,7 +782,7 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chi tiết kỹ thuật phiên (UC02)</Text>
+              <Text style={styles.modalTitle}>Chi tiết kỹ thuật phiên đăng nhập</Text>
               <TouchableOpacity onPress={() => setSessionModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#9CA3AF" />
               </TouchableOpacity>
@@ -1559,9 +980,9 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* UC07 & UC08: Admin Account Management & Role Authorization Modal */}
+      {/* Admin Account Management & Role Authorization Modal */}
       <AdminAccountManagementModal
-        visible={adminModalVisible}
+        visible={adminModalVisible && user.role === 'admin'}
         onClose={() => setAdminModalVisible(false)}
         token={session?.token}
         currentUser={user}
@@ -1593,7 +1014,7 @@ export default function ProfileScreen() {
 
       {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
       <AdminManagementHubModal
-        visible={adminHubVisible}
+        visible={adminHubVisible && user.role === 'admin'}
         onClose={() => {
           setAdminHubVisible(false);
           fetchProfileData();
@@ -1940,6 +1361,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#60A5FA',
     fontWeight: '600',
+  },
+  emptyTicketPreviewBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    borderStyle: 'dashed',
+  },
+  emptyTicketPreviewTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyTicketPreviewSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptyTicketPreviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E50914',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  emptyTicketPreviewBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyOrdersContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyOrdersTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyOrdersSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
   roleTag: {
     backgroundColor: '#1E3A8A',
@@ -2331,13 +1804,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   guestContainer: {
-    padding: 24,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    alignItems: 'stretch',
   },
   guestHero: {
     alignItems: 'center',
     marginBottom: 20,
-    paddingTop: 10,
+    paddingTop: 6,
   },
   guestIconCircle: {
     width: 72,
@@ -2579,22 +2056,30 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   guestTabSwitcher: {
+    width: '100%',
     flexDirection: 'row',
-    backgroundColor: '#151821',
+    backgroundColor: '#141722',
     borderRadius: 12,
     padding: 4,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#232938',
   },
   guestTabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 9,
   },
   guestTabBtnActive: {
     backgroundColor: '#E50914',
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   guestTabText: {
     fontSize: 14,
@@ -2603,15 +2088,71 @@ const styles = StyleSheet.create({
   },
   guestTabTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   guestAuthCard: {
-    backgroundColor: '#151821',
-    borderRadius: 16,
-    padding: 18,
+    width: '100%',
+    backgroundColor: '#141722',
+    borderRadius: 18,
+    padding: 20,
     borderWidth: 1,
     borderColor: '#232938',
     marginBottom: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  demoFillSection: {
+    backgroundColor: '#0F121B',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1E2435',
+  },
+  demoFillHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  demoFillTitle: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.8,
+  },
+  demoFillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  demoFillPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#151926',
+    borderWidth: 1,
+    borderColor: '#293247',
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  demoFillPillActive: {
+    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+  },
+  demoFillPillAdminActive: {
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  demoFillPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#D1D5DB',
   },
   guestDemoBtn: {
     flexDirection: 'row',
@@ -2666,53 +2207,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   guestField: {
-    marginBottom: 14,
+    marginBottom: 16,
+    width: '100%',
   },
   guestLabel: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#D1D5DB',
-    marginBottom: 6,
+    color: '#E5E7EB',
+    marginBottom: 8,
   },
   guestInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0F121B',
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2D3345',
-    paddingHorizontal: 12,
-    height: 46,
+    borderColor: '#262D3D',
+    paddingHorizontal: 14,
+    height: 48,
   },
   guestInputIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   guestTextInput: {
     flex: 1,
     color: '#FFFFFF',
     fontSize: 14,
+    paddingVertical: 0,
   },
   guestPassHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   guestForgotLink: {
     color: '#E50914',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   guestCheckboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
     marginTop: 4,
   },
   guestCheckbox: {
     width: 20,
     height: 20,
-    borderRadius: 5,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: '#4B5563',
     alignItems: 'center',
@@ -2725,27 +2268,55 @@ const styles = StyleSheet.create({
   },
   guestCheckboxText: {
     color: '#D1D5DB',
-    fontSize: 12.5,
+    fontSize: 13,
     flex: 1,
   },
   guestSubmitBtn: {
     backgroundColor: '#E50914',
-    borderRadius: 10,
-    height: 48,
+    borderRadius: 12,
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#E50914',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
     elevation: 4,
+    width: '100%',
   },
   guestSubmitBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  demoTestingCard: {
+    backgroundColor: '#121622',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#262F44',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  demoTestingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  demoTestingTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 0.8,
+  },
+  demoTestingDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
+    marginBottom: 12,
   },
   guestRegPromo: {
     flexDirection: 'row',

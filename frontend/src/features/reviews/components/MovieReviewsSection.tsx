@@ -151,7 +151,7 @@ export default function MovieReviewsSection({
       <View style={styles.sectionHeaderRow}>
         <View style={styles.headerTitleRow}>
           <Ionicons name="star" size={20} color="#F59E0B" />
-          <Text style={styles.sectionTitle}>Đánh giá & Xếp hạng (UC40)</Text>
+          <Text style={styles.sectionTitle}>Đánh giá & Xếp hạng</Text>
         </View>
 
         <TouchableOpacity

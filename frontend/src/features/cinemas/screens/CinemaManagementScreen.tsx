@@ -1,6 +1,4 @@
 // Màn hình Phân hệ Quản lý Cụm Rạp & Phòng Chiếu CineMax
-// UC17: Manage Cinemas | UC18: Manage Rooms
-// UC19: View Cinema Details | UC20: Manage Cinema Facilities
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -36,11 +34,12 @@ const AREA_FILTER_OPTIONS = [
   'Đà Nẵng',
   'Cần Thơ',
   'Hải Phòng',
+  'Bình Dương',
 ];
 
 export default function CinemaManagementScreen() {
   const { user, session } = useAuth();
-  const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'manager'));
+  const isAdmin = Boolean(user && user.role === 'admin');
   const authToken = session?.token || '';
 
   // Data & Filter State
@@ -91,7 +90,7 @@ export default function CinemaManagementScreen() {
     fetchTheaters(false);
   };
 
-  // UC19: Xem chi tiết rạp
+  // Xem chi tiết rạp
   const handleOpenDetail = (theater: Theater) => {
     setSelectedTheater(theater);
     setDetailModalVisible(true);
@@ -104,7 +103,7 @@ export default function CinemaManagementScreen() {
     });
   };
 
-  // UC17: Thêm / Sửa / Xóa rạp (Admin)
+  // Thêm / Sửa / Xóa rạp (Admin)
   const handleOpenCreateTheater = () => {
     setTheaterToEdit(null);
     setFormModalVisible(true);
@@ -133,13 +132,13 @@ export default function CinemaManagementScreen() {
     }
   };
 
-  // UC18: Quản lý phòng chiếu (Admin)
+  // Quản lý phòng chiếu (Admin)
   const handleManageRooms = (theater: Theater) => {
     setSelectedTheater(theater);
     setRoomModalVisible(true);
   };
 
-  // UC20: Quản lý tiện ích (Admin)
+  // Quản lý tiện ích (Admin)
   const handleManageFacilities = (theater: Theater) => {
     setSelectedTheater(theater);
     setFacilityModalVisible(true);
@@ -165,7 +164,7 @@ export default function CinemaManagementScreen() {
           </View>
 
           <View style={styles.topRightActions}>
-            {/* UC17: Nút Thêm Rạp (Chỉ Admin) */}
+            {/* Nút Thêm Rạp (Chỉ Admin) */}
             {isAdmin ? (
               <TouchableOpacity
                 style={styles.createTheaterBtn}
@@ -254,13 +253,13 @@ export default function CinemaManagementScreen() {
           renderItem={({ item }) => (
             <CinemaCard
               theater={item}
-              onPress={handleOpenDetail} // UC19
+              onPress={handleOpenDetail}
               onViewShowtimes={handleOpenDetail}
               isAdmin={isAdmin}
-              onEditTheater={handleOpenEditTheater} // UC17
-              onDeleteTheater={handleDeleteTheater} // UC17
-              onManageRooms={handleManageRooms} // UC18
-              onManageFacilities={handleManageFacilities} // UC20
+              onEditTheater={handleOpenEditTheater}
+              onDeleteTheater={handleDeleteTheater}
+              onManageRooms={handleManageRooms}
+              onManageFacilities={handleManageFacilities}
             />
           )}
           ListEmptyComponent={
@@ -292,7 +291,7 @@ export default function CinemaManagementScreen() {
           }
         />
 
-        {/* UC19: Chi tiết rạp Modal */}
+        {/* Chi tiết rạp Modal */}
         <CinemaDetailModal
           theater={selectedTheater}
           visible={detailModalVisible}
@@ -300,7 +299,7 @@ export default function CinemaManagementScreen() {
           onSelectShowtimes={handleSelectShowtimes}
         />
 
-        {/* UC17: Thêm / Sửa rạp Modal (Admin) */}
+        {/* Thêm / Sửa rạp Modal (Admin) */}
         <CinemaFormModal
           visible={formModalVisible}
           onClose={() => setFormModalVisible(false)}
@@ -308,7 +307,7 @@ export default function CinemaManagementScreen() {
           onSave={handleSaveTheater}
         />
 
-        {/* UC18: Quản lý phòng chiếu Modal (Admin) */}
+        {/* Quản lý phòng chiếu Modal (Admin) */}
         <RoomManagementModal
           theater={selectedTheater}
           visible={roomModalVisible}
@@ -317,7 +316,7 @@ export default function CinemaManagementScreen() {
           onRoomsUpdated={() => fetchTheaters(false)}
         />
 
-        {/* UC20: Quản lý tiện ích rạp Modal (Admin) */}
+        {/* Quản lý tiện ích rạp Modal (Admin) */}
         <FacilityManagementModal
           theater={selectedTheater}
           visible={facilityModalVisible}

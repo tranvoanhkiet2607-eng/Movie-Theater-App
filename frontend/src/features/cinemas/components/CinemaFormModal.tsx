@@ -1,6 +1,3 @@
-// UC17: Manage Cinemas - CinemaFormModal Component
-// Modal Thêm mới và Chỉnh sửa thông tin cụm rạp chiếu (Admin)
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -45,7 +42,6 @@ export default function CinemaFormModal({
   const [shortName, setShortName] = useState('');
   const [area, setArea] = useState('Hồ Chí Minh');
   const [address, setAddress] = useState('');
-  const [distance, setDistance] = useState('Cách bạn 2.5 km');
   const [hotline, setHotline] = useState('1900 6017');
   const [totalRooms, setTotalRooms] = useState('6');
   const [selectedFormats, setSelectedFormats] = useState<string[]>([
@@ -63,7 +59,6 @@ export default function CinemaFormModal({
       setShortName(theaterToEdit.shortName || '');
       setArea(theaterToEdit.area || 'Hồ Chí Minh');
       setAddress(theaterToEdit.address || '');
-      setDistance(theaterToEdit.distance || '');
       setHotline(theaterToEdit.hotline || '1900 6017');
       setTotalRooms(String(theaterToEdit.totalRooms || 6));
       setSelectedFormats(theaterToEdit.supportedFormats || ['2D Phụ đề']);
@@ -72,7 +67,6 @@ export default function CinemaFormModal({
       setShortName('');
       setArea('Hồ Chí Minh');
       setAddress('');
-      setDistance('Cách bạn 2.5 km');
       setHotline('1900 6017');
       setTotalRooms('6');
       setSelectedFormats(['2D Phụ đề', '3D Phụ đề', 'IMAX 3D']);
@@ -112,7 +106,6 @@ export default function CinemaFormModal({
         shortName: shortName.trim(),
         area: area.trim(),
         address: address.trim(),
-        distance: distance.trim(),
         hotline: hotline.trim(),
         totalRooms: Number(totalRooms) || 6,
         supportedFormats: selectedFormats,
@@ -213,33 +206,20 @@ export default function CinemaFormModal({
               />
             </View>
 
-            {/* Hotline & Khoảng cách */}
-            <View style={styles.rowTwoCols}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Hotline liên hệ</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={hotline}
-                  onChangeText={setHotline}
-                  placeholder="1900 6017"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Khoảng cách hiển thị</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={distance}
-                  onChangeText={setDistance}
-                  placeholder="Cách bạn 3 km"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
+            {/* Hotline liên hệ */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Hotline liên hệ</Text>
+              <TextInput
+                style={styles.textInput}
+                value={hotline}
+                onChangeText={setHotline}
+                placeholder="Ví dụ: 1900 6017"
+                placeholderTextColor="#6B7280"
+              />
             </View>
 
             {/* Định dạng hỗ trợ */}
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { marginTop: 4 }]}>
               <Text style={styles.inputLabel}>Định dạng phòng chiếu hỗ trợ</Text>
               <View style={styles.formatsGrid}>
                 {ALL_FORMAT_OPTIONS.map((fmt) => {
@@ -349,7 +329,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#EF4444',
-    fontSize: 12.5,
+    fontSize: 13,
     flex: 1,
   },
   inputGroup: {
@@ -357,7 +337,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     color: '#E5E7EB',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
   },
@@ -366,13 +346,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#262D3E',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     color: '#FFFFFF',
     fontSize: 13.5,
   },
   addressInput: {
-    minHeight: 60,
+    minHeight: 56,
     textAlignVertical: 'top',
   },
   areaRow: {
@@ -381,10 +361,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   areaChip: {
-    backgroundColor: '#181C28',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
+    backgroundColor: '#181C28',
     borderWidth: 1,
     borderColor: '#262D3E',
   },
@@ -400,10 +380,6 @@ const styles = StyleSheet.create({
   areaChipTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
-  },
-  rowTwoCols: {
-    flexDirection: 'row',
-    gap: 12,
   },
   formatsGrid: {
     flexDirection: 'row',

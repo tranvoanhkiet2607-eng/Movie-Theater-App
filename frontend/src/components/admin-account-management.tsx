@@ -113,21 +113,6 @@ const DEFAULT_ROLE_MATRIX: Record<UserRole, RoleInfo> = {
       { code: 'role:manage', name: 'Phân quyền & đổi vai trò', granted: false },
     ],
   },
-  manager: {
-    roleName: 'Quản lý cụm rạp',
-    description: 'Giám sát hoạt động rạp, quản lý tài khoản nhân viên và theo dõi lịch chiếu',
-    badgeColor: '#F59E0B',
-    permissions: [
-      { code: 'movie:view', name: 'Xem phim & lịch chiếu', granted: true },
-      { code: 'booking:create', name: 'Đặt vé & hỗ trợ khách', granted: true },
-      { code: 'booking:history', name: 'Quản lý toàn bộ lịch sử vé', granted: true },
-      { code: 'membership:points', name: 'Quản lý chính sách hội viên', granted: true },
-      { code: 'profile:edit', name: 'Quản lý thông tin cá nhân', granted: true },
-      { code: 'ticket:checkin', name: 'Soát vé & giải quyết tranh chấp vé', granted: true },
-      { code: 'account:manage', name: 'Xem & cập nhật tài khoản nhân viên', granted: true },
-      { code: 'role:manage', name: 'Phân quyền nhân viên rạp', granted: true },
-    ],
-  },
   admin: {
     roleName: 'Quản trị viên',
     description: 'Toàn quyền kiểm soát hệ thống, phân quyền, quản trị tài khoản và cấu hình hệ thống',
@@ -425,8 +410,6 @@ export function AdminAccountManagementModal({
     switch (role) {
       case 'admin':
         return { bg: '#FEE2E2', text: '#DC2626', label: 'Quản trị viên' };
-      case 'manager':
-        return { bg: '#FEF3C7', text: '#D97706', label: 'Quản lý rạp' };
       case 'staff':
         return { bg: '#D1FAE5', text: '#059669', label: 'Nhân viên' };
       default:
@@ -449,7 +432,7 @@ export function AdminAccountManagementModal({
             </View>
             <View>
               <Text style={styles.headerTitle}>Quản Trị Tài Khoản & Phân Quyền</Text>
-              <Text style={styles.headerSubtitle}>UC07 (Manage Accounts) • UC08 (Manage Roles)</Text>
+              <Text style={styles.headerSubtitle}>Quản lý tài khoản • Phân quyền vai trò</Text>
             </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -464,7 +447,7 @@ export function AdminAccountManagementModal({
             onPress={() => setMatrixModalVisible(true)}
             activeOpacity={0.8}>
             <Ionicons name="git-network-outline" size={16} color="#3B82F6" />
-            <Text style={styles.matrixBtnText}>Ma Trận Phân Quyền</Text>
+            <Text style={styles.matrixBtnText}>Bảng Phân Quyền</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -502,7 +485,7 @@ export function AdminAccountManagementModal({
         <View style={styles.filterSection}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
             <Text style={styles.filterLabel}>Vai trò:</Text>
-            {(['all', 'customer', 'staff', 'manager', 'admin'] as const).map((r) => (
+            {(['all', 'customer', 'staff', 'admin'] as const).map((r) => (
               <TouchableOpacity
                 key={r}
                 style={[styles.filterChip, selectedRoleFilter === r && styles.filterChipActive]}
@@ -514,8 +497,6 @@ export function AdminAccountManagementModal({
                     ? 'Khách hàng'
                     : r === 'staff'
                     ? 'Nhân viên'
-                    : r === 'manager'
-                    ? 'Quản lý'
                     : 'Quản trị viên'}
                 </Text>
               </TouchableOpacity>
@@ -706,7 +687,7 @@ export function AdminAccountManagementModal({
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="git-network" size={22} color="#3B82F6" style={{ marginRight: 8 }} />
-                  <Text style={styles.modalTitle}>Bảng Ma Trận Phân Quyền</Text>
+                  <Text style={styles.modalTitle}>Bảng Phân Quyền Vai Trò</Text>
                 </View>
                 <TouchableOpacity onPress={() => setMatrixModalVisible(false)}>
                   <Ionicons name="close" size={24} color="#9CA3AF" />
@@ -715,10 +696,10 @@ export function AdminAccountManagementModal({
 
               <ScrollView style={{ maxHeight: 420 }}>
                 <Text style={styles.matrixNotice}>
-                  Hệ thống phân cấp CineMax bao gồm 4 vai trò. Mỗi vai trò sở hữu các quyền hạn được thiết lập nghiêm ngặt:
+                  Hệ thống phân cấp CineMax bao gồm 3 vai trò. Mỗi vai trò sở hữu các quyền hạn được thiết lập nghiêm ngặt:
                 </Text>
 
-                {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((rKey) => {
+                {(['customer', 'staff', 'admin'] as UserRole[]).map((rKey) => {
                   const role = DEFAULT_ROLE_MATRIX[rKey];
                   return (
                     <View key={rKey} style={styles.matrixRoleBox}>
@@ -840,7 +821,7 @@ export function AdminAccountManagementModal({
                 <View style={styles.formField}>
                   <Text style={styles.formLabel}>Vai trò (Role)</Text>
                   <View style={styles.roleChoiceRow}>
-                    {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((r) => (
+                    {(['customer', 'staff', 'admin'] as UserRole[]).map((r) => (
                       <TouchableOpacity
                         key={r}
                         style={[styles.roleChoiceBtn, newRole === r && styles.roleChoiceBtnActive]}
@@ -998,7 +979,7 @@ export function AdminAccountManagementModal({
             <View style={styles.matrixModalCard}>
               <View style={styles.modalHeader}>
                 <View>
-                  <Text style={styles.modalTitle}>Phân Quyền Vai Trò (UC08)</Text>
+                  <Text style={styles.modalTitle}>Phân Quyền Vai Trò</Text>
                   <Text style={styles.modalSubtitle}>
                     Tài khoản: <Text style={{ color: '#E50914', fontWeight: 'bold' }}>{targetAccount?.fullName}</Text>
                   </Text>
@@ -1011,7 +992,7 @@ export function AdminAccountManagementModal({
               <Text style={styles.rolePickerTitle}>Chọn vai trò được ủy quyền:</Text>
 
               <ScrollView style={{ maxHeight: 350 }}>
-                {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((rKey) => {
+                {(['customer', 'staff', 'admin'] as UserRole[]).map((rKey) => {
                   const role = DEFAULT_ROLE_MATRIX[rKey];
                   const isSelected = assignedRole === rKey;
 

@@ -1,15 +1,14 @@
 // UC11: View Movies | UC14: Manage Movies | UC16: View Movie Trailer
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Movie, AgeRating } from '../types/movie.types';
+import {
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { AgeRating, Movie } from '../types/movie.types';
 
 interface MovieCardProps {
   movie: Movie;
@@ -90,6 +89,7 @@ export default function MovieCard({
 
         {/* Rating Badge */}
         <View style={styles.ratingBadge}>
+          <Ionicons name="star" size={11} color="#F59E0B" />
           <Text style={styles.ratingBadgeText}>{movie.rating}</Text>
         </View>
 
@@ -98,8 +98,10 @@ export default function MovieCard({
           <TouchableOpacity
             style={styles.trailerPlayOverlay}
             onPress={() => onViewTrailer(movie)}
-            activeOpacity={0.8}>
-            <Ionicons name="play-circle" size={32} color="#FFFFFF" />
+            activeOpacity={0.85}>
+            <View style={styles.trailerPlayCircle}>
+              <Ionicons name="play" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
+            </View>
           </TouchableOpacity>
         ) : null}
 
@@ -230,14 +232,19 @@ export default function MovieCard({
 
 const styles = StyleSheet.create({
   cardContainer: {
-    backgroundColor: '#151821',
-    borderRadius: 14,
+    backgroundColor: '#141722',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#242A38',
+    borderColor: '#232938',
     overflow: 'hidden',
     marginBottom: 16,
     flex: 1,
     marginHorizontal: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   posterWrapper: {
     position: 'relative',
@@ -277,14 +284,17 @@ const styles = StyleSheet.create({
   },
   ratingBadge: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 8,
     right: 8,
     backgroundColor: 'rgba(11, 12, 16, 0.88)',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 0.5,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   ratingBadgeText: {
     color: '#F59E0B',
@@ -293,23 +303,36 @@ const styles = StyleSheet.create({
   },
   trailerPlayOverlay: {
     position: 'absolute',
-    top: '38%',
-    left: '38%',
-    backgroundColor: 'rgba(229, 9, 20, 0.75)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  trailerPlayCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(229, 9, 20, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
   statusTag: {
     position: 'absolute',
-    bottom: 6,
+    bottom: 8,
     left: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(11, 12, 16, 0.85)',
+    backgroundColor: 'rgba(11, 12, 16, 0.88)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,

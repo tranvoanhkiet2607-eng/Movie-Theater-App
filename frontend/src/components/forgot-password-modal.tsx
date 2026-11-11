@@ -209,7 +209,7 @@ function ForgotPasswordContent({
           <View style={styles.headerRow}>
             <View style={styles.headerTitleWrap}>
               <Ionicons name="key" size={20} color="#E50914" />
-              <Text style={styles.headerTitle}>UC04 • Quên Mật Khẩu</Text>
+              <Text style={styles.headerTitle}>Quên Mật Khẩu</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color="#9CA3AF" />
