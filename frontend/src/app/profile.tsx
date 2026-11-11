@@ -340,74 +340,76 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Booking History & Upcoming Tickets Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="ticket" size={18} color="#E50914" />
-              <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.openFeatureBtn}
-              onPress={() => setBookingHistoryVisible(true)}>
-              <Text style={styles.openFeatureBtnText}>Xem tất cả</Text>
-              <Ionicons name="chevron-forward" size={13} color="#E50914" />
-            </TouchableOpacity>
-          </View>
-
-          {latestUpcomingBooking ? (
-            <TouchableOpacity
-              style={styles.ticketPreviewCard}
-              onPress={() => setBookingHistoryVisible(true)}
-              activeOpacity={0.85}>
-              <View style={styles.ticketPreviewBadge}>
-                <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+        {/* Booking History & Upcoming Tickets Section - Chỉ hiển thị cho khách hàng hoặc khi có vé thực tế */}
+        {(user.role === 'customer' || Boolean(latestUpcomingBooking || latestUpcomingOrder)) && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="ticket" size={18} color="#E50914" />
+                <Text style={styles.sectionTitle}>Vé & Lịch sử Đặt Vé</Text>
               </View>
-              <Text style={styles.ticketPreviewTitle}>
-                {latestUpcomingBooking.movieTitle} {latestUpcomingBooking.format ? `(${latestUpcomingBooking.format})` : ''}
-              </Text>
-              <Text style={styles.ticketPreviewMeta}>
-                📍 {latestUpcomingBooking.cinemaName} • {latestUpcomingBooking.hallName} • Ghế: {latestUpcomingBooking.seats.join(', ')}
-              </Text>
-              <View style={styles.ticketPreviewActionRow}>
-                <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
-                <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
-              </View>
-            </TouchableOpacity>
-          ) : latestUpcomingOrder ? (
-            <TouchableOpacity
-              style={styles.ticketPreviewCard}
-              onPress={() => setBookingHistoryVisible(true)}
-              activeOpacity={0.85}>
-              <View style={styles.ticketPreviewBadge}>
-                <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
-              </View>
-              <Text style={styles.ticketPreviewTitle}>
-                {latestUpcomingOrder.movie?.title || 'Phim rạp'}
-              </Text>
-              <Text style={styles.ticketPreviewMeta}>
-                📍 {latestUpcomingOrder.theater?.name} • {latestUpcomingOrder.theater?.room} • Ghế: {(latestUpcomingOrder.tickets || []).map((t) => t.seatNumber).join(', ')}
-              </Text>
-              <View style={styles.ticketPreviewActionRow}>
-                <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
-                <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.emptyTicketPreviewBox}>
-              <Ionicons name="ticket-outline" size={28} color="#6B7280" />
-              <Text style={styles.emptyTicketPreviewTitle}>Bạn chưa có vé xem phim nào sắp chiếu</Text>
-              <Text style={styles.emptyTicketPreviewSub}>Khám phá các phim hot và đặt vé ngay hôm nay</Text>
               <TouchableOpacity
-                style={styles.emptyTicketPreviewBtn}
-                onPress={() => router.push('/explore')}
-                activeOpacity={0.85}>
-                <Ionicons name="film-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.emptyTicketPreviewBtnText}>Đặt vé xem phim ngay</Text>
+                style={styles.openFeatureBtn}
+                onPress={() => setBookingHistoryVisible(true)}>
+                <Text style={styles.openFeatureBtnText}>Xem tất cả</Text>
+                <Ionicons name="chevron-forward" size={13} color="#E50914" />
               </TouchableOpacity>
             </View>
-          )}
-        </View>
+
+            {latestUpcomingBooking ? (
+              <TouchableOpacity
+                style={styles.ticketPreviewCard}
+                onPress={() => setBookingHistoryVisible(true)}
+                activeOpacity={0.85}>
+                <View style={styles.ticketPreviewBadge}>
+                  <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+                </View>
+                <Text style={styles.ticketPreviewTitle}>
+                  {latestUpcomingBooking.movieTitle} {latestUpcomingBooking.format ? `(${latestUpcomingBooking.format})` : ''}
+                </Text>
+                <Text style={styles.ticketPreviewMeta}>
+                  📍 {latestUpcomingBooking.cinemaName} • {latestUpcomingBooking.hallName} • Ghế: {latestUpcomingBooking.seats.join(', ')}
+                </Text>
+                <View style={styles.ticketPreviewActionRow}>
+                  <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                  <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+                </View>
+              </TouchableOpacity>
+            ) : latestUpcomingOrder ? (
+              <TouchableOpacity
+                style={styles.ticketPreviewCard}
+                onPress={() => setBookingHistoryVisible(true)}
+                activeOpacity={0.85}>
+                <View style={styles.ticketPreviewBadge}>
+                  <Text style={styles.ticketPreviewBadgeText}>SẮP CHIẾU</Text>
+                </View>
+                <Text style={styles.ticketPreviewTitle}>
+                  {latestUpcomingOrder.movie?.title || 'Phim rạp'}
+                </Text>
+                <Text style={styles.ticketPreviewMeta}>
+                  📍 {latestUpcomingOrder.theater?.name} • {latestUpcomingOrder.theater?.room} • Ghế: {(latestUpcomingOrder.tickets || []).map((t) => t.seatNumber).join(', ')}
+                </Text>
+                <View style={styles.ticketPreviewActionRow}>
+                  <Ionicons name="qr-code-outline" size={16} color="#3B82F6" />
+                  <Text style={styles.ticketPreviewActionText}>Mở vé điện tử & Mã QR soát vé vào rạp</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.emptyTicketPreviewBox}>
+                <Ionicons name="ticket-outline" size={28} color="#6B7280" />
+                <Text style={styles.emptyTicketPreviewTitle}>Bạn chưa có vé xem phim nào sắp chiếu</Text>
+                <Text style={styles.emptyTicketPreviewSub}>Khám phá các phim hot và đặt vé ngay hôm nay</Text>
+                <TouchableOpacity
+                  style={styles.emptyTicketPreviewBtn}
+                  onPress={() => router.push('/explore')}
+                  activeOpacity={0.85}>
+                  <Ionicons name="film-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.emptyTicketPreviewBtnText}>Đặt vé xem phim ngay</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN */}
         {user.role === 'admin' && (
@@ -535,32 +537,36 @@ export default function ProfileScreen() {
         </View>
 
         {/* Quick Hub for UC09 & UC10 Action Buttons */}
-        <View style={styles.quickHubRow}>
-          <TouchableOpacity
-            style={styles.hubActionBtn}
-            onPress={() => setBookingHistoryVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="ticket-outline" size={20} color="#E50914" />
-            <Text style={styles.hubActionBtnTitle}>Vé xem phim</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket</Text>
-          </TouchableOpacity>
+        {/* Quick Hub for Action Buttons - Chỉ hiển thị cho khách hàng */}
+        {user.role === 'customer' && (
+          <View style={styles.quickHubRow}>
+            <TouchableOpacity
+              style={styles.hubActionBtn}
+              onPress={() => setBookingHistoryVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="ticket-outline" size={20} color="#E50914" />
+              <Text style={styles.hubActionBtnTitle}>Vé xem phim</Text>
+              <Text style={styles.hubActionBtnSubtitle}>Lịch sử & E-Ticket</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.hubActionBtn}
-            onPress={() => setMembershipModalVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="ribbon-outline" size={20} color="#F59E0B" />
-            <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
-            <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Tickets & Food Orders */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
-            <Text style={styles.ticketCount}>{myOrders.length} đơn</Text>
+            <TouchableOpacity
+              style={styles.hubActionBtn}
+              onPress={() => setMembershipModalVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="ribbon-outline" size={20} color="#F59E0B" />
+              <Text style={styles.hubActionBtnTitle}>Hội viên CineMax</Text>
+              <Text style={styles.hubActionBtnSubtitle}>Đổi quà & Tích điểm</Text>
+            </TouchableOpacity>
           </View>
+        )}
+
+        {/* Tickets & Food Orders - Chỉ hiển thị cho khách hàng hoặc khi có đơn đặt thực tế */}
+        {(user.role === 'customer' || myOrders.length > 0) && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Vé xem phim & Đơn đồ ăn của bạn</Text>
+              <Text style={styles.ticketCount}>{myOrders.length} đơn</Text>
+            </View>
 
           {myOrders.length > 0 ? (
             myOrders.map((ord) => (
@@ -639,6 +645,7 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+        )}
 
         {/* Logout Button */}
         <TouchableOpacity
