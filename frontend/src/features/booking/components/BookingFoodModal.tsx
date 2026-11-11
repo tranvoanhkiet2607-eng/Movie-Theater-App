@@ -107,6 +107,25 @@ export default function BookingFoodModal({
     };
   }, [rawSeats, showtime?.price]);
 
+  // Tính số cột lớn nhất để căn chỉnh ma trận ghế và nhãn 2 bên luôn thẳng tắp
+  const maxCols = useMemo(() => {
+    let max = 0;
+    seatsByRow.forEach((g) => {
+      let count = 0;
+      g.items.forEach((s) => {
+        count += s.type === 'couple' ? 2 : 1;
+      });
+      if (count > max) max = count;
+    });
+    return max || 12;
+  }, [seatsByRow]);
+
+  const maxGridWidth = useMemo(() => {
+    const seatW = 28;
+    const gapW = 6;
+    return maxCols * seatW + Math.max(0, maxCols - 1) * gapW;
+  }, [maxCols]);
+
   // Load Real Seats & Food Menu on Modal Open
   useEffect(() => {
     if (visible) {
@@ -458,7 +477,7 @@ export default function BookingFoodModal({
                     {seatsByRow.map((group) => (
                       <View key={group.row} style={styles.gridRow}>
                         <Text style={styles.rowLabel}>{group.row}</Text>
-                        <View style={styles.rowSeats}>
+                        <View style={[styles.rowSeats, { width: maxGridWidth, justifyContent: 'center' }]}>
                           {group.items.map((seat) => {
                             const seatCode =
                               seat.seatCode ||
@@ -1055,10 +1074,10 @@ const styles = StyleSheet.create({
   gridRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   rowLabel: {
-    width: 20,
+    width: 22,
     fontSize: 11,
     fontWeight: '700',
     color: '#9CA3AF',
@@ -1066,7 +1085,8 @@ const styles = StyleSheet.create({
   },
   rowSeats: {
     flexDirection: 'row',
-    gap: 5,
+    alignItems: 'center',
+    gap: 6,
   },
   seatBox: {
     width: 28,
@@ -1076,7 +1096,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   seatBoxCoupleWidth: {
-    width: 58,
+    width: 62,
   },
   seatBoxSelectedBorder: {
     borderWidth: 1.5,

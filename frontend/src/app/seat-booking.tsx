@@ -1518,7 +1518,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   seatButtonCouple: {
-    width: 58,
+    width: 62,
   },
   seatButtonSelected: {
     borderWidth: 2,

@@ -2647,7 +2647,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   seatUnitCouple: {
-    width: 58,
+    width: 62,
   },
   seatUnitText: {
     fontSize: 10,
