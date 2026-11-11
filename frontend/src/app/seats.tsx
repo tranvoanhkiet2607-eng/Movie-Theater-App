@@ -188,6 +188,13 @@ export default function SeatsScreen() {
     }
   }, [selectedTheaterId, selectedRoom]);
 
+  // Chặn khách hàng (customer) truy cập màn hình quản lý phòng & ghế
+  useEffect(() => {
+    if (user && user.role === 'customer') {
+      router.replace('/');
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchSeats();
     fetchSeatTypes();
