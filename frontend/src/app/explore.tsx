@@ -34,6 +34,8 @@ import {
 } from '@/types/showtime';
 import BookingFoodModal from '@/features/booking/components/BookingFoodModal';
 import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
+import { CinemaAPI } from '@/features/cinemas/services/cinemaApi';
+import { Room } from '@/features/cinemas/types/cinema.types';
 
 const TIME_PERIOD_OPTIONS: {
   key: TimeSlotPeriod;
@@ -46,16 +48,6 @@ const TIME_PERIOD_OPTIONS: {
   { key: 'afternoon', label: 'Buổi chiều', subLabel: '12:00 - 17:00', icon: 'partly-sunny-outline' },
   { key: 'evening', label: 'Buổi tối', subLabel: '17:00 - 21:00', icon: 'moon-outline' },
   { key: 'late', label: 'Suất khuya', subLabel: 'Sau 21:00', icon: 'sparkles-outline' },
-];
-
-const QUICK_ROOMS = [
-  'Rạp 01',
-  'Rạp 02',
-  'Rạp 03 (IMAX)',
-  'Rạp 04',
-  'Rạp 05',
-  'Rạp 4DX',
-  'Rạp Gold Class',
 ];
 
 const QUICK_START_TIMES = [
@@ -171,17 +163,19 @@ export default function ExploreScreen() {
   // Form Modal State (Thêm mới hoặc Sửa suất chiếu)
   const [formModalVisible, setFormModalVisible] = useState<boolean>(false);
   const [editingSlot, setEditingSlot] = useState<ShowtimeItem | null>(null);
-  const [formMovieId, setFormMovieId] = useState<string>('m1');
-  const [formTheaterId, setFormTheaterId] = useState<string>('t1');
+  const [formMovieId, setFormMovieId] = useState<string>('');
+  const [formTheaterId, setFormTheaterId] = useState<string>('');
   const [formDateKey, setFormDateKey] = useState<string>('d0');
-  const [formStartTime, setFormStartTime] = useState<string>('19:30');
-  const [formRoom, setFormRoom] = useState<string>('Rạp 01');
+  const [formStartTime, setFormStartTime] = useState<string>('19:00');
+  const [formRoom, setFormRoom] = useState<string>('');
   const [formFormat, setFormFormat] = useState<ShowtimeFormat>('2D Phụ đề');
-  const [formPrice, setFormPrice] = useState<string>('105000');
-  const [formTotalSeats, setFormTotalSeats] = useState<string>('140');
-  const [formAvailableSeats, setFormAvailableSeats] = useState<string>('140');
+  const [formPrice, setFormPrice] = useState<string>('90000');
+  const [formTotalSeats, setFormTotalSeats] = useState<string>('120');
+  const [formAvailableSeats, setFormAvailableSeats] = useState<string>('120');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmittingForm, setIsSubmittingForm] = useState<boolean>(false);
+  const [theaterRooms, setTheaterRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState<boolean>(false);
 
   // Delete Confirmation Modal State
   const [deletingSlot, setDeletingSlot] = useState<ShowtimeItem | null>(null);
@@ -260,30 +254,82 @@ export default function ExploreScreen() {
     }
   };
 
+  // Tải danh sách phòng chiếu thực tế của cụm rạp đã chọn trong modal thêm / sửa
+  useEffect(() => {
+    if (!formModalVisible || !formTheaterId) {
+      setTheaterRooms([]);
+      return;
+    }
+    let isCancelled = false;
+    setLoadingRooms(true);
+    CinemaAPI.getRooms(formTheaterId)
+      .then((rooms) => {
+        if (isCancelled) return;
+        const roomList = rooms || [];
+        setTheaterRooms(roomList);
+        if (!editingSlot) {
+          if (roomList.length > 0) {
+            const currentMatched = roomList.find((r) => r.name === formRoom) || roomList[0];
+            setFormRoom(currentMatched.name);
+            if (currentMatched.format) {
+              setFormFormat(currentMatched.format as ShowtimeFormat);
+            }
+            const seatCount = currentMatched.totalSeats || 120;
+            setFormTotalSeats(String(seatCount));
+            setFormAvailableSeats(String(seatCount));
+          } else {
+            setFormRoom('');
+          }
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) setTheaterRooms([]);
+      })
+      .finally(() => {
+        if (!isCancelled) setLoadingRooms(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [formModalVisible, formTheaterId]);
+
+  const handleSelectRoom = (r: Room) => {
+    setFormRoom(r.name);
+    if (r.format) {
+      setFormFormat(r.format as ShowtimeFormat);
+    }
+    const seatCount = r.totalSeats || 120;
+    setFormTotalSeats(String(seatCount));
+    if (!editingSlot) {
+      setFormAvailableSeats(String(seatCount));
+    }
+  };
+
   // ─── Handlers Quản lý Lịch chiếu (Thêm mới / Sửa / Xóa) ────────────────────
   const handleOpenCreateModal = (presetMovieId?: string, presetTheaterId?: string) => {
     setEditingSlot(null);
-    setFormMovieId(
-      presetMovieId && presetMovieId !== 'all'
-        ? presetMovieId
-        : selectedMovieId !== 'all'
-          ? selectedMovieId
-          : movies[0]?.id || 'm1'
-    );
-    setFormTheaterId(
-      presetTheaterId && presetTheaterId !== 'all'
-        ? presetTheaterId
-        : selectedTheaterId !== 'all'
-          ? selectedTheaterId
-          : theaters[0]?.id || 't1'
-    );
+    const chosenMovie = (presetMovieId && presetMovieId !== 'all')
+      ? presetMovieId
+      : (selectedMovieId && selectedMovieId !== 'all')
+        ? selectedMovieId
+        : movies[0]?.id || '';
+
+    const chosenTheater = (presetTheaterId && presetTheaterId !== 'all')
+      ? presetTheaterId
+      : (selectedTheaterId && selectedTheaterId !== 'all')
+        ? selectedTheaterId
+        : theaters[0]?.id || '';
+
+    setFormMovieId(chosenMovie);
+    setFormTheaterId(chosenTheater);
     setFormDateKey(selectedDateKey || 'd0');
-    setFormStartTime('19:30');
-    setFormRoom('Rạp 01');
+    setFormStartTime('19:00');
+    setFormRoom('');
     setFormFormat(selectedFormat !== 'all' ? selectedFormat : '2D Phụ đề');
-    setFormPrice('105000');
-    setFormTotalSeats('140');
-    setFormAvailableSeats('140');
+    setFormPrice('90000');
+    setFormTotalSeats('120');
+    setFormAvailableSeats('120');
     setFormError(null);
     setFormModalVisible(true);
   };
@@ -2096,41 +2142,61 @@ export default function ExploreScreen() {
                 </ScrollView>
               </View>
 
-              {/* 5. Phòng Chiếu */}
+              {/* 5. Phòng Chiếu (Dữ liệu thật từ Cụm rạp đã chọn) */}
               <View>
-                <Text style={styles.formFieldLabel}>5. PHÒNG CHIẾU *</Text>
+                <View style={styles.formLabelBetween}>
+                  <Text style={styles.formFieldLabel}>5. PHÒNG CHIẾU *</Text>
+                  {loadingRooms ? (
+                    <Text style={{ color: '#F59E0B', fontSize: 11 }}>Đang tải phòng...</Text>
+                  ) : theaterRooms.length > 0 ? (
+                    <Text style={{ color: '#10B981', fontSize: 11 }}>
+                      {theaterRooms.length} phòng trong database
+                    </Text>
+                  ) : null}
+                </View>
+
+                {theaterRooms.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={[styles.formChipsScroll, { marginBottom: 6 }]}>
+                    {theaterRooms.map((r) => {
+                      const active = formRoom.trim() === r.name.trim();
+                      return (
+                        <TouchableOpacity
+                          key={r.code || r.id || r.name}
+                          style={[
+                            styles.formSelectChip,
+                            active && styles.formSelectChipActive,
+                          ]}
+                          onPress={() => handleSelectRoom(r)}>
+                          <Text
+                            style={[
+                              styles.formSelectChipText,
+                              active && styles.formSelectChipTextActive,
+                            ]}>
+                            {r.name} ({r.format || '2D'} • {r.totalSeats} ghế)
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1810', padding: 8, borderRadius: 8, marginBottom: 6, borderWidth: 1, borderColor: '#3E341B' }}>
+                    <Ionicons name="information-circle-outline" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+                    <Text style={{ color: '#D1D5DB', fontSize: 12, flex: 1 }}>
+                      Cụm rạp này chưa có phòng chiếu trong database. Bạn có thể nhập tên phòng trực tiếp bên dưới.
+                    </Text>
+                  </View>
+                )}
+
                 <TextInput
                   style={styles.formTextInput}
                   value={formRoom}
                   onChangeText={setFormRoom}
-                  placeholder="VD: Rạp 01, Rạp 03 (IMAX)..."
+                  placeholder="Nhập tên phòng chiếu (VD: Rạp 01, Rạp 02...)"
                   placeholderTextColor="#6B7280"
                 />
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={[styles.formChipsScroll, { marginTop: 6 }]}>
-                  {QUICK_ROOMS.map((roomName) => {
-                    const active = formRoom.trim() === roomName;
-                    return (
-                      <TouchableOpacity
-                        key={roomName}
-                        style={[
-                          styles.formMiniChip,
-                          active && styles.formMiniChipActive,
-                        ]}
-                        onPress={() => setFormRoom(roomName)}>
-                        <Text
-                          style={[
-                            styles.formMiniChipText,
-                            active && styles.formMiniChipTextActive,
-                          ]}>
-                          {roomName}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
               </View>
 
               {/* 6. Định Dạng Chiếu */}
@@ -2173,7 +2239,7 @@ export default function ExploreScreen() {
                   value={formPrice}
                   onChangeText={setFormPrice}
                   keyboardType="numeric"
-                  placeholder="VD: 105000"
+                  placeholder="VD: 90000"
                   placeholderTextColor="#6B7280"
                 />
                 <ScrollView
@@ -2203,16 +2269,19 @@ export default function ExploreScreen() {
                 </ScrollView>
               </View>
 
-              {/* 8. Tổng Số Ghế & Ghế Trống */}
+              {/* 8. Tổng Số Ghế & Ghế Trống (Đồng bộ với số ghế của phòng chiếu) */}
               <View style={styles.formTwoColRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.formFieldLabel}>TỔNG SỐ GHẾ *</Text>
                   <TextInput
                     style={styles.formTextInput}
                     value={formTotalSeats}
-                    onChangeText={setFormTotalSeats}
+                    onChangeText={(val) => {
+                      setFormTotalSeats(val);
+                      if (!editingSlot) setFormAvailableSeats(val);
+                    }}
                     keyboardType="numeric"
-                    placeholder="140"
+                    placeholder="120"
                     placeholderTextColor="#6B7280"
                   />
                 </View>
@@ -2224,34 +2293,10 @@ export default function ExploreScreen() {
                     value={formAvailableSeats}
                     onChangeText={setFormAvailableSeats}
                     keyboardType="numeric"
-                    placeholder="140"
+                    placeholder="120"
                     placeholderTextColor="#6B7280"
                   />
                 </View>
-              </View>
-
-              {/* Nút chọn nhanh tình trạng ghế */}
-              <View style={styles.quickSeatsRow}>
-                <TouchableOpacity
-                  style={styles.quickSeatBtn}
-                  onPress={() => setFormAvailableSeats(formTotalSeats || '140')}>
-                  <Text style={styles.quickSeatBtnText}>Còn đủ ghế</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.quickSeatBtn}
-                  onPress={() => setFormAvailableSeats('25')}>
-                  <Text style={styles.quickSeatBtnText}>Sắp đầy (25)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.quickSeatBtn}
-                  onPress={() => setFormAvailableSeats('8')}>
-                  <Text style={styles.quickSeatBtnText}>Còn ít (8)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.quickSeatBtn}
-                  onPress={() => setFormAvailableSeats('0')}>
-                  <Text style={styles.quickSeatBtnText}>Hết vé (0)</Text>
-                </TouchableOpacity>
               </View>
             </ScrollView>
 
