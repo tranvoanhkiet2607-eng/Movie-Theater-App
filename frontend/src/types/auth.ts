@@ -143,6 +143,16 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   login: (data: LoginFormData) => Promise<{ success: boolean; message: string }>;
   register: (data: RegisterFormData) => Promise<{ success: boolean; message: string; user?: User }>;
+  requestRegisterOtp: (data: RegisterFormData) => Promise<{
+    success: boolean;
+    message: string;
+    maskedTarget?: string;
+    targetEmail?: string;
+  }>;
+  verifyRegisterOtp: (
+    email: string,
+    otp: string
+  ) => Promise<{ success: boolean; message: string; user?: User }>;
   logout: () => Promise<void>;
   updateProfile: (updatedData: Partial<Pick<User, 'fullName' | 'phone' | 'avatarUrl'>>) => Promise<{ success: boolean; message: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;

@@ -259,7 +259,7 @@ function ForgotPasswordContent({
                   <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder="customer@cinema.com hoặc 0901234567"
+                    placeholder="Nhập email tài khoản của bạn (ví dụ: your_email@gmail.com)"
                     placeholderTextColor="#6B7280"
                     value={identifier}
                     onChangeText={setIdentifier}
@@ -277,7 +277,7 @@ function ForgotPasswordContent({
                   ) : (
                     <>
                       <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.submitBtnText}>Gửi mã xác minh danh tính</Text>
+                      <Text style={styles.submitBtnText}>Gửi mã OTP về Email</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -289,31 +289,27 @@ function ForgotPasswordContent({
               <View>
                 <Text style={styles.stepHeading}>Bước 2: Xác minh danh tính</Text>
                 <Text style={styles.stepSub}>
-                  Hệ thống đã gửi mã xác minh OTP gồm 6 chữ số đến{' '}
-                  <Text style={styles.highlightText}>{maskedTarget}</Text>. Mã có hiệu lực trong 5 phút.
+                  Mã OTP xác thực 6 chữ số đã được gửi trực tiếp đến hộp thư{' '}
+                  <Text style={styles.highlightText}>{maskedTarget || identifier}</Text>. Mã có hiệu lực trong <Text style={{ color: '#F59E0B', fontWeight: '700' }}>5 phút</Text>.
                 </Text>
 
-                {/* Simulated Demo OTP notification box */}
-                {simulatedOtp && (
-                  <View style={styles.simulatedOtpBox}>
-                    <View style={styles.simulatedOtpHeader}>
-                      <Ionicons name="chatbox-ellipses" size={16} color="#3B82F6" />
-                      <Text style={styles.simulatedOtpTitle}>Hộp thư / Tin nhắn OTP Mô Phỏng</Text>
-                    </View>
-                    <Text style={styles.simulatedOtpDesc}>
-                      Mã OTP xác minh của bạn là: <Text style={styles.otpHighlight}>{simulatedOtp}</Text>
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.pasteOtpBtn}
-                      onPress={() => {
-                        setOtpCode(simulatedOtp);
-                        setErrorMessage(null);
-                      }}>
-                      <Ionicons name="copy-outline" size={14} color="#3B82F6" style={{ marginRight: 4 }} />
-                      <Text style={styles.pasteOtpText}>Tự động điền mã {simulatedOtp}</Text>
-                    </TouchableOpacity>
+                {/* Real Email Notification Box */}
+                <View style={styles.realEmailNoticeBox}>
+                  <View style={styles.realEmailHeader}>
+                    <Ionicons name="mail" size={18} color="#10B981" />
+                    <Text style={styles.realEmailTitle}>Đã gửi mã OTP đến Email của bạn</Text>
                   </View>
-                )}
+                  <Text style={styles.realEmailDesc}>
+                    Vui lòng mở ứng dụng Email hoặc truy cập hòm thư{' '}
+                    <Text style={styles.highlightText}>{maskedTarget || identifier}</Text> để lấy mã xác thực gồm 6 chữ số.
+                  </Text>
+                  <View style={styles.realEmailTipRow}>
+                    <Ionicons name="information-circle-outline" size={15} color="#9CA3AF" />
+                    <Text style={styles.realEmailTipText}>
+                      Lưu ý: Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thêm mục <Text style={{ color: '#F59E0B', fontWeight: '600' }}>Spam / Thư rác</Text>.
+                    </Text>
+                  </View>
+                </View>
 
                 <Text style={styles.inputLabel}>Nhập mã xác minh 6 số (OTP):</Text>
                 <View style={styles.otpInputWrap}>
@@ -629,49 +625,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  simulatedOtpBox: {
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+  realEmailNoticeBox: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.25)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     borderRadius: 10,
-    padding: 12,
+    padding: 14,
     marginBottom: 16,
   },
-  simulatedOtpHeader: {
+  realEmailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: 8,
+    marginBottom: 6,
   },
-  simulatedOtpTitle: {
-    fontSize: 12,
+  realEmailTitle: {
+    fontSize: 13,
     fontWeight: 'bold',
-    color: '#60A5FA',
+    color: '#10B981',
   },
-  simulatedOtpDesc: {
+  realEmailDesc: {
     fontSize: 13,
     color: '#E5E7EB',
+    lineHeight: 18,
     marginBottom: 8,
   },
-  otpHighlight: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#60A5FA',
-    letterSpacing: 2,
-  },
-  pasteOtpBtn: {
+  realEmailTipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    padding: 8,
     borderRadius: 6,
   },
-  pasteOtpText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#93C5FD',
+  realEmailTipText: {
+    fontSize: 11.5,
+    color: '#9CA3AF',
+    lineHeight: 16,
+    flex: 1,
   },
   otpInputWrap: {
     backgroundColor: '#0F1015',
