@@ -146,35 +146,6 @@ async function seedInitialData() {
       console.log('🌱 Đã seed tài khoản Nhân viên (staff@cinema.com)');
     }
 
-    const count = await User.countDocuments();
-    if (count <= 2) {
-      await User.create([
-        {
-          fullName: 'Nguyễn Văn A',
-          email: 'customer@cinema.com',
-          phone: '0901234567',
-          password: 'password123',
-          role: 'customer',
-          isActive: true,
-          membershipTier: 'Gold',
-          loyaltyPoints: 350,
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-        },
-        {
-          fullName: 'Trần Thị Bích Ngọc',
-          email: 'vip@cinema.com',
-          phone: '0987654321',
-          password: 'password123',
-          role: 'customer',
-          isActive: true,
-          membershipTier: 'VIP',
-          loyaltyPoints: 1250,
-          avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-        },
-      ]);
-      console.log('🌱 Đã seed 2 tài khoản khách hàng mẫu vào MongoDB');
-    }
-
     // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
     await seedShowtimesData();
     // Tự động khởi tạo dữ liệu cho Food, Promotions, Reviews, Notifications, Orders

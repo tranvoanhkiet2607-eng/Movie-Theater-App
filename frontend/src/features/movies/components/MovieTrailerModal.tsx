@@ -17,7 +17,7 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import YoutubePlayer from 'react-native-youtube-iframe';
+import YoutubePlayer from './YoutubePlayerWrapper';
 import * as WebBrowser from 'expo-web-browser';
 import { Movie } from '../types/movie.types';
 import { getAgeBadgeColors } from './MovieCard';

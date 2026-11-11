@@ -32,70 +32,7 @@ async function authUser(req, res, next) {
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/my-bookings', authUser, async (req, res) => {
   try {
-    let bookings = await Booking.find({ userId: req.user._id }).sort({ showtime: -1 });
-
-    // Nếu user chưa có vé nào, tự động seed vé mẫu sinh động
-    if (bookings.length === 0) {
-      const now = new Date();
-      const sampleUpcoming = await Booking.create({
-        userId: req.user._id,
-        bookingCode: `CNM-${Math.floor(100000 + Math.random() * 900000)}`,
-        movieTitle: 'Dune: Hành Tinh Cát - Phần 2',
-        moviePoster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500',
-        cinemaName: 'CineMax Vincom Đồng Khởi',
-        hallName: 'Rạp 03 (IMAX Laser)',
-        showtime: new Date(now.getTime() + 4 * 60 * 60 * 1000), // 4 tiếng nữa
-        format: 'IMAX 3D Laser',
-        seats: ['F08', 'F09'],
-        seatType: 'VIP',
-        combos: '1 Bắp phô mai lớn + 2 Coca Cola Zero',
-        totalAmount: 380000,
-        paymentMethod: 'Ví MoMo',
-        paymentStatus: 'paid',
-        status: 'upcoming',
-        qrCodeData: `CINEMAX-TICKET-F08F09-${req.user.id}`,
-      });
-
-      const sampleCompleted = await Booking.create({
-        userId: req.user._id,
-        bookingCode: `CNM-${Math.floor(100000 + Math.random() * 900000)}`,
-        movieTitle: 'Godzilla x Kong: Đế Chế Mới',
-        moviePoster: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=500',
-        cinemaName: 'CineMax Landmark 81',
-        hallName: 'Rạp 01',
-        showtime: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 ngày trước
-        format: '2D Phụ đề',
-        seats: ['G12', 'G13'],
-        seatType: 'Standard',
-        combos: '1 Bắp bơ ngọt + 1 Sprite',
-        totalAmount: 220000,
-        paymentMethod: 'Thẻ tín dụng Visa',
-        paymentStatus: 'paid',
-        status: 'completed',
-        qrCodeData: `CINEMAX-TICKET-G12G13-${req.user.id}`,
-      });
-
-      const sampleCancelled = await Booking.create({
-        userId: req.user._id,
-        bookingCode: `CNM-${Math.floor(100000 + Math.random() * 900000)}`,
-        movieTitle: 'Kung Fu Panda 4',
-        moviePoster: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=500',
-        cinemaName: 'CineMax Crescent Mall',
-        hallName: 'Rạp 02',
-        showtime: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
-        format: '2D Lồng tiếng',
-        seats: ['E05'],
-        seatType: 'Standard',
-        combos: '',
-        totalAmount: 95000,
-        paymentMethod: 'ZaloPay',
-        paymentStatus: 'refunded',
-        status: 'cancelled',
-        qrCodeData: `CINEMAX-TICKET-E05-${req.user.id}`,
-      });
-
-      bookings = [sampleUpcoming, sampleCompleted, sampleCancelled];
-    }
+    const bookings = await Booking.find({ userId: req.user._id }).sort({ showtime: -1 });
 
     const upcoming = bookings.filter((b) => b.status === 'upcoming');
     const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled');

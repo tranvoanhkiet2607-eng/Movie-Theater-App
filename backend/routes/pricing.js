@@ -32,8 +32,6 @@ function formatAdjustmentText(adjustmentType, adjustmentValue) {
 // ─── 1. GET /api/pricing/rules: Lấy danh sách quy tắc giá vé (hỗ trợ filter & search) ───
 router.get('/rules', async (req, res) => {
   try {
-    await ensureDefaultPricingRules();
-
     const { category, isActive, search } = req.query;
     const filter = {};
 
@@ -75,8 +73,6 @@ router.get('/rules', async (req, res) => {
 // ─── 2. GET /api/pricing/rules/summary: Thống kê tổng quan quy tắc giá vé ───
 router.get('/rules/summary', async (req, res) => {
   try {
-    await ensureDefaultPricingRules();
-
     const [total, active, inactive, formatRules, seatRules, dayRules, timeRules, audienceRules] = await Promise.all([
       PricingRule.countDocuments(),
       PricingRule.countDocuments({ isActive: true }),
