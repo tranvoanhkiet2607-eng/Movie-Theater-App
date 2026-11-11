@@ -140,9 +140,9 @@ export default function ExploreScreen() {
   const [apiError, setApiError] = useState<string | null>(null);
 
   // ─── Bộ lọc Lịch chiếu (Theo Phim, Rạp, Ngày chiếu, Định dạng, Khung giờ) ────
-  const [userViewMode, setViewMode] = useState<ShowtimeViewMode | null>(null);
+  const [userViewMode, setViewMode] = useState<ShowtimeViewMode | null>('by_theater');
   const viewMode: ShowtimeViewMode =
-    userViewMode ?? (params.theaterId ? 'by_theater' : 'by_movie');
+    userViewMode ?? (params.movieId && !params.theaterId ? 'by_movie' : 'by_theater');
 
   const [selectedDateKey, setSelectedDateKey] = useState<string>('d0');
   const [userMovieId, setSelectedMovieId] = useState<string | null>(null);
@@ -832,51 +832,6 @@ export default function ExploreScreen() {
                 </TouchableOpacity>
               </View>
             )}
-
-            {/* Chuyển đổi chế độ xem: Theo Phim vs Theo Rạp */}
-            <View style={styles.viewModeSwitch}>
-              <TouchableOpacity
-                style={[
-                  styles.viewModeBtn,
-                  viewMode === 'by_movie' && styles.viewModeBtnActive,
-                ]}
-                onPress={() => setViewMode('by_movie')}
-                activeOpacity={0.85}>
-                <Ionicons
-                  name="film-outline"
-                  size={16}
-                  color={viewMode === 'by_movie' ? '#FFFFFF' : '#9CA3AF'}
-                />
-                <Text
-                  style={[
-                    styles.viewModeText,
-                    viewMode === 'by_movie' && styles.viewModeTextActive,
-                  ]}>
-                  Lịch chiếu theo Phim
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.viewModeBtn,
-                  viewMode === 'by_theater' && styles.viewModeBtnActive,
-                ]}
-                onPress={() => setViewMode('by_theater')}
-                activeOpacity={0.85}>
-                <Ionicons
-                  name="business-outline"
-                  size={16}
-                  color={viewMode === 'by_theater' ? '#FFFFFF' : '#9CA3AF'}
-                />
-                <Text
-                  style={[
-                    styles.viewModeText,
-                    viewMode === 'by_theater' && styles.viewModeTextActive,
-                  ]}>
-                  Lịch chiếu theo Rạp
-                </Text>
-              </TouchableOpacity>
-            </View>
 
             {/* Thanh tìm kiếm nhanh Phim / Cụm rạp / Phòng chiếu */}
             <View style={styles.searchBar}>
