@@ -112,6 +112,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
+   * Yêu cầu mã OTP xác thực email khi đăng ký tài khoản mới
+   */
+  async function requestRegisterOtp(
+    data: RegisterFormData
+  ): Promise<{
+    success: boolean;
+    message: string;
+    maskedTarget?: string;
+    targetEmail?: string;
+  }> {
+    const validation = validateRegisterForm(data);
+    if (!validation.isValid) {
+      const firstKey = Object.keys(validation.errors)[0] as keyof typeof validation.errors;
+      return { success: false, message: validation.errors[firstKey] || 'Dữ liệu không hợp lệ' };
+    }
+
+    try {
+      const result = await AuthAPI.sendRegisterOtp({
+        fullName: data.fullName.trim(),
+        email: data.email.trim(),
+        phone: data.phone.trim(),
+        password: data.password,
+      });
+
+      return {
+        success: result.success,
+        message: result.message,
+        maskedTarget: result.maskedTarget,
+        targetEmail: result.targetEmail,
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Không thể gửi mã xác thực. Vui lòng thử lại.' };
+    }
+  }
+
+  /**
+   * Xác thực mã OTP và hoàn tất đăng ký tài khoản thành viên
+   */
+  async function verifyRegisterOtp(
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; message: string; user?: User }> {
+    try {
+      const result = await AuthAPI.verifyRegisterOtp({
+        email: email.trim(),
+        otp: otp.trim(),
+      });
+
+      if (result.success && result.token && result.user) {
+        await AsyncStorage.setItem(TOKEN_STORAGE_KEY, result.token);
+        const newSession: AuthSession = {
+          token: result.token,
+          userId: result.user.id,
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          rememberMe: true,
+          devicePlatform: 'register-otp',
+        };
+        setUser(result.user as User);
+        setSession(newSession);
+        return { success: true, message: result.message, user: result.user as User };
+      }
+
+      return { success: false, message: result.message || 'Xác thực mã OTP thất bại.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Xác thực mã OTP thất bại. Vui lòng thử lại.' };
+    }
+  }
+
+  /**
    * UC02: Đăng nhập
    */
   async function login(
@@ -336,6 +406,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         login,
         register,
+        requestRegisterOtp,
+        verifyRegisterOtp,
         logout,
         updateProfile,
         changePassword,

@@ -129,6 +129,35 @@ export const AuthAPI = {
       body: JSON.stringify(data),
     }),
 
+  /** Gửi mã OTP xác thực email thật khi đăng ký tài khoản mới */
+  sendRegisterOtp: (data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      maskedTarget?: string;
+      targetEmail?: string;
+    }>('/auth/register/send-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** Xác thực mã OTP và hoàn tất tạo tài khoản thành viên */
+  verifyRegisterOtp: (data: { email: string; otp: string }) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      token?: string;
+      user?: any;
+    }>('/auth/register/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   /** Đăng nhập — trả về token + user */
   login: (data: { identifier: string; password: string; rememberMe: boolean }) =>
     apiRequest('/auth/login', {

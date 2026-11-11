@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { sendPasswordResetEmail } = require('../utils/emailService');
+const { sendPasswordResetEmail, sendRegistrationOtpEmail } = require('../utils/emailService');
 
 // ─── Helper: Tạo JWT token ──────────────────────────────────────────────────
 function generateToken(userId) {
@@ -24,11 +24,184 @@ function maskIdentifier(id) {
 
 // In-memory OTP sessions (có thể nâng cấp lên Redis sau)
 const resetSessions = new Map();
+const registrationSessions = new Map();
+
+// ════════════════════════════════════════════════════════════
+// POST /api/auth/register/send-otp & /api/auth/register/request-otp
+// Gửi mã OTP xác thực email thật về hòm thư khi đăng ký
+// ════════════════════════════════════════════════════════════
+async function handleRegisterSendOtp(req, res) {
+  try {
+    const { fullName, email, phone, password } = req.body;
+
+    if (!fullName || !email || !phone || !password) {
+      return res.status(400).json({ success: false, message: 'Vui lòng điền đầy đủ họ tên, email, số điện thoại và mật khẩu.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
+
+    // Kiểm tra định dạng email cơ bản
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, message: 'Địa chỉ email không đúng định dạng.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Mật khẩu phải có tối thiểu 6 ký tự.' });
+    }
+
+    // Kiểm tra trùng email trong DB
+    const emailExists = await User.findOne({ email: cleanEmail });
+    if (emailExists) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email này đã được đăng ký tài khoản. Vui lòng dùng Email khác hoặc Đăng nhập.',
+      });
+    }
+
+    // Kiểm tra trùng SĐT trong DB
+    const phoneExists = await User.findOne({ phone: cleanPhone });
+    if (phoneExists) {
+      return res.status(409).json({
+        success: false,
+        message: 'Số điện thoại này đã được liên kết với một tài khoản khác.',
+      });
+    }
+
+    // Tạo mã OTP 6 chữ số ngẫu nhiên
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 phút
+
+    // Lưu phiên đăng ký
+    registrationSessions.set(cleanEmail, {
+      otp,
+      expiresAt,
+      userData: {
+        fullName: fullName.trim(),
+        email: cleanEmail,
+        phone: cleanPhone,
+        password,
+      },
+    });
+
+    // Gửi email thật tới người dùng
+    try {
+      await sendRegistrationOtpEmail({
+        to: cleanEmail,
+        fullName: fullName.trim(),
+        otp,
+        expiresMinutes: 5,
+      });
+    } catch (mailError) {
+      console.error('[registerSendOtp] Lỗi gửi email OTP thật:', mailError.message);
+      return res.status(500).json({
+        success: false,
+        message: `Không thể gửi email OTP đến ${cleanEmail}. Lỗi dịch vụ mail: ${mailError.message}`,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Mã OTP xác thực tài khoản đã được gửi đến email ${cleanEmail}. Vui lòng kiểm tra hộp thư đến (hoặc Thư rác/Spam).`,
+      maskedTarget: maskIdentifier(cleanEmail),
+      targetEmail: cleanEmail,
+    });
+  } catch (err) {
+    console.error('[registerSendOtp]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi gửi mã xác thực đăng ký.' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// POST /api/auth/register/verify-otp
+// Xác thực mã OTP và hoàn tất tạo tài khoản mới vào MongoDB
+// ════════════════════════════════════════════════════════════
+async function handleRegisterVerifyOtp(req, res) {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp email và mã xác thực OTP.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const session = registrationSessions.get(cleanEmail);
+
+    if (!session) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không tìm thấy yêu cầu đăng ký hoặc phiên xác minh đã kết thúc. Vui lòng bấm Đăng ký lại.',
+      });
+    }
+
+    if (Date.now() > session.expiresAt) {
+      registrationSessions.delete(cleanEmail);
+      return res.status(400).json({
+        success: false,
+        message: 'Mã xác thực OTP đã hết hạn (quá 5 phút). Vui lòng yêu cầu gửi lại mã mới.',
+      });
+    }
+
+    if (session.otp !== otp.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã xác thực OTP không chính xác. Vui lòng kiểm tra lại email của bạn.',
+      });
+    }
+
+    // Kiểm tra lần cuối tránh trùng lặp
+    const userExists = await User.findOne({
+      $or: [{ email: cleanEmail }, { phone: session.userData.phone }],
+    });
+    if (userExists) {
+      registrationSessions.delete(cleanEmail);
+      return res.status(409).json({
+        success: false,
+        message: 'Email hoặc Số điện thoại đã được đăng ký tài khoản.',
+      });
+    }
+
+    // Tạo User trong MongoDB
+    const newUser = await User.create({
+      fullName: session.userData.fullName,
+      email: session.userData.email,
+      phone: session.userData.phone,
+      password: session.userData.password,
+      membershipTier: 'Standard',
+      loyaltyPoints: 50,
+      avatarUrl: `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(session.userData.fullName)}`,
+    });
+
+    // Xóa session OTP sau khi đăng ký thành công
+    registrationSessions.delete(cleanEmail);
+
+    const token = generateToken(newUser._id);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Xác thực tài khoản thành công! Chào mừng bạn gia nhập CineMax với 50 điểm thưởng chào mừng.',
+      token,
+      user: newUser.toJSON(),
+    });
+  } catch (err) {
+    console.error('[registerVerifyOtp]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi hoàn tất đăng ký tài khoản.' });
+  }
+}
+
+router.post('/register/send-otp', handleRegisterSendOtp);
+router.post('/register/request-otp', handleRegisterSendOtp);
+router.post('/register/verify-otp', handleRegisterVerifyOtp);
 
 // ════════════════════════════════════════════════════════════
 // POST /api/auth/register
+// Hỗ trợ cả 2 luồng: nếu có otp thì xác thực, nếu không thì tạo trực tiếp (backward compatible)
 // ════════════════════════════════════════════════════════════
 router.post('/register', async (req, res) => {
+  if (req.body.otp) {
+    return handleRegisterVerifyOtp(req, res);
+  }
   try {
     const { fullName, email, phone, password } = req.body;
 
