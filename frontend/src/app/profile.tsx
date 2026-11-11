@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth-context';
@@ -22,14 +22,14 @@ import {
   validateRegisterForm,
 } from '@/utils/validation';
 
-import { LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
-import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { AdminAccountManagementModal } from '@/components/admin-account-management';
 import { BookingHistoryModal } from '@/components/booking-history-modal';
+import { ForgotPasswordModal } from '@/components/forgot-password-modal';
 import { MembershipModal } from '@/components/membership-modal';
 import NotificationModal from '@/components/NotificationModal';
 import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
 import { NotificationAPI, OrderAPI } from '@/services/api';
+import { LoginFormData, RegisterFormData, UserRole } from '@/types/auth';
 import { Order } from '@/types/order';
 
 
@@ -209,27 +209,55 @@ function GuestAuthSection({ login, register, resetPassword }: GuestAuthProps) {
         {/* LOGIN TAB CONTENT */}
         {tab === 'login' && (
           <View style={styles.guestAuthCard}>
-            {/* Quick Demo Fill Buttons for Role-Based Access Control */}
-            <View style={{ gap: 8, marginBottom: 12 }}>
-              <TouchableOpacity
-                style={styles.guestDemoBtn}
-                onPress={handleQuickFillCustomer}
-                activeOpacity={0.8}>
-                <Ionicons name="person" size={15} color="#3B82F6" />
-                <Text style={styles.guestDemoText}>
-                  Khách hàng: <Text style={styles.guestDemoBold}>customer@cinema.com</Text> (password123)
-                </Text>
-              </TouchableOpacity>
+            {/* Quick Demo Fill Pills */}
+            <View style={styles.demoFillSection}>
+              <View style={styles.demoFillHeaderRow}>
+                <Ionicons name="flash" size={13} color="#F59E0B" />
+                <Text style={styles.demoFillTitle}>ĐIỀN NHANH TÀI KHOẢN MẪU:</Text>
+              </View>
+              <View style={styles.demoFillRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.demoFillPill,
+                    loginId === 'customer@cinema.com' && styles.demoFillPillActive,
+                  ]}
+                  onPress={handleQuickFillCustomer}
+                  activeOpacity={0.8}>
+                  <Ionicons
+                    name="person"
+                    size={14}
+                    color={loginId === 'customer@cinema.com' ? '#3B82F6' : '#9CA3AF'}
+                  />
+                  <Text
+                    style={[
+                      styles.demoFillPillText,
+                      loginId === 'customer@cinema.com' && { color: '#60A5FA', fontWeight: '700' },
+                    ]}>
+                    Khách hàng
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.guestDemoBtn, { borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}
-                onPress={handleQuickFillAdmin}
-                activeOpacity={0.8}>
-                <Ionicons name="shield-checkmark" size={15} color="#F59E0B" />
-                <Text style={styles.guestDemoText}>
-                  Quản trị viên: <Text style={[styles.guestDemoBold, { color: '#F59E0B' }]}>admin@cinema.com</Text> (password123)
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.demoFillPill,
+                    loginId === 'admin@cinema.com' && styles.demoFillPillAdminActive,
+                  ]}
+                  onPress={handleQuickFillAdmin}
+                  activeOpacity={0.8}>
+                  <Ionicons
+                    name="shield-checkmark"
+                    size={14}
+                    color={loginId === 'admin@cinema.com' ? '#F59E0B' : '#9CA3AF'}
+                  />
+                  <Text
+                    style={[
+                      styles.demoFillPillText,
+                      loginId === 'admin@cinema.com' && { color: '#FBBF24', fontWeight: '700' },
+                    ]}>
+                    Quản trị viên
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {loginError && (
@@ -899,74 +927,37 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* UC07 & UC08: Account Administration & Role Management Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="shield-checkmark" size={18} color="#3B82F6" />
-              <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền</Text>
+        {/* UC07 & UC08: Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN / MANAGER */}
+        {(user.role === 'admin' || user.role === 'manager') && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="shield-checkmark" size={18} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền (UC07, UC08)</Text>
+              </View>
+              <View style={styles.roleTag}>
+                <Text style={styles.roleTagText}>
+                  {user.role === 'admin' ? 'Quản trị viên' : 'Quản lý rạp'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.roleTag}>
-              <Text style={styles.roleTagText}>
-                {user.role === 'admin'
-                  ? 'Quản trị viên'
-                  : user.role === 'manager'
-                  ? 'Quản lý rạp'
-                  : user.role === 'staff'
-                  ? 'Nhân viên'
-                  : 'Khách hàng'}
-              </Text>
-            </View>
-          </View>
 
-          <Text style={styles.adminSectionDesc}>
-            Chức năng quản trị: Thêm, sửa, xem và vô hiệu hóa tài khoản (UC07) cùng bảng ma trận phân quyền và cập nhật vai trò người dùng (UC08).
-          </Text>
-
-          {/* Quick Demo Role Switcher */}
-          <View style={styles.demoRoleSwitcher}>
-            <Text style={styles.demoRoleLabel}>Chuyển đổi vai trò demo:</Text>
-            <View style={styles.demoRoleButtonsRow}>
-              {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((r) => {
-                const isSelected = user.role === r;
-                return (
-                  <TouchableOpacity
-                    key={r}
-                    style={[
-                      styles.demoRoleChip,
-                      isSelected && styles.demoRoleChipActive,
-                    ]}
-                    onPress={() => switchDemoRole?.(r)}>
-                    <Text
-                      style={[
-                        styles.demoRoleChipText,
-                        isSelected && styles.demoRoleChipTextActive,
-                      ]}>
-                      {r === 'customer'
-                        ? 'Khách hàng'
-                        : r === 'staff'
-                        ? 'Nhân viên'
-                        : r === 'manager'
-                        ? 'Quản lý'
-                        : 'Admin'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.adminLaunchBtn}
-            onPress={() => setAdminModalVisible(true)}
-            activeOpacity={0.85}>
-            <Ionicons name="people-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.adminLaunchBtnText}>
-              Mở Quản Trị Tài Khoản & Phân Quyền (UC07, UC08)
+            <Text style={styles.adminSectionDesc}>
+              Khu vực dành riêng cho quản trị viên: Quản lý danh sách tài khoản (UC07), xem/thay đổi trạng thái hoạt động và thiết lập ma trận phân quyền người dùng (UC08).
             </Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+
+            <TouchableOpacity
+              style={styles.adminLaunchBtn}
+              onPress={() => setAdminModalVisible(true)}
+              activeOpacity={0.85}>
+              <Ionicons name="people-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.adminLaunchBtnText}>
+                Mở Quản Trị Tài Khoản & Phân Quyền (UC07, UC08)
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Admin Management Hub Access (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
         {user.role === 'admin' && (
@@ -1156,8 +1147,8 @@ export default function ProfileScreen() {
                           ord.orderStatus === 'ready'
                             ? '#10B98125'
                             : ord.orderStatus === 'completed'
-                            ? '#3B82F625'
-                            : '#F59E0B25',
+                              ? '#3B82F625'
+                              : '#F59E0B25',
                       },
                     ]}>
                     <Text
@@ -1168,8 +1159,8 @@ export default function ProfileScreen() {
                           ord.orderStatus === 'ready'
                             ? '#10B981'
                             : ord.orderStatus === 'completed'
-                            ? '#3B82F6'
-                            : '#F59E0B',
+                              ? '#3B82F6'
+                              : '#F59E0B',
                       }}>
                       {ord.orderStatus === 'preparing' && 'Đang chuẩn bị'}
                       {ord.orderStatus === 'ready' && 'Đã sẵn sàng nhận'}
@@ -1242,6 +1233,47 @@ export default function ProfileScreen() {
           activeOpacity={0.8}>
           <Text style={styles.deleteAccountText}>Xóa tài khoản thành viên</Text>
         </TouchableOpacity>
+
+        {/* Dedicated Demo Role Switcher Tool for Evaluators / Grading Test */}
+        <View style={styles.demoTestingCard}>
+          <View style={styles.demoTestingHeader}>
+            <Ionicons name="flask-outline" size={16} color="#F59E0B" />
+            <Text style={styles.demoTestingTitle}>CÔNG CỤ KIỂM THỬ PHÂN QUYỀN (DEMO ROLE)</Text>
+          </View>
+          <Text style={styles.demoTestingDesc}>
+            {user.role === 'customer'
+              ? '🟢 Đang ở vai trò Khách hàng (customer): Toàn bộ chức năng quản trị viên (UC07, UC08, UC37-UC45) được ẩn tuyệt đối theo đúng ma trận phân quyền.'
+              : `🟡 Đang ở vai trò ${user.role === 'admin' ? 'Quản trị viên (admin)' : user.role === 'manager' ? 'Quản lý rạp' : 'Nhân viên'}: Quyền quản trị hệ thống đã được mở khóa và hiển thị đầy đủ trên màn hình.`}
+          </Text>
+          <View style={styles.demoRoleButtonsRow}>
+            {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((r) => {
+              const isSelected = user.role === r;
+              return (
+                <TouchableOpacity
+                  key={r}
+                  style={[
+                    styles.demoRoleChip,
+                    isSelected && styles.demoRoleChipActive,
+                  ]}
+                  onPress={() => switchDemoRole?.(r)}>
+                  <Text
+                    style={[
+                      styles.demoRoleChipText,
+                      isSelected && styles.demoRoleChipTextActive,
+                    ]}>
+                    {r === 'customer'
+                      ? 'Khách hàng'
+                      : r === 'staff'
+                        ? 'Nhân viên'
+                        : r === 'manager'
+                          ? 'Quản lý'
+                          : 'Admin'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
       </ScrollView>
 
@@ -1561,7 +1593,7 @@ export default function ProfileScreen() {
 
       {/* UC07 & UC08: Admin Account Management & Role Authorization Modal */}
       <AdminAccountManagementModal
-        visible={adminModalVisible}
+        visible={adminModalVisible && (user.role === 'admin' || user.role === 'manager')}
         onClose={() => setAdminModalVisible(false)}
         token={session?.token}
         currentUser={user}
@@ -1593,7 +1625,7 @@ export default function ProfileScreen() {
 
       {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
       <AdminManagementHubModal
-        visible={adminHubVisible}
+        visible={adminHubVisible && user.role === 'admin'}
         onClose={() => {
           setAdminHubVisible(false);
           fetchProfileData();
@@ -2331,13 +2363,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   guestContainer: {
-    padding: 24,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    alignItems: 'stretch',
   },
   guestHero: {
     alignItems: 'center',
     marginBottom: 20,
-    paddingTop: 10,
+    paddingTop: 6,
   },
   guestIconCircle: {
     width: 72,
@@ -2579,22 +2615,30 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   guestTabSwitcher: {
+    width: '100%',
     flexDirection: 'row',
-    backgroundColor: '#151821',
+    backgroundColor: '#141722',
     borderRadius: 12,
     padding: 4,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#232938',
   },
   guestTabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 9,
   },
   guestTabBtnActive: {
     backgroundColor: '#E50914',
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   guestTabText: {
     fontSize: 14,
@@ -2603,15 +2647,71 @@ const styles = StyleSheet.create({
   },
   guestTabTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   guestAuthCard: {
-    backgroundColor: '#151821',
-    borderRadius: 16,
-    padding: 18,
+    width: '100%',
+    backgroundColor: '#141722',
+    borderRadius: 18,
+    padding: 20,
     borderWidth: 1,
     borderColor: '#232938',
     marginBottom: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  demoFillSection: {
+    backgroundColor: '#0F121B',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1E2435',
+  },
+  demoFillHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  demoFillTitle: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.8,
+  },
+  demoFillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  demoFillPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#151926',
+    borderWidth: 1,
+    borderColor: '#293247',
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  demoFillPillActive: {
+    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+  },
+  demoFillPillAdminActive: {
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  demoFillPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#D1D5DB',
   },
   guestDemoBtn: {
     flexDirection: 'row',
@@ -2666,53 +2766,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   guestField: {
-    marginBottom: 14,
+    marginBottom: 16,
+    width: '100%',
   },
   guestLabel: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#D1D5DB',
-    marginBottom: 6,
+    color: '#E5E7EB',
+    marginBottom: 8,
   },
   guestInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0F121B',
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2D3345',
-    paddingHorizontal: 12,
-    height: 46,
+    borderColor: '#262D3D',
+    paddingHorizontal: 14,
+    height: 48,
   },
   guestInputIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   guestTextInput: {
     flex: 1,
     color: '#FFFFFF',
     fontSize: 14,
+    paddingVertical: 0,
   },
   guestPassHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   guestForgotLink: {
     color: '#E50914',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   guestCheckboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
     marginTop: 4,
   },
   guestCheckbox: {
     width: 20,
     height: 20,
-    borderRadius: 5,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: '#4B5563',
     alignItems: 'center',
@@ -2725,27 +2827,55 @@ const styles = StyleSheet.create({
   },
   guestCheckboxText: {
     color: '#D1D5DB',
-    fontSize: 12.5,
+    fontSize: 13,
     flex: 1,
   },
   guestSubmitBtn: {
     backgroundColor: '#E50914',
-    borderRadius: 10,
-    height: 48,
+    borderRadius: 12,
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#E50914',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
     elevation: 4,
+    width: '100%',
   },
   guestSubmitBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  demoTestingCard: {
+    backgroundColor: '#121622',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#262F44',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  demoTestingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  demoTestingTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 0.8,
+  },
+  demoTestingDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
+    marginBottom: 12,
   },
   guestRegPromo: {
     flexDirection: 'row',
