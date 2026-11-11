@@ -257,12 +257,7 @@ router.get('/types', async (req, res) => {
   try {
     const { theaterId, room } = req.query;
 
-    // Tự động seed 3 loại ghế nếu chưa có
-    let seatTypes = await SeatType.find().sort({ sortOrder: 1 });
-    if (!seatTypes || seatTypes.length === 0) {
-      await SeatType.insertMany(DEFAULT_SEAT_TYPES);
-      seatTypes = await SeatType.find().sort({ sortOrder: 1 });
-    }
+    const seatTypes = await SeatType.find().sort({ sortOrder: 1 });
 
     // Filter thống kê ghế theo rạp và phòng nếu có
     const seatFilter = {};

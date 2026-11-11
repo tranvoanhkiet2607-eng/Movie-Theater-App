@@ -26,10 +26,6 @@ const seatRoutes = require('./routes/seats');
 const pricingRoutes = require('./routes/pricing');
 const genreRoutes = require('./routes/genres');
 const theaterRoutes = require('./routes/theaters');
-const { seedShowtimesData } = require('./seed/seedShowtimes');
-const { seedNewFeaturesData } = require('./seed/seedNewFeatures');
-const { seedSeatsData } = require('./seed/seedSeats');
-const { ensureDefaultPricingRules } = require('./seed/seedPricingRules');
 
 const app = express();
 
@@ -146,14 +142,6 @@ async function seedInitialData() {
       console.log('🌱 Đã seed tài khoản Nhân viên (staff@cinema.com)');
     }
 
-    // Tự động khởi tạo dữ liệu Phim, Cụm rạp và Lịch chiếu nếu chưa có
-    await seedShowtimesData();
-    // Tự động khởi tạo dữ liệu cho Food, Promotions, Reviews, Notifications, Orders
-    await seedNewFeaturesData();
-    // Tự động khởi tạo dữ liệu Ghế ngồi (UC23)
-    await seedSeatsData();
-    // Tự động khởi tạo dữ liệu Quy tắc giá vé (UC28)
-    await ensureDefaultPricingRules();
     isSeeded = true;
   } catch (seedErr) {
     console.error('⚠️ Lỗi khi seed dữ liệu ban đầu:', seedErr.message);
