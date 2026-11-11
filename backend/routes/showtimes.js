@@ -7,8 +7,68 @@ const Theater = require('../models/Theater');
 const Showtime = require('../models/Showtime');
 const Seat = require('../models/Seat');
 const SeatType = require('../models/SeatType');
-const { SHOWTIME_DATES, SHOWTIME_FORMATS } = require('../seed/seedShowtimes');
 const { requireAdmin } = require('../middleware/auth');
+
+const SHOWTIME_DATES = [
+  {
+    dateKey: 'd0',
+    dayLabel: 'Hôm nay',
+    dateDisplay: '15/10',
+    fullDateLabel: 'Thứ Năm, 15/10/2026',
+    isWeekend: false,
+  },
+  {
+    dateKey: 'd1',
+    dayLabel: 'Ngày mai',
+    dateDisplay: '16/10',
+    fullDateLabel: 'Thứ Sáu, 16/10/2026',
+    isWeekend: false,
+  },
+  {
+    dateKey: 'd2',
+    dayLabel: 'Thứ 7',
+    dateDisplay: '17/10',
+    fullDateLabel: 'Thứ Bảy, 17/10/2026',
+    isWeekend: true,
+  },
+  {
+    dateKey: 'd3',
+    dayLabel: 'Chủ nhật',
+    dateDisplay: '18/10',
+    fullDateLabel: 'Chủ Nhật, 18/10/2026',
+    isWeekend: true,
+  },
+  {
+    dateKey: 'd4',
+    dayLabel: 'Thứ 2',
+    dateDisplay: '19/10',
+    fullDateLabel: 'Thứ Hai, 19/10/2026',
+    isWeekend: false,
+  },
+  {
+    dateKey: 'd5',
+    dayLabel: 'Thứ 3',
+    dateDisplay: '20/10',
+    fullDateLabel: 'Thứ Ba, 20/10/2026',
+    isWeekend: false,
+  },
+  {
+    dateKey: 'd6',
+    dayLabel: 'Thứ 4',
+    dateDisplay: '21/10',
+    fullDateLabel: 'Thứ Tư, 21/10/2026',
+    isWeekend: false,
+  },
+];
+
+const SHOWTIME_FORMATS = [
+  '2D Phụ đề',
+  '2D Lồng tiếng',
+  '3D Phụ đề',
+  'IMAX 3D',
+  '4DX',
+  'Gold Class VIP',
+];
 
 function getTimePeriod(startTime) {
   const hour = parseInt(String(startTime).split(':')[0], 10);

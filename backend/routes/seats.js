@@ -7,7 +7,48 @@ const Theater = require('../models/Theater');
 const Movie = require('../models/Movie');
 const Showtime = require('../models/Showtime');
 const Booking = require('../models/Booking');
-const { DEFAULT_SEAT_TYPES } = require('../seed/seedSeats');
+
+const DEFAULT_SEAT_TYPES = [
+  {
+    code: 'standard',
+    name: 'Ghế Thường',
+    nameEn: 'Standard Seat',
+    color: '#64748B',
+    capacity: 1,
+    basePrice: 90000,
+    surcharge: 0,
+    description: 'Ghế ngồi tiêu chuẩn, đệm êm ái, khoảng cách để chân thoải mái.',
+    features: ['Đệm bọc nỉ cao cấp', 'Chỗ để ly nước riêng biệt'],
+    isDefault: true,
+    sortOrder: 1,
+  },
+  {
+    code: 'vip',
+    name: 'Ghế VIP',
+    nameEn: 'VIP Seat',
+    color: '#F59E0B',
+    capacity: 1,
+    basePrice: 115000,
+    surcharge: 25000,
+    description: 'Vị trí trung tâm (Sweet spot), góc nhìn thẳng màn hình và âm thanh vòm Dolby hoàn hảo nhất.',
+    features: ['Vị trí trung tâm phòng chiếu', 'Góc nhìn & âm thanh vòm tối ưu', 'Ghế ngả lưng êm ái'],
+    isDefault: true,
+    sortOrder: 2,
+  },
+  {
+    code: 'couple',
+    name: 'Ghế Đôi Sweetbox',
+    nameEn: 'Sweetbox Couple Seat',
+    color: '#EC4899',
+    capacity: 2,
+    basePrice: 190000,
+    surcharge: 10000,
+    description: 'Ghế sofa đôi rộng rãi cho 2 người ở hàng ghế cuối, vách ngăn riêng tư cao, lãng mạn.',
+    features: ['Vách ngăn riêng tư cao', 'Sofa đôi bọc da cao cấp', 'Trọn gói bao gồm 2 vé'],
+    isDefault: true,
+    sortOrder: 3,
+  },
+];
 
 // Helper: Định dạng giá vé VND
 function formatPriceVND(num) {
