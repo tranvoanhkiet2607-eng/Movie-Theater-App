@@ -127,20 +127,30 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Admin Management Hub Banner (UC37, UC39, UC41, UC42, UC44, UC45) - Chỉ hiển thị cho Admin */}
-          {isAuthenticated && user?.role === 'admin' && (
+          {/* Admin / Staff Management Hub Banner - Phân quyền theo vai trò */}
+          {isAuthenticated && (user?.role === 'admin' || user?.role === 'staff') && (
             <TouchableOpacity
               style={styles.adminHubBanner}
               onPress={() => setAdminHubVisible(true)}
               activeOpacity={0.85}>
               <View style={styles.adminHubLeft}>
                 <View style={styles.adminHubIconBox}>
-                  <Ionicons name="shield-checkmark" size={20} color="#F59E0B" />
+                  <Ionicons
+                    name={user?.role === 'staff' ? 'fast-food' : 'shield-checkmark'}
+                    size={20}
+                    color="#F59E0B"
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.adminHubTitle}>Trung Tâm Quản Trị Rạp & Báo Cáo</Text>
+                  <Text style={styles.adminHubTitle}>
+                    {user?.role === 'staff'
+                      ? 'Quản Lý Quầy Bắp Nước (Staff)'
+                      : 'Trung Tâm Quản Trị Rạp & Báo Cáo'}
+                  </Text>
                   <Text style={styles.adminHubSub}>
-                    Quản lý Đồ ăn, Khuyến mãi, Đơn hàng & Doanh thu
+                    {user?.role === 'staff'
+                      ? 'Theo dõi đơn hàng & cập nhật trạng thái chuẩn bị đồ ăn'
+                      : 'Quản lý Đồ ăn, Khuyến mãi, Đơn hàng & Doanh thu'}
                   </Text>
                 </View>
               </View>
@@ -339,9 +349,10 @@ export default function HomeScreen() {
         onNotificationsUpdated={fetchUnreadCount}
       />
 
-      {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
+      {/* Admin / Staff Management Hub Modal */}
       <AdminManagementHubModal
-        visible={adminHubVisible}
+        visible={adminHubVisible && (user?.role === 'admin' || user?.role === 'staff')}
+        initialTab={user?.role === 'staff' ? 'orders' : 'food'}
         onClose={() => setAdminHubVisible(false)}
       />
     </SafeAreaView>

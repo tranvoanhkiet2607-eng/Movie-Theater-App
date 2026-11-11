@@ -1,7 +1,7 @@
 // Admin Management Hub:
 // UC37 (Manage Food & Drinks), UC39 (Manage Promotions), UC41 (Manage Reviews),
 // UC42 (Manage Notifications), UC44 (Manage Food Orders), UC45 (View Reports)
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -49,8 +49,34 @@ export default function AdminManagementHubModal({
   initialTab = 'food',
 }: AdminManagementHubModalProps) {
   const { isAuthenticated, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
+  const isStaff = user?.role === 'staff';
+  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const hasAccess = isAuthenticated && (isAdmin || isStaff);
+
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (isStaff && !isAdmin) return 'orders';
+    return initialTab;
+  });
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  const availableTabs: Array<{ key: AdminTab; label: string }> = useMemo(() => {
+    if (isAdmin) {
+      return [
+        { key: 'food', label: '🍿 Đồ ăn' },
+        { key: 'orders', label: '📋 Đơn đồ ăn' },
+        { key: 'promo', label: '🎟️ Khuyến mãi' },
+        { key: 'pricing', label: '🏷️ Giá vé' },
+        { key: 'reviews', label: '⭐ Kiểm duyệt' },
+        { key: 'notifs', label: '🔔 Thông báo' },
+        { key: 'reports', label: '📊 Báo cáo' },
+      ];
+    }
+    // Nhân viên rạp (staff) quản lý quầy đồ ăn
+    return [
+      { key: 'orders', label: '📋 Đơn đồ ăn quầy' },
+      { key: 'food', label: '🍿 Menu đồ ăn' },
+    ];
+  }, [isAdmin]);
 
   // ─── 1. UC37: FOOD STATE ────────────────────────────────────────────────────
   const [foods, setFoods] = useState<FoodItem[]>([]);
@@ -143,10 +169,14 @@ export default function AdminManagementHubModal({
   }, [activeTab, foodCategoryFilter, reviewStatusFilter, orderStatusFilter]);
 
   useEffect(() => {
-    if (visible && isAuthenticated && user?.role === 'admin') {
-      loadActiveTabData();
+    if (visible && hasAccess) {
+      if (isStaff && !isAdmin && activeTab !== 'orders' && activeTab !== 'food') {
+        setActiveTab('orders');
+      } else {
+        loadActiveTabData();
+      }
     }
-  }, [visible, isAuthenticated, user?.role, activeTab, foodCategoryFilter, reviewStatusFilter, orderStatusFilter, loadActiveTabData]);
+  }, [visible, hasAccess, isStaff, isAdmin, activeTab, foodCategoryFilter, reviewStatusFilter, orderStatusFilter, loadActiveTabData]);
 
   // ─── HANDLERS UC37: FOOD & DRINKS ───────────────────────────────────────────
   const handleOpenCreateFood = () => {
@@ -421,9 +451,13 @@ export default function AdminManagementHubModal({
               <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
             </View>
             <View>
-              <Text style={styles.navbarTitle}>TRUNG TÂM QUẢN TRỊ CINEMAX</Text>
+              <Text style={styles.navbarTitle}>
+                {isStaff && !isAdmin ? 'QUẢN LÝ QUẦY BẮP NƯỚC' : 'TRUNG TÂM QUẢN TRỊ CINEMAX'}
+              </Text>
               <Text style={styles.navbarSubtitle}>
-                Bảng điều khiển quản trị viên (Admin RBAC)
+                {isStaff && !isAdmin
+                  ? 'Theo dõi & Cập nhật đơn đồ ăn tại quầy (Staff RBAC)'
+                  : 'Bảng điều khiển quản trị viên (Admin RBAC)'}
               </Text>
             </View>
           </View>
@@ -433,14 +467,14 @@ export default function AdminManagementHubModal({
           </TouchableOpacity>
         </View>
 
-        {!isAuthenticated || user?.role !== 'admin' ? (
+        {!hasAccess ? (
           <View style={styles.accessDeniedContainer}>
             <View style={styles.accessDeniedIconCircle}>
               <Ionicons name="lock-closed" size={44} color="#EF4444" />
             </View>
-            <Text style={styles.accessDeniedTitle}>Yêu Cầu Quyền Quản Trị</Text>
+            <Text style={styles.accessDeniedTitle}>Yêu Cầu Quyền Truy Cập</Text>
             <Text style={styles.accessDeniedDesc}>
-              Chức năng này được bảo vệ bởi phân quyền RBAC. Chỉ tài khoản với vai trò Quản trị viên (Admin) như admin@cinema.com mới được phép truy cập và quản lý dữ liệu.
+              Chức năng này được bảo vệ bởi phân quyền RBAC. Chỉ tài khoản với vai trò Quản trị viên (Admin) hoặc Nhân viên (Staff) mới được phép truy cập và quản lý dữ liệu.
             </Text>
             <TouchableOpacity style={styles.accessDeniedBtn} onPress={onClose}>
               <Text style={styles.accessDeniedBtnText}>Đóng lại</Text>
@@ -455,15 +489,7 @@ export default function AdminManagementHubModal({
           showsHorizontalScrollIndicator={false}
           style={styles.tabsScroll}
           contentContainerStyle={styles.tabsContainer}>
-          {[
-            { key: 'food', label: '🍿 Đồ ăn' },
-            { key: 'orders', label: '📋 Đơn đồ ăn' },
-            { key: 'promo', label: '🎟️ Khuyến mãi' },
-            { key: 'pricing', label: '🏷️ Giá vé' },
-            { key: 'reviews', label: '⭐ Kiểm duyệt' },
-            { key: 'notifs', label: '🔔 Thông báo' },
-            { key: 'reports', label: '📊 Báo cáo' },
-          ].map((tab) => {
+          {availableTabs.map((tab) => {
             const active = activeTab === tab.key;
             return (
               <TouchableOpacity

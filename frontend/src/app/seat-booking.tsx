@@ -10,15 +10,19 @@ import {
   Modal,
   Platform,
   Alert,
+  Image,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useAuth } from '@/context/auth-context';
-import { SeatAPI, ShowtimeAPI } from '@/services/api';
+import { SeatAPI, ShowtimeAPI, FoodAPI, PromotionAPI } from '@/services/api';
 import { ShowtimeSeatItem, ShowtimeSeatMapResponse } from '@/types/seat';
 import { ShowtimePricingResponse } from '@/types/showtime';
+import { FoodItem } from '@/types/food';
+import { Promotion } from '@/types/promotion';
 
 export default function SeatBookingScreen() {
   const router = useRouter();
@@ -57,6 +61,19 @@ export default function SeatBookingScreen() {
   const [pricingModalVisible, setPricingModalVisible] = useState<boolean>(false);
   const [pricingData, setPricingData] = useState<ShowtimePricingResponse | null>(null);
   const [pricingLoading, setPricingLoading] = useState<boolean>(false);
+
+  // ─── Food & Drinks State (UC38) ─────────────────────────────────────────────
+  const [availableFoods, setAvailableFoods] = useState<FoodItem[]>([]);
+  const [loadingFoods, setLoadingFoods] = useState<boolean>(false);
+  const [foodQuantities, setFoodQuantities] = useState<{ [foodId: string]: number }>({});
+  const [foodCategoryFilter, setFoodCategoryFilter] = useState<string>('all');
+
+  // ─── Promotion Voucher State (UC39) ─────────────────────────────────────────
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<Promotion | null>(null);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [couponChecking, setCouponChecking] = useState<boolean>(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -227,6 +244,101 @@ export default function SeatBookingScreen() {
     };
   }, [selectedSeatDetails]);
 
+  // ─── Tải danh sách đồ ăn khi mở modal đặt vé ──────────────────────────────
+  useEffect(() => {
+    if (confirmModalVisible) {
+      setLoadingFoods(true);
+      FoodAPI.getFoods({ availableOnly: true })
+        .then((res) => {
+          if (res.success) setAvailableFoods(res.items || []);
+        })
+        .catch((err) => console.log('[Load Food Error]', err))
+        .finally(() => setLoadingFoods(false));
+    }
+  }, [confirmModalVisible]);
+
+  // ─── Tính toán tiền Đồ ăn & Khuyến mãi ────────────────────────────────────
+  const subtotalFoods = useMemo(() => {
+    return Object.entries(foodQuantities).reduce((sum, [fId, qty]) => {
+      const item = availableFoods.find((f) => f.id === fId);
+      return sum + (item ? item.price * qty : 0);
+    }, 0);
+  }, [foodQuantities, availableFoods]);
+
+  const rawSubtotalAll = totalAmount + subtotalFoods;
+  const finalPayTotal = Math.max(0, rawSubtotalAll - discountAmount);
+
+  const subtotalFoodsFormatted = useMemo(() => {
+    return `${subtotalFoods.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+  }, [subtotalFoods]);
+
+  const discountAmountFormatted = useMemo(() => {
+    return `${discountAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+  }, [discountAmount]);
+
+  const finalPayTotalFormatted = useMemo(() => {
+    return `${finalPayTotal.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+  }, [finalPayTotal]);
+
+  const totalFoodItemsCount = useMemo(() => {
+    return Object.values(foodQuantities).reduce((sum, q) => sum + q, 0);
+  }, [foodQuantities]);
+
+  const filteredFoods = useMemo(() => {
+    if (foodCategoryFilter === 'all') return availableFoods;
+    return availableFoods.filter((f) => f.category === foodCategoryFilter);
+  }, [availableFoods, foodCategoryFilter]);
+
+  const handleIncreaseFood = (id: string) => {
+    setFoodQuantities((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  };
+
+  const handleDecreaseFood = (id: string) => {
+    setFoodQuantities((prev) => {
+      const cur = prev[id] || 0;
+      if (cur <= 1) {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      }
+      return { ...prev, [id]: cur - 1 };
+    });
+  };
+
+  const handleApplyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setCouponError('Vui lòng nhập mã khuyến mãi');
+      return;
+    }
+    setCouponChecking(true);
+    setCouponError(null);
+    try {
+      const res = await PromotionAPI.checkPromotion(code, rawSubtotalAll);
+      if (res.success && res.promotion) {
+        setAppliedPromo(res.promotion);
+        setDiscountAmount(res.discountAmount || 0);
+      } else {
+        setCouponError(res.message || 'Mã khuyến mãi không hợp lệ hoặc đã hết hạn');
+        setAppliedPromo(null);
+        setDiscountAmount(0);
+      }
+    } catch (err: any) {
+      setCouponError(err.message || 'Lỗi khi kiểm tra mã khuyến mãi');
+      setAppliedPromo(null);
+      setDiscountAmount(0);
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedPromo(null);
+    setDiscountAmount(0);
+    setCouponCode('');
+    setCouponError(null);
+  };
+
   // ─── UC27: Mở Modal Bảng giá vé theo suất chiếu ─────────────────────────────
   const handleOpenPricingModal = async () => {
     try {
@@ -337,17 +449,43 @@ export default function SeatBookingScreen() {
 
     try {
       setBookingLoading(true);
+
+      const foodsPayload = Object.entries(foodQuantities).map(([fId, qty]) => {
+        const item = availableFoods.find((f) => f.id === fId);
+        return {
+          foodId: fId,
+          name: item?.name || 'Món ăn',
+          category: item?.category || 'food',
+          price: item?.price || 0,
+          quantity: qty,
+          image: item?.image || '',
+        };
+      });
+
       const res = await SeatAPI.bookSeats({
         showtimeId: activeShowtimeId,
         seatCodes: selectedSeatCodes,
         userId: user?.id,
         holdToken,
         paymentMethod,
+        foods: foodsPayload,
+        promotionCode: appliedPromo?.code || '',
+        discountAmount,
+        totalAmount: finalPayTotal,
       });
 
       setConfirmModalVisible(false);
-      setSuccessBooking(res.booking);
+      setSuccessBooking({
+        ...res.booking,
+        orderedFoods: foodsPayload,
+        discountAmount,
+        totalPaid: finalPayTotal,
+      });
       setSelectedSeatCodes([]);
+      setFoodQuantities({});
+      setAppliedPromo(null);
+      setDiscountAmount(0);
+      setCouponCode('');
       setRemainingSeconds(0);
       setHoldExpiresAt(null);
       // Refresh lại sơ đồ ghế để hiển thị các ghế vừa đặt chuyển sang trạng thái đã đặt
@@ -791,7 +929,7 @@ export default function SeatBookingScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Xác Nhận Đặt Ghế</Text>
+                <Text style={styles.modalTitle}>Xác Nhận Đặt Ghế & Bắp Nước</Text>
                 <Text style={styles.modalSubtitle}>
                   {data?.movie?.title} • {data?.theater?.shortName}
                 </Text>
@@ -801,74 +939,227 @@ export default function SeatBookingScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.bookingDetailBox}>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Phim:</Text>
-                <Text style={styles.bookingDetailVal} numberOfLines={1}>
-                  {data?.movie?.title}
-                </Text>
-              </View>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Suất chiếu:</Text>
-                <Text style={styles.bookingDetailVal}>
-                  {data?.showtime?.startTime} • {data?.showtime?.dateStr}
-                </Text>
-              </View>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Phòng chiếu:</Text>
-                <Text style={styles.bookingDetailVal}>
-                  {data?.showtime?.room} ({data?.showtime?.format})
-                </Text>
-              </View>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Ghế đã chọn:</Text>
-                <Text style={[styles.bookingDetailVal, { color: '#E50914', fontWeight: '800' }]}>
-                  {selectedSeatCodes.join(', ')} ({selectedSeatCodes.length} ghế)
-                </Text>
-              </View>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Thời gian giữ chỗ còn lại:</Text>
-                <Text style={[styles.bookingDetailVal, { color: '#F59E0B', fontWeight: '800' }]}>
-                  {timerDisplay}
-                </Text>
-              </View>
-              <View style={styles.bookingDetailRow}>
-                <Text style={styles.bookingDetailLabel}>Tổng tiền thanh toán:</Text>
-                <Text style={[styles.bookingDetailVal, { color: '#10B981', fontSize: 16, fontWeight: '800' }]}>
-                  {totalAmountFormatted}
-                </Text>
-              </View>
-            </View>
-
-            {/* Chọn phương thức thanh toán */}
-            <Text style={styles.paymentTitle}>Phương thức thanh toán:</Text>
-            <View style={styles.paymentOptions}>
-              {['Ví MoMo', 'ZaloPay', 'Thẻ ATM / Visa', 'Tại quầy vé'].map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[
-                    styles.paymentOption,
-                    paymentMethod === p && styles.paymentOptionActive,
-                  ]}
-                  onPress={() => setPaymentMethod(p)}
-                  activeOpacity={0.8}>
-                  <Ionicons
-                    name={
-                      paymentMethod === p ? 'radio-button-on' : 'radio-button-off'
-                    }
-                    size={16}
-                    color={paymentMethod === p ? '#E50914' : '#9CA3AF'}
-                  />
-                  <Text
-                    style={[
-                      styles.paymentOptionText,
-                      paymentMethod === p && styles.paymentOptionTextActive,
-                    ]}>
-                    {p}
+            <ScrollView
+              style={{ maxHeight: 520 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 12 }}>
+              {/* 1. Chi tiết suất chiếu & ghế */}
+              <View style={styles.bookingDetailBox}>
+                <View style={styles.bookingDetailRow}>
+                  <Text style={styles.bookingDetailLabel}>Phim:</Text>
+                  <Text style={styles.bookingDetailVal} numberOfLines={1}>
+                    {data?.movie?.title}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                </View>
+                <View style={styles.bookingDetailRow}>
+                  <Text style={styles.bookingDetailLabel}>Suất chiếu:</Text>
+                  <Text style={styles.bookingDetailVal}>
+                    {data?.showtime?.startTime} • {data?.showtime?.dateStr}
+                  </Text>
+                </View>
+                <View style={styles.bookingDetailRow}>
+                  <Text style={styles.bookingDetailLabel}>Phòng chiếu:</Text>
+                  <Text style={styles.bookingDetailVal}>
+                    {data?.showtime?.room} ({data?.showtime?.format})
+                  </Text>
+                </View>
+                <View style={styles.bookingDetailRow}>
+                  <Text style={styles.bookingDetailLabel}>Ghế đã chọn:</Text>
+                  <Text style={[styles.bookingDetailVal, { color: '#E50914', fontWeight: '800' }]}>
+                    {selectedSeatCodes.join(', ')} ({selectedSeatCodes.length} ghế)
+                  </Text>
+                </View>
+                <View style={styles.bookingDetailRow}>
+                  <Text style={styles.bookingDetailLabel}>Thời gian giữ chỗ còn lại:</Text>
+                  <Text style={[styles.bookingDetailVal, { color: '#F59E0B', fontWeight: '800' }]}>
+                    {timerDisplay}
+                  </Text>
+                </View>
+              </View>
+
+              {/* 2. Chọn đồ ăn & nước uống (UC38) */}
+              <View style={styles.foodSectionWrapper}>
+                <View style={styles.foodSectionHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="fast-food-outline" size={18} color="#F59E0B" />
+                    <Text style={styles.foodSectionTitle}>Chọn Bắp & Nước Uống Kèm Theo</Text>
+                  </View>
+                  {totalFoodItemsCount > 0 && (
+                    <Text style={styles.foodBadgeSelected}>{totalFoodItemsCount} món đã chọn</Text>
+                  )}
+                </View>
+
+                {/* Danh mục F&B */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.foodCatRow}>
+                  {[
+                    { key: 'all', label: 'Tất cả' },
+                    { key: 'food', label: 'Bắp rang' },
+                    { key: 'drink', label: 'Nước ngọt' },
+                    { key: 'combo', label: 'Combo' },
+                  ].map((cat) => (
+                    <TouchableOpacity
+                      key={cat.key}
+                      onPress={() => setFoodCategoryFilter(cat.key)}
+                      style={[
+                        styles.foodCatPill,
+                        foodCategoryFilter === cat.key && styles.foodCatPillActive,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.foodCatPillText,
+                          foodCategoryFilter === cat.key && styles.foodCatPillTextActive,
+                        ]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {loadingFoods ? (
+                  <ActivityIndicator size="small" color="#E50914" style={{ marginVertical: 10 }} />
+                ) : filteredFoods.length === 0 ? (
+                  <Text style={styles.foodEmptyText}>Không có món ăn nào trong danh mục này.</Text>
+                ) : (
+                  <View style={styles.foodListContainer}>
+                    {filteredFoods.map((f) => {
+                      const qty = foodQuantities[f.id] || 0;
+                      return (
+                        <View
+                          key={f.id}
+                          style={[styles.foodCardItem, qty > 0 && styles.foodCardItemActive]}>
+                          <Image source={{ uri: f.image }} style={styles.foodItemThumb} />
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.foodItemName} numberOfLines={1}>
+                              {f.name}
+                            </Text>
+                            <Text style={styles.foodItemPrice}>
+                              {f.price.toLocaleString('vi-VN')}đ / {f.unit}
+                            </Text>
+                          </View>
+                          <View style={styles.foodQtyControl}>
+                            <TouchableOpacity
+                              onPress={() => handleDecreaseFood(f.id)}
+                              disabled={qty === 0}
+                              style={[styles.foodQtyBtn, qty === 0 && styles.foodQtyBtnDisabled]}>
+                              <Ionicons name="remove" size={14} color={qty > 0 ? '#FFFFFF' : '#6B7280'} />
+                            </TouchableOpacity>
+                            <Text style={styles.foodQtyText}>{qty}</Text>
+                            <TouchableOpacity
+                              onPress={() => handleIncreaseFood(f.id)}
+                              style={styles.foodQtyBtn}>
+                              <Ionicons name="add" size={14} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              {/* 3. Mã ưu đãi / Khuyến mãi (UC39) */}
+              <View style={styles.couponSectionWrapper}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="ticket-outline" size={16} color="#EC4899" />
+                  <Text style={styles.couponSectionTitle}>Mã Khuyến Mãi / Voucher Giảm Giá</Text>
+                </View>
+
+                {appliedPromo ? (
+                  <View style={styles.appliedPromoBadge}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.appliedPromoCode}>
+                        🎉 Đã áp dụng: {appliedPromo.code}
+                      </Text>
+                      <Text style={styles.appliedPromoDiscount}>
+                        Giảm: -{discountAmountFormatted} ({appliedPromo.title})
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={handleRemoveCoupon} style={styles.appliedPromoRemoveBtn}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.couponInputRow}>
+                    <TextInput
+                      style={styles.couponInput}
+                      placeholder="Nhập mã (VD: CINEMAX20, COMBO50)..."
+                      placeholderTextColor="#6B7280"
+                      value={couponCode}
+                      onChangeText={(t) => {
+                        setCouponCode(t);
+                        setCouponError(null);
+                      }}
+                      autoCapitalize="characters"
+                    />
+                    <TouchableOpacity
+                      style={styles.couponApplyBtn}
+                      onPress={handleApplyCoupon}
+                      disabled={couponChecking || !couponCode.trim()}>
+                      {couponChecking ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.couponApplyBtnText}>Áp dụng</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {couponError && <Text style={styles.couponErrorText}>{couponError}</Text>}
+              </View>
+
+              {/* 4. Chọn phương thức thanh toán */}
+              <Text style={styles.paymentTitle}>Phương thức thanh toán:</Text>
+              <View style={styles.paymentOptions}>
+                {['Ví MoMo', 'ZaloPay', 'Thẻ ATM / Visa', 'Tại quầy vé'].map((p) => (
+                  <TouchableOpacity
+                    key={p}
+                    style={[
+                      styles.paymentOption,
+                      paymentMethod === p && styles.paymentOptionActive,
+                    ]}
+                    onPress={() => setPaymentMethod(p)}
+                    activeOpacity={0.8}>
+                    <Ionicons
+                      name={paymentMethod === p ? 'radio-button-on' : 'radio-button-off'}
+                      size={16}
+                      color={paymentMethod === p ? '#E50914' : '#9CA3AF'}
+                    />
+                    <Text
+                      style={[
+                        styles.paymentOptionText,
+                        paymentMethod === p && styles.paymentOptionTextActive,
+                      ]}>
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 5. Tổng kết chi phí */}
+              <View style={styles.costBreakdownBox}>
+                <View style={styles.costRow}>
+                  <Text style={styles.costLabel}>Tiền vé ({selectedSeatCodes.length} ghế):</Text>
+                  <Text style={styles.costVal}>{totalAmountFormatted}</Text>
+                </View>
+                {subtotalFoods > 0 && (
+                  <View style={styles.costRow}>
+                    <Text style={styles.costLabel}>Bắp nước ({totalFoodItemsCount} phần):</Text>
+                    <Text style={styles.costVal}>{subtotalFoodsFormatted}</Text>
+                  </View>
+                )}
+                {discountAmount > 0 && (
+                  <View style={styles.costRow}>
+                    <Text style={[styles.costLabel, { color: '#10B981' }]}>Khuyến mãi giảm:</Text>
+                    <Text style={[styles.costVal, { color: '#10B981', fontWeight: '700' }]}>
+                      -{discountAmountFormatted}
+                    </Text>
+                  </View>
+                )}
+                <View style={[styles.costRow, styles.costTotalRow]}>
+                  <Text style={styles.costTotalLabel}>TỔNG THANH TOÁN:</Text>
+                  <Text style={styles.costTotalVal}>{finalPayTotalFormatted}</Text>
+                </View>
+              </View>
+            </ScrollView>
 
             <View style={styles.modalActionButtons}>
               <TouchableOpacity
@@ -887,7 +1178,9 @@ export default function SeatBookingScreen() {
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-                    <Text style={styles.modalConfirmBtnText}>Xác nhận thanh toán</Text>
+                    <Text style={styles.modalConfirmBtnText}>
+                      Xác nhận thanh toán ({finalPayTotalFormatted})
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -949,6 +1242,27 @@ export default function SeatBookingScreen() {
                         {successBooking.paymentMethod}
                       </Text>
                     </View>
+                  </View>
+
+                  {/* Hiển thị bắp nước đã đặt kèm theo nếu có */}
+                  {((successBooking.orderedFoods && successBooking.orderedFoods.length > 0) || successBooking.combos) && (
+                    <View style={{ marginTop: 10, padding: 8, backgroundColor: '#262626', borderRadius: 8 }}>
+                      <Text style={{ fontSize: 11, color: '#F59E0B', fontWeight: '700', marginBottom: 2 }}>
+                        🍿 BẮP NƯỚC KÈM THEO:
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#FFFFFF' }}>
+                        {successBooking.orderedFoods && successBooking.orderedFoods.length > 0
+                          ? successBooking.orderedFoods.map((f: any) => `${f.name} x${f.quantity}`).join(', ')
+                          : successBooking.combos}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, color: '#9CA3AF' }}>Tổng tiền thanh toán:</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#10B981' }}>
+                      {(successBooking.totalPaid || successBooking.totalAmount || totalAmount).toLocaleString('vi-VN')}đ
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -2079,5 +2393,226 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  // ─── Food & Drinks Styles (UC38) ──────────────────────────────────────────
+  foodSectionWrapper: {
+    backgroundColor: '#1E1E22',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+  },
+  foodSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  foodSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  foodBadgeSelected: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+    backgroundColor: '#F59E0B20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  foodCatRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  foodCatPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    backgroundColor: '#27272A',
+    marginRight: 6,
+  },
+  foodCatPillActive: {
+    backgroundColor: '#E50914',
+  },
+  foodCatPillText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  foodCatPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  foodEmptyText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginVertical: 10,
+  },
+  foodListContainer: {
+    gap: 8,
+  },
+  foodCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#141416',
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+  foodCardItemActive: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#1F1D16',
+  },
+  foodItemThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#27272A',
+  },
+  foodItemName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  foodItemPrice: {
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
+  foodQtyControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  foodQtyBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#E50914',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodQtyBtnDisabled: {
+    backgroundColor: '#27272A',
+  },
+  foodQtyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    minWidth: 18,
+    textAlign: 'center',
+  },
+  // ─── Promotion Coupon Styles (UC39) ───────────────────────────────────────
+  couponSectionWrapper: {
+    backgroundColor: '#1E1E22',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+  },
+  couponSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  couponInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  couponInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: '#141416',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    color: '#FFFFFF',
+    fontSize: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  couponApplyBtn: {
+    backgroundColor: '#EC4899',
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  couponApplyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  appliedPromoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#10B98118',
+    borderColor: '#10B981',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  appliedPromoCode: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  appliedPromoDiscount: {
+    fontSize: 11,
+    color: '#D1D5DB',
+    marginTop: 2,
+  },
+  appliedPromoRemoveBtn: {
+    padding: 4,
+  },
+  couponErrorText: {
+    fontSize: 11,
+    color: '#EF4444',
+    marginTop: 6,
+  },
+  // ─── Cost Breakdown Styles ───────────────────────────────────────────────
+  costBreakdownBox: {
+    backgroundColor: '#27272A',
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+    marginBottom: 16,
+  },
+  costRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  costLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  costVal: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  costTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#3F3F46',
+    paddingTop: 8,
+    marginTop: 4,
+  },
+  costTotalLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  costTotalVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#10B981',
   },
 });

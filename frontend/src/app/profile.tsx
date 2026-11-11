@@ -441,7 +441,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Admin Management Hub Access - Chỉ hiển thị cho Admin */}
+        {/* Admin Management Hub Access - Dành cho Quản trị viên */}
         {user.role === 'admin' && (
           <TouchableOpacity
             style={styles.adminHubCard}
@@ -464,6 +464,32 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+          </TouchableOpacity>
+        )}
+
+        {/* Staff Food Orders Management Access - Dành cho Nhân viên */}
+        {user.role === 'staff' && (
+          <TouchableOpacity
+            style={styles.adminHubCard}
+            onPress={() => setAdminHubVisible(true)}
+            activeOpacity={0.85}>
+            <View style={styles.adminHubLeft}>
+              <View style={[styles.adminHubIconCircle, { backgroundColor: '#10B98120' }]}>
+                <Ionicons name="fast-food-outline" size={22} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.adminHubTitle}>QUẢN LÝ QUẦY BẮP NƯỚC</Text>
+                  <View style={[styles.adminHubRolePill, { backgroundColor: '#10B981' }]}>
+                    <Text style={styles.adminHubRoleText}>Staff Quầy Bar</Text>
+                  </View>
+                </View>
+                <Text style={styles.adminHubSub}>
+                  Theo dõi đơn hàng & cập nhật trạng thái chế biến (Đang làm, Sẵn sàng, Đã giao)
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#10B981" />
           </TouchableOpacity>
         )}
 
@@ -1014,7 +1040,8 @@ export default function ProfileScreen() {
 
       {/* Admin Management Hub Modal (UC37, UC39, UC41, UC42, UC44, UC45) */}
       <AdminManagementHubModal
-        visible={adminHubVisible && user.role === 'admin'}
+        visible={adminHubVisible && (user.role === 'admin' || user.role === 'staff' || user.role === 'manager')}
+        initialTab={user.role === 'staff' ? 'orders' : 'food'}
         onClose={() => {
           setAdminHubVisible(false);
           fetchProfileData();

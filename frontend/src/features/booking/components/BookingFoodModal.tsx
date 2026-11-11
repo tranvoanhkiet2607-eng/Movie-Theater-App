@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FoodAPI, PromotionAPI, OrderAPI } from '@/services/api';
+import { FoodAPI, PromotionAPI, OrderAPI, SeatAPI } from '@/services/api';
 import { FoodItem, FoodCategory } from '@/types/food';
 import { Promotion } from '@/types/promotion';
 import { Order } from '@/types/order';
@@ -26,6 +26,7 @@ interface BookingFoodModalProps {
   theater: any;
   showtime: any;
   dateLabel?: string;
+  initialSeats?: { seatNumber: string; seatType: string; price: number }[];
   onBookingComplete?: (order: Order) => void;
 }
 
@@ -43,6 +44,7 @@ export default function BookingFoodModal({
   theater,
   showtime,
   dateLabel = 'Hôm nay',
+  initialSeats,
   onBookingComplete,
 }: BookingFoodModalProps) {
   const { user } = useAuth();
@@ -51,10 +53,13 @@ export default function BookingFoodModal({
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Selected Seats State
-  const [selectedSeats, setSelectedSeats] = useState<{ seatNumber: string; seatType: string; price: number }[]>([
-    { seatNumber: 'F05', seatType: 'vip', price: 135000 },
-    { seatNumber: 'F06', seatType: 'vip', price: 135000 },
-  ]);
+  const [selectedSeats, setSelectedSeats] = useState<{ seatNumber: string; seatType: string; price: number }[]>([]);
+  const [dynamicSeatRows, setDynamicSeatRows] = useState<
+    Array<{
+      row: string;
+      seats: Array<{ seatCode: string; type: string; price: number; isBooked: boolean }>;
+    }>
+  >([]);
 
   // Food & Drinks State (UC38)
   const [foodMenu, setFoodMenu] = useState<FoodItem[]>([]);
@@ -75,12 +80,22 @@ export default function BookingFoodModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  // Load Food Menu on Modal Open
+  // Load Food Menu and Dynamic Seats on Modal Open
   useEffect(() => {
     if (visible) {
-      setCurrentStep(1);
+      if (initialSeats && initialSeats.length > 0) {
+        setSelectedSeats(initialSeats);
+        setCurrentStep(2);
+      } else {
+        setSelectedSeats([
+          { seatNumber: 'F05', seatType: 'vip', price: 135000 },
+          { seatNumber: 'F06', seatType: 'vip', price: 135000 },
+        ]);
+        setCurrentStep(1);
+      }
       setCompletedOrder(null);
       setLoadingFoods(true);
+
       FoodAPI.getFoods({ availableOnly: true })
         .then((res) => {
           if (res.success) {
@@ -89,8 +104,39 @@ export default function BookingFoodModal({
         })
         .catch((err) => console.log('[Load Food Error]', err))
         .finally(() => setLoadingFoods(false));
+
+      const stId = showtime?.code || showtime?.id;
+      if (stId) {
+        SeatAPI.getShowtimeSeatMap(stId)
+          .then((res) => {
+            if (res.success && res.seatMap && res.seatMap.length > 0) {
+              const rowMap: Record<
+                string,
+                Array<{ seatCode: string; type: string; price: number; isBooked: boolean }>
+              > = {};
+              res.seatMap.forEach((s) => {
+                const r = s.row.toUpperCase();
+                if (!rowMap[r]) rowMap[r] = [];
+                rowMap[r].push({
+                  seatCode: s.seatCode,
+                  type: s.type,
+                  price: s.price,
+                  isBooked: s.status === 'booked' || s.status === 'holding' || s.status === 'maintenance',
+                });
+              });
+              const rows = Object.keys(rowMap)
+                .sort()
+                .map((r) => ({
+                  row: r,
+                  seats: rowMap[r],
+                }));
+              setDynamicSeatRows(rows);
+            }
+          })
+          .catch((err) => console.log('[Load Dynamic Seats Error]', err));
+      }
     }
-  }, [visible]);
+  }, [visible, initialSeats, showtime]);
 
   // Seat toggle handler
   const toggleSeat = (seatNumber: string, seatType: string, price: number) => {
@@ -332,40 +378,85 @@ export default function BookingFoodModal({
 
               {/* Seat Grid */}
               <View style={styles.seatGrid}>
-                {AVAILABLE_SEAT_GRID.map((row) => (
-                  <View key={row.row} style={styles.gridRow}>
-                    <Text style={styles.rowLabel}>{row.row}</Text>
-                    <View style={styles.rowSeats}>
-                      {row.seats.map((seat) => {
-                        const isSelected = selectedSeats.some((s) => s.seatNumber === seat);
-                        const isCouple = row.type === 'couple';
+                {dynamicSeatRows.length > 0
+                  ? dynamicSeatRows.map((row) => (
+                      <View key={row.row} style={styles.gridRow}>
+                        <Text style={styles.rowLabel}>{row.row}</Text>
+                        <View style={styles.rowSeats}>
+                          {row.seats.map((seat) => {
+                            const isSelected = selectedSeats.some(
+                              (s) => s.seatNumber === seat.seatCode
+                            );
+                            const isCouple = seat.type === 'couple';
 
-                        return (
-                          <TouchableOpacity
-                            key={seat}
-                            onPress={() => toggleSeat(seat, row.type, row.price)}
-                            activeOpacity={0.7}
-                            style={[
-                              styles.seatBox,
-                              row.type === 'standard' && styles.seatBoxStandard,
-                              row.type === 'vip' && styles.seatBoxVip,
-                              row.type === 'couple' && styles.seatBoxCouple,
-                              isCouple && styles.seatBoxCoupleWidth,
-                              isSelected && styles.seatBoxSelected,
-                            ]}>
-                            <Text
-                              style={[
-                                styles.seatNumberText,
-                                isSelected && styles.seatNumberTextSelected,
-                              ]}>
-                              {seat}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))}
+                            return (
+                              <TouchableOpacity
+                                key={seat.seatCode}
+                                onPress={() => {
+                                  if (seat.isBooked) return;
+                                  toggleSeat(seat.seatCode, seat.type, seat.price);
+                                }}
+                                disabled={seat.isBooked}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.seatBox,
+                                  seat.type === 'standard' && styles.seatBoxStandard,
+                                  seat.type === 'vip' && styles.seatBoxVip,
+                                  seat.type === 'couple' && styles.seatBoxCouple,
+                                  isCouple && styles.seatBoxCoupleWidth,
+                                  isSelected && styles.seatBoxSelected,
+                                  seat.isBooked && styles.seatBoxBooked,
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.seatNumberText,
+                                    isSelected && styles.seatNumberTextSelected,
+                                    seat.isBooked && styles.seatNumberTextBooked,
+                                  ]}>
+                                  {seat.isBooked ? '✕' : seat.seatCode}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))
+                  : AVAILABLE_SEAT_GRID.map((row) => (
+                      <View key={row.row} style={styles.gridRow}>
+                        <Text style={styles.rowLabel}>{row.row}</Text>
+                        <View style={styles.rowSeats}>
+                          {row.seats.map((seat) => {
+                            const isSelected = selectedSeats.some(
+                              (s) => s.seatNumber === seat
+                            );
+                            const isCouple = row.type === 'couple';
+
+                            return (
+                              <TouchableOpacity
+                                key={seat}
+                                onPress={() => toggleSeat(seat, row.type, row.price)}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.seatBox,
+                                  row.type === 'standard' && styles.seatBoxStandard,
+                                  row.type === 'vip' && styles.seatBoxVip,
+                                  row.type === 'couple' && styles.seatBoxCouple,
+                                  isCouple && styles.seatBoxCoupleWidth,
+                                  isSelected && styles.seatBoxSelected,
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.seatNumberText,
+                                    isSelected && styles.seatNumberTextSelected,
+                                  ]}>
+                                  {seat}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))}
               </View>
 
               {/* Selected Seats Summary */}
@@ -918,6 +1009,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#E50914',
     borderColor: '#EF4444',
   },
+  seatBoxBooked: {
+    backgroundColor: '#27272A',
+    borderColor: '#3F3F46',
+    opacity: 0.5,
+  },
   seatNumberText: {
     fontSize: 10,
     fontWeight: '600',
@@ -925,6 +1021,10 @@ const styles = StyleSheet.create({
   },
   seatNumberTextSelected: {
     color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  seatNumberTextBooked: {
+    color: '#71717A',
     fontWeight: '700',
   },
   selectedSeatsBox: {

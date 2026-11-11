@@ -34,6 +34,7 @@ import {
 } from '@/types/showtime';
 import BookingFoodModal from '@/features/booking/components/BookingFoodModal';
 import AdminManagementHubModal from '@/features/admin/AdminManagementHubModal';
+import MovieReviewsSection from '@/features/reviews/components/MovieReviewsSection';
 
 const TIME_PERIOD_OPTIONS: {
   key: TimeSlotPeriod;
@@ -1845,42 +1846,52 @@ export default function ExploreScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.modalMovieBanner}>
-                  <Image
-                    source={{ uri: detailMovie.poster }}
-                    style={styles.modalMoviePosterLarge}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalMovieTitle}>{detailMovie.title}</Text>
-                    <Text style={styles.modalMovieOriginal}>
-                      {detailMovie.originalTitle}
+                <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+                  <View style={styles.modalMovieBanner}>
+                    <Image
+                      source={{ uri: detailMovie.poster }}
+                      style={styles.modalMoviePosterLarge}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalMovieTitle}>{detailMovie.title}</Text>
+                      <Text style={styles.modalMovieOriginal}>
+                        {detailMovie.originalTitle}
+                      </Text>
+                      <Text style={styles.modalMovieSub}>
+                        Thể loại: {detailMovie.genre}
+                      </Text>
+                      <Text style={styles.modalMovieSub}>
+                        Thời lượng: {detailMovie.durationLabel} • Đánh giá:{' '}
+                        {detailMovie.rating}
+                      </Text>
+                      <Text style={styles.modalMovieSub}>
+                        Khởi chiếu: {detailMovie.releaseDate}
+                      </Text>
+                      <Text style={styles.modalMovieSub}>
+                        Đạo diễn: {detailMovie.director}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.synopsisBox}>
+                    <Text style={styles.synopsisHeading}>NỘI DUNG PHIM</Text>
+                    <Text style={styles.synopsisText}>{detailMovie.synopsis}</Text>
+                    <Text style={[styles.synopsisHeading, { marginTop: 10 }]}>
+                      DIỄN VIÊN
                     </Text>
-                    <Text style={styles.modalMovieSub}>
-                      Thể loại: {detailMovie.genre}
-                    </Text>
-                    <Text style={styles.modalMovieSub}>
-                      Thời lượng: {detailMovie.durationLabel} • Đánh giá:{' '}
-                      {detailMovie.rating}
-                    </Text>
-                    <Text style={styles.modalMovieSub}>
-                      Khởi chiếu: {detailMovie.releaseDate}
-                    </Text>
-                    <Text style={styles.modalMovieSub}>
-                      Đạo diễn: {detailMovie.director}
+                    <Text style={styles.synopsisText}>
+                      {detailMovie.cast.join(', ')}
                     </Text>
                   </View>
-                </View>
 
-                <View style={styles.synopsisBox}>
-                  <Text style={styles.synopsisHeading}>NỘI DUNG PHIM</Text>
-                  <Text style={styles.synopsisText}>{detailMovie.synopsis}</Text>
-                  <Text style={[styles.synopsisHeading, { marginTop: 10 }]}>
-                    DIỄN VIÊN
-                  </Text>
-                  <Text style={styles.synopsisText}>
-                    {detailMovie.cast.join(', ')}
-                  </Text>
-                </View>
+                  {/* Đánh giá và Xếp hạng phim */}
+                  <View style={{ marginTop: 16 }}>
+                    <MovieReviewsSection
+                      movieId={detailMovie.id}
+                      movieTitle={detailMovie.title}
+                    />
+                  </View>
+                </ScrollView>
 
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
