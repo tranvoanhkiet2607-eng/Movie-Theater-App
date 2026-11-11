@@ -20,8 +20,8 @@ async function verifyAdmin(req, res, next) {
       return res.status(404).json({ success: false, message: 'Tài khoản không tồn tại.' });
     }
 
-    // Cho phép admin và manager thao tác quản trị
-    if (user.role !== 'admin' && user.role !== 'manager') {
+    // Cho phép admin thao tác quản trị
+    if (user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Bạn không có quyền quản trị viên để thực hiện thao tác này.',
@@ -67,23 +67,8 @@ const ROLE_PERMISSIONS_MATRIX = {
       { code: 'role:manage', name: 'Phân quyền & đổi vai trò', granted: false },
     ],
   },
-  manager: {
-    roleName: 'Quản lý cụm rạp',
-    description: 'Giám sát hoạt động rạp, quản lý tài khoản nhân viên và theo dõi lịch chiếu',
-    badgeColor: '#F59E0B',
-    permissions: [
-      { code: 'movie:view', name: 'Xem phim & lịch chiếu', granted: true },
-      { code: 'booking:create', name: 'Đặt vé & hỗ trợ khách', granted: true },
-      { code: 'booking:history', name: 'Quản lý toàn bộ lịch sử vé', granted: true },
-      { code: 'membership:points', name: 'Quản lý chính sách hội viên', granted: true },
-      { code: 'profile:edit', name: 'Quản lý thông tin cá nhân', granted: true },
-      { code: 'ticket:checkin', name: 'Soát vé & giải quyết tranh chấp vé', granted: true },
-      { code: 'account:manage', name: 'Xem & cập nhật tài khoản nhân viên', granted: true },
-      { code: 'role:manage', name: 'Phân quyền nhân viên rạp', granted: true },
-    ],
-  },
   admin: {
-    roleName: 'Quản trị viên tối cao',
+    roleName: 'Quản trị viên',
     description: 'Toàn quyền kiểm soát hệ thống, phân quyền, quản trị tài khoản và cấu hình hệ thống',
     badgeColor: '#EF4444',
     permissions: [
@@ -276,7 +261,7 @@ router.patch('/accounts/:id/role', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     const { role, customPermissions } = req.body;
 
-    const validRoles = ['customer', 'staff', 'manager', 'admin'];
+    const validRoles = ['customer', 'staff', 'admin'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: 'Vai trò người dùng không hợp lệ.' });
     }

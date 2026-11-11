@@ -40,7 +40,7 @@ const AREA_FILTER_OPTIONS = [
 
 export default function CinemaManagementScreen() {
   const { user, session } = useAuth();
-  const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'manager'));
+  const isAdmin = Boolean(user && user.role === 'admin');
   const authToken = session?.token || '';
 
   // Data & Filter State

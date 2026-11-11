@@ -370,8 +370,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN / MANAGER */}
-        {(user.role === 'admin' || user.role === 'manager') && (
+        {/* Account Administration & Role Management Section - CHỈ HIỂN THỊ KHI LÀ ADMIN */}
+        {user.role === 'admin' && (
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -379,9 +379,7 @@ export default function ProfileScreen() {
                 <Text style={styles.sectionTitle}>Quản Trị Hệ Thống & Phân Quyền</Text>
               </View>
               <View style={styles.roleTag}>
-                <Text style={styles.roleTagText}>
-                  {user.role === 'admin' ? 'Quản trị viên' : 'Quản lý rạp'}
-                </Text>
+                <Text style={styles.roleTagText}>Quản trị viên</Text>
               </View>
             </View>
 
@@ -495,55 +493,6 @@ export default function ProfileScreen() {
               {new Date(user.createdAt).toLocaleDateString('vi-VN')}
             </Text>
           </View>
-        </View>
-
-        {/* Session Management Details (UC02) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, styles.sessionHeaderTitle]}>
-              Quản lý phiên đăng nhập (Session)
-            </Text>
-            <View style={styles.activeTag}>
-              <Text style={styles.activeTagText}>Đang hoạt động</Text>
-            </View>
-          </View>
-
-          <View style={styles.sessionGrid}>
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Mã phiên (Token)</Text>
-              <Text style={styles.sessionGridValue} numberOfLines={1}>
-                {session ? session.token.substring(0, 16) + '...' : 'N/A'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Thiết bị / Nền tảng</Text>
-              <Text style={styles.sessionGridValue}>
-                {session?.devicePlatform?.toUpperCase() || 'MOBILE'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Ghi nhớ đăng nhập</Text>
-              <Text style={styles.sessionGridValue}>
-                {session?.rememberMe ? 'Đã kích hoạt (30 ngày)' : '24 giờ'}
-              </Text>
-            </View>
-
-            <View style={styles.sessionGridItem}>
-              <Text style={styles.sessionGridLabel}>Hết hạn lúc</Text>
-              <Text style={styles.sessionGridValue}>
-                {session ? new Date(session.expiresAt).toLocaleDateString('vi-VN') : 'N/A'}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.sessionDetailButton}
-            onPress={() => setSessionModalVisible(true)}>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#9CA3AF" />
-            <Text style={styles.sessionDetailButtonText}>Xem chi tiết kỹ thuật phiên đăng nhập</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Quick Hub for UC09 & UC10 Action Buttons */}
@@ -666,7 +615,7 @@ export default function ProfileScreen() {
           onPress={() => setLogoutModalVisible(true)}
           activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color="#EF4444" style={{ marginRight: 8 }} />
-          <Text style={styles.logoutButtonText}>ĐĂNG XUẤT PHIÊN LÀM VIỆC</Text>
+          <Text style={styles.logoutButtonText}>ĐĂNG XUẤT</Text>
         </TouchableOpacity>
 
         {/* Delete Account Button */}
@@ -676,47 +625,6 @@ export default function ProfileScreen() {
           activeOpacity={0.8}>
           <Text style={styles.deleteAccountText}>Xóa tài khoản thành viên</Text>
         </TouchableOpacity>
-
-        {/* Dedicated Demo Role Switcher Tool for Evaluators / Grading Test */}
-        <View style={styles.demoTestingCard}>
-          <View style={styles.demoTestingHeader}>
-            <Ionicons name="flask-outline" size={16} color="#F59E0B" />
-            <Text style={styles.demoTestingTitle}>CÔNG CỤ KIỂM THỬ PHÂN QUYỀN (DEMO ROLE)</Text>
-          </View>
-          <Text style={styles.demoTestingDesc}>
-            {user.role === 'customer'
-              ? '🟢 Đang ở vai trò Khách hàng (customer): Toàn bộ chức năng quản trị viên được ẩn tuyệt đối theo đúng phân quyền vai trò.'
-              : `🟡 Đang ở vai trò ${user.role === 'admin' ? 'Quản trị viên (admin)' : user.role === 'manager' ? 'Quản lý rạp' : 'Nhân viên'}: Quyền quản trị hệ thống đã được mở khóa và hiển thị đầy đủ trên màn hình.`}
-          </Text>
-          <View style={styles.demoRoleButtonsRow}>
-            {(['customer', 'staff', 'manager', 'admin'] as UserRole[]).map((r) => {
-              const isSelected = user.role === r;
-              return (
-                <TouchableOpacity
-                  key={r}
-                  style={[
-                    styles.demoRoleChip,
-                    isSelected && styles.demoRoleChipActive,
-                  ]}
-                  onPress={() => switchDemoRole?.(r)}>
-                  <Text
-                    style={[
-                      styles.demoRoleChipText,
-                      isSelected && styles.demoRoleChipTextActive,
-                    ]}>
-                    {r === 'customer'
-                      ? 'Khách hàng'
-                      : r === 'staff'
-                        ? 'Nhân viên'
-                        : r === 'manager'
-                          ? 'Quản lý'
-                          : 'Admin'}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
 
       </ScrollView>
 
@@ -1034,9 +942,9 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* UC07 & UC08: Admin Account Management & Role Authorization Modal */}
+      {/* Admin Account Management & Role Authorization Modal */}
       <AdminAccountManagementModal
-        visible={adminModalVisible && (user.role === 'admin' || user.role === 'manager')}
+        visible={adminModalVisible && user.role === 'admin'}
         onClose={() => setAdminModalVisible(false)}
         token={session?.token}
         currentUser={user}
