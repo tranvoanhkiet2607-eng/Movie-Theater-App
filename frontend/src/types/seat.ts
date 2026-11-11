@@ -205,6 +205,18 @@ export interface BookSeatsPayload {
   holdToken?: string;
   paymentMethod?: string;
   combos?: string;
+  foods?: Array<{
+    foodId?: string;
+    id?: string;
+    name: string;
+    category?: string;
+    price: number;
+    quantity: number;
+    image?: string;
+  }>;
+  promotionCode?: string;
+  discountAmount?: number;
+  totalAmount?: number;
 }
 
 export interface BookSeatsResponse {

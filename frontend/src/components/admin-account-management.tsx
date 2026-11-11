@@ -113,6 +113,21 @@ const DEFAULT_ROLE_MATRIX: Record<UserRole, RoleInfo> = {
       { code: 'role:manage', name: 'Phân quyền & đổi vai trò', granted: false },
     ],
   },
+  manager: {
+    roleName: 'Quản lý rạp',
+    description: 'Quản lý rạp chiếu, điều phối nhân viên, lịch chiếu, giá vé và duyệt báo cáo',
+    badgeColor: '#8B5CF6',
+    permissions: [
+      { code: 'movie:view', name: 'Xem phim & lịch chiếu', granted: true },
+      { code: 'booking:create', name: 'Đặt vé tại quầy', granted: true },
+      { code: 'booking:history', name: 'Quản lý toàn bộ vé hệ thống', granted: true },
+      { code: 'membership:points', name: 'Tra cứu & cấu hình điểm hội viên', granted: true },
+      { code: 'profile:edit', name: 'Quản lý thông tin tài khoản', granted: true },
+      { code: 'ticket:checkin', name: 'Soát vé & quét mã QR vào rạp', granted: true },
+      { code: 'account:manage', name: 'Xem danh sách tài khoản', granted: true },
+      { code: 'role:manage', name: 'Phân quyền & đổi vai trò', granted: false },
+    ],
+  },
   admin: {
     roleName: 'Quản trị viên',
     description: 'Toàn quyền kiểm soát hệ thống, phân quyền, quản trị tài khoản và cấu hình hệ thống',

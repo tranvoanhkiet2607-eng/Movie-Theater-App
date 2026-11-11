@@ -7,6 +7,10 @@ const Theater = require('../models/Theater');
 const Movie = require('../models/Movie');
 const Showtime = require('../models/Showtime');
 const Booking = require('../models/Booking');
+const Order = require('../models/Order');
+const Promotion = require('../models/Promotion');
+const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { DEFAULT_SEAT_TYPES } = require('../seed/seedSeats');
 
 // Helper: Định dạng giá vé VND
@@ -1083,6 +1087,10 @@ router.post('/book', async (req, res) => {
       holdToken,
       paymentMethod = 'Ví MoMo',
       combos = '',
+      foods = [],
+      promotionCode = '',
+      discountAmount = 0,
+      totalAmount: customTotal,
     } = req.body;
 
     if (!showtimeId || !Array.isArray(seatCodes) || seatCodes.length === 0) {
@@ -1157,21 +1165,50 @@ router.post('/book', async (req, res) => {
     }
 
     // Tính tổng tiền theo giá suất chiếu và loại ghế
-    let totalAmount = 0;
+    let subtotalTickets = 0;
     const baseShowtimePrice = showtime.price || 95000;
     let mainSeatType = 'Thường';
 
     seatsInfo.forEach((s) => {
       if (s.type === 'vip') {
-        totalAmount += Math.round((baseShowtimePrice * 1.25) / 5000) * 5000;
+        subtotalTickets += Math.round((baseShowtimePrice * 1.25) / 5000) * 5000;
         mainSeatType = 'VIP';
       } else if (s.type === 'couple') {
-        totalAmount += Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000;
+        subtotalTickets += Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000;
         mainSeatType = 'Sweetbox';
       } else {
-        totalAmount += baseShowtimePrice;
+        subtotalTickets += baseShowtimePrice;
       }
     });
+
+    // Tính tiền đồ ăn
+    const subtotalFoods = (foods || []).reduce(
+      (sum, f) => sum + (Number(f.price) * Number(f.quantity) || 0),
+      0
+    );
+
+    // Tính tổng tiền thanh toán cuối cùng
+    const rawTotal = subtotalTickets + subtotalFoods;
+    const numDiscount = Number(discountAmount) || 0;
+    const finalTotal = customTotal !== undefined ? Number(customTotal) : Math.max(0, rawTotal - numDiscount);
+
+    // Chuỗi mô tả combo đồ ăn
+    let comboSummary = combos;
+    if (!comboSummary && foods && foods.length > 0) {
+      comboSummary = foods.map((f) => `${f.name} x${f.quantity}`).join(', ');
+    }
+
+    // Xử lý tăng lượt dùng khuyến mãi nếu có
+    if (promotionCode && promotionCode.trim()) {
+      try {
+        await Promotion.findOneAndUpdate(
+          { code: promotionCode.trim().toUpperCase(), isActive: true },
+          { $inc: { usedCount: 1 } }
+        );
+      } catch (pErr) {
+        console.log('[Seat Booking Promo Update Error]', pErr.message);
+      }
+    }
 
     // Thêm các ghế đã chọn vào bookedSeats của suất chiếu và giải phóng khỏi heldSeats
     showtime.bookedSeats.push(...seatCodes);
@@ -1198,6 +1235,14 @@ router.post('/book', async (req, res) => {
     const bookingDate = new Date();
     bookingDate.setHours(startH || 19, startM || 0, 0, 0);
 
+    // Tìm user để lấy thông tin chi tiết & cộng điểm thưởng
+    let foundUser = null;
+    if (userId && userId !== 'guest') {
+      try {
+        foundUser = await User.findById(userId);
+      } catch (_) {}
+    }
+
     const newBooking = await Booking.create({
       userId: userId || '6ad83e54513aa79a219bb6bf',
       bookingCode,
@@ -1209,13 +1254,102 @@ router.post('/book', async (req, res) => {
       format: showtime.format,
       seats: seatCodes,
       seatType: mainSeatType,
-      combos: combos || '',
-      totalAmount,
+      combos: comboSummary || '',
+      totalAmount: finalTotal,
       paymentMethod,
       paymentStatus: 'paid',
       status: 'upcoming',
       qrCodeData: `CINEMAX-TICKET-${bookingCode}-${seatCodes.join('')}`,
     });
+
+    // Tạo bản ghi Order cho hệ thống quản lý F&B (UC44) và Báo cáo (UC45)
+    try {
+      const ticketsPayload = seatsInfo.map((s) => ({
+        seatNumber: s.seatCode,
+        seatType: s.type,
+        price: s.type === 'vip' ? Math.round((baseShowtimePrice * 1.25) / 5000) * 5000
+          : s.type === 'couple' ? Math.round((baseShowtimePrice * 2 * 0.95) / 5000) * 5000
+          : baseShowtimePrice,
+      }));
+
+      await Order.create({
+        orderCode: bookingCode,
+        user: {
+          id: userId || 'guest',
+          fullName: foundUser?.fullName || 'Khách hàng CineMax',
+          email: foundUser?.email || '',
+          phone: foundUser?.phone || '',
+        },
+        movie: {
+          id: movie?.code || showtime.movieId,
+          title: movie?.title || 'Phim rạp CineMax',
+          poster: movie?.poster || '',
+          ageRating: movie?.ageRating || 'T13',
+        },
+        theater: {
+          id: theater?.code || showtime.theaterId,
+          name: theater?.name || 'CineMax Cinema',
+          room: showtime.room || 'Rạp 01',
+          showtimeDate: bookingDate.toLocaleDateString('vi-VN'),
+          showtimeTime: showtime.startTime || '19:00',
+          format: showtime.format || '2D Phụ đề',
+        },
+        tickets: ticketsPayload,
+        foods: (foods || []).map((f) => ({
+          foodId: f.foodId || f.id || '',
+          name: f.name,
+          category: f.category || 'food',
+          price: Number(f.price),
+          quantity: Number(f.quantity),
+          image: f.image || '',
+        })),
+        subtotalTickets,
+        subtotalFoods,
+        promotionCode: promotionCode ? promotionCode.trim().toUpperCase() : '',
+        discountAmount: numDiscount,
+        totalPrice: finalTotal,
+        paymentMethod: paymentMethod || 'Ví MoMo',
+        paymentStatus: 'paid',
+        orderStatus: foods && foods.length > 0 ? 'preparing' : 'completed',
+        notes: '',
+      });
+    } catch (ordErr) {
+      console.log('[Create Order from Seat Booking Note]', ordErr.message);
+    }
+
+    // Tích điểm hội viên
+    if (foundUser) {
+      try {
+        const earnedPoints = Math.round((finalTotal * 0.08) / 1000);
+        foundUser.loyaltyPoints = (foundUser.loyaltyPoints || 0) + earnedPoints;
+        if (!foundUser.pointHistory) foundUser.pointHistory = [];
+        foundUser.pointHistory.push({
+          date: new Date(),
+          description: `Tích điểm từ vé ${bookingCode} (${movie ? movie.title : 'Phim rạp'})`,
+          pointsChange: earnedPoints,
+          balanceAfter: foundUser.loyaltyPoints,
+        });
+        await foundUser.save();
+      } catch (ptsErr) {
+        console.log('[Update Loyalty Points Note]', ptsErr.message);
+      }
+    }
+
+    // Tự động tạo thông báo gửi cho người dùng (UC43)
+    try {
+      const foodSummary = foods && foods.length > 0
+        ? ` + ${foods.length} món bắp nước (${foods.map((f) => `${f.name} x${f.quantity}`).join(', ')})`
+        : '';
+
+      await Notification.create({
+        title: `🎬 Đặt vé thành công: #${bookingCode}`,
+        message: `Chúc mừng bạn đã đặt thành công ${seatCodes.length} vé xem phim "${movie ? movie.title : 'Phim'}" tại ${theater ? theater.name : 'CineMax'} (${seatCodes.join(', ')})${foodSummary}. Vui lòng xuất trình mã QR tại rạp khi vào xem.`,
+        type: 'order',
+        targetUser: userId || 'all',
+      });
+    } catch (notifErr) {
+      console.log('[Create Seat Booking Notification Error]', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,
