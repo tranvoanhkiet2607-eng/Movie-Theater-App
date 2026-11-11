@@ -34,7 +34,7 @@ async function ensureDefaultTheaters() {
         shortName: 'Vincom Dĩ An',
         area: 'Bình Dương',
         address: 'Tầng 4, TTTM Vincom Plaza Dĩ An, 79 ĐT743, KP. Thống Nhất 1, Dĩ An, Bình Dương',
-        distance: 'Cách bạn 2.1 km',
+        distance: '',
         hotline: '1900 6017 (Nhánh 6)',
         totalRooms: 6,
         supportedFormats: ['2D Phụ đề', '2D Lồng tiếng', '3D Phụ đề', 'IMAX 3D'],

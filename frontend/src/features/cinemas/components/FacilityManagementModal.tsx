@@ -45,7 +45,6 @@ export default function FacilityManagementModal({
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [customAmenity, setCustomAmenity] = useState('');
   const [hotline, setHotline] = useState('1900 6017');
-  const [distance, setDistance] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -54,7 +53,6 @@ export default function FacilityManagementModal({
     if (visible && theater) {
       setSelectedAmenities(theater.amenities || []);
       setHotline(theater.hotline || '1900 6017');
-      setDistance(theater.distance || '');
       setCustomAmenity('');
       setErrorMessage(null);
     }
@@ -87,7 +85,6 @@ export default function FacilityManagementModal({
         {
           amenities: selectedAmenities,
           hotline: hotline.trim(),
-          distance: distance.trim(),
         },
         token
       );
@@ -133,9 +130,9 @@ export default function FacilityManagementModal({
               </View>
             ) : null}
 
-            {/* Thông tin liên hệ & Vị trí */}
+            {/* Thông tin liên hệ */}
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Thông tin liên hệ & Vị trí</Text>
+              <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Hotline rạp</Text>
@@ -144,17 +141,6 @@ export default function FacilityManagementModal({
                   value={hotline}
                   onChangeText={setHotline}
                   placeholder="1900 6017"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Ghi chú khoảng cách / vị trí</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={distance}
-                  onChangeText={setDistance}
-                  placeholder="Ví dụ: Cách trung tâm 2.5 km • Có hầm đỗ xe B2"
                   placeholderTextColor="#6B7280"
                 />
               </View>

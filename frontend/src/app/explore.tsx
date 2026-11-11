@@ -1096,7 +1096,6 @@ export default function ExploreScreen() {
                       numberOfLines={1}>
                       {theater.shortName}
                     </Text>
-                    <Text style={styles.theaterDistanceTag}>{theater.distance}</Text>
                   </View>
                   <Text style={styles.theaterFilterSub} numberOfLines={1}>
                     {theater.area} • {theater.totalRooms} phòng chiếu
@@ -1402,7 +1401,7 @@ export default function ExploreScreen() {
                             </View>
                             <View style={styles.theaterDistancePill}>
                               <Text style={styles.theaterDistanceText}>
-                                {theater.area} • {theater.distance}
+                                {theater.area}
                               </Text>
                             </View>
                           </View>
@@ -1450,9 +1449,9 @@ export default function ExploreScreen() {
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.theaterDistanceBadgeBig}>
-                          <Ionicons name="navigate" size={11} color="#F59E0B" />
+                          <Ionicons name="location-outline" size={12} color="#F59E0B" />
                           <Text style={styles.theaterDistanceBigText}>
-                            {theater.distance}
+                            {theater.area}
                           </Text>
                         </View>
                       )}

@@ -21,7 +21,6 @@ import { useAuth } from '@/context/auth-context';
 import { MaxContentWidth } from '@/constants/theme';
 import { Theater, TheaterFormPayload } from '../types/cinema.types';
 import { CinemaAPI } from '../services/cinemaApi';
-import { getCurrentDeviceLocation, Coordinates } from '../utils/locationService';
 import CinemaCard from '../components/CinemaCard';
 import CinemaDetailModal from '../components/CinemaDetailModal';
 import CinemaFormModal from '../components/CinemaFormModal';
@@ -50,7 +49,6 @@ export default function CinemaManagementScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
 
   // Modals State
   const [selectedTheater, setSelectedTheater] = useState<Theater | null>(null);
@@ -62,13 +60,6 @@ export default function CinemaManagementScreen() {
 
   const [roomModalVisible, setRoomModalVisible] = useState<boolean>(false);
   const [facilityModalVisible, setFacilityModalVisible] = useState<boolean>(false);
-
-  // Lấy định vị người dùng ngầm để hiển thị khoảng cách chính xác theo thời gian thực
-  useEffect(() => {
-    getCurrentDeviceLocation().then((coords) => {
-      if (coords) setUserLocation(coords);
-    });
-  }, []);
 
   // Fetch Theaters from API
   const fetchTheaters = useCallback(async (showIndicator = true) => {
@@ -265,7 +256,6 @@ export default function CinemaManagementScreen() {
               onPress={handleOpenDetail}
               onViewShowtimes={handleOpenDetail}
               isAdmin={isAdmin}
-              userLocation={userLocation}
               onEditTheater={handleOpenEditTheater}
               onDeleteTheater={handleDeleteTheater}
               onManageRooms={handleManageRooms}

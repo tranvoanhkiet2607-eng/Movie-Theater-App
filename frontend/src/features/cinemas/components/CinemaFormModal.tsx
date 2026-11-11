@@ -11,11 +11,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theater, TheaterFormPayload } from '../types/cinema.types';
-import {
-  autoCalculateCinemaDistance,
-  getCurrentDeviceLocation,
-  Coordinates,
-} from '../utils/locationService';
 
 interface CinemaFormModalProps {
   visible: boolean;
@@ -47,7 +42,6 @@ export default function CinemaFormModal({
   const [shortName, setShortName] = useState('');
   const [area, setArea] = useState('Hồ Chí Minh');
   const [address, setAddress] = useState('');
-  const [distance, setDistance] = useState('Cách bạn 2.5 km');
   const [hotline, setHotline] = useState('1900 6017');
   const [totalRooms, setTotalRooms] = useState('6');
   const [selectedFormats, setSelectedFormats] = useState<string[]>([
@@ -57,9 +51,6 @@ export default function CinemaFormModal({
   ]);
 
   const [isSaving, setIsSaving] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<string | null>(null);
-  const [deviceCoords, setDeviceCoords] = useState<Coordinates | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,32 +59,17 @@ export default function CinemaFormModal({
       setShortName(theaterToEdit.shortName || '');
       setArea(theaterToEdit.area || 'Hồ Chí Minh');
       setAddress(theaterToEdit.address || '');
-      setDistance(theaterToEdit.distance || autoCalculateCinemaDistance(theaterToEdit.address || '', theaterToEdit.area || 'Hồ Chí Minh'));
       setHotline(theaterToEdit.hotline || '1900 6017');
       setTotalRooms(String(theaterToEdit.totalRooms || 6));
       setSelectedFormats(theaterToEdit.supportedFormats || ['2D Phụ đề']);
-      setLocationStatus(null);
     } else {
       setName('');
       setShortName('');
       setArea('Hồ Chí Minh');
       setAddress('');
-      const defaultDist = autoCalculateCinemaDistance('', 'Hồ Chí Minh');
-      setDistance(defaultDist);
       setHotline('1900 6017');
       setTotalRooms('6');
       setSelectedFormats(['2D Phụ đề', '3D Phụ đề', 'IMAX 3D']);
-      setLocationStatus(null);
-
-      // Thử tự động lấy GPS thiết bị ngầm để tính toán chính xác
-      getCurrentDeviceLocation().then((coords) => {
-        if (coords) {
-          setDeviceCoords(coords);
-          const liveDist = autoCalculateCinemaDistance('', 'Hồ Chí Minh', coords);
-          setDistance(liveDist);
-          setLocationStatus(`Đã tự động định vị theo GPS thiết bị (${liveDist})`);
-        }
-      });
     }
     setErrorMessage(null);
   }, [theaterToEdit, visible]);
@@ -105,51 +81,6 @@ export default function CinemaFormModal({
     } else {
       setSelectedFormats([...selectedFormats, fmt]);
     }
-  };
-
-  const handleSelectArea = (selectedArea: string) => {
-    setArea(selectedArea);
-    const updatedDist = autoCalculateCinemaDistance(address, selectedArea, deviceCoords);
-    setDistance(updatedDist);
-    setLocationStatus(`Tự động cập nhật khoảng cách tại ${selectedArea}: ${updatedDist}`);
-  };
-
-  const handleAddressChange = (text: string) => {
-    setAddress(text);
-    if (text.trim().length > 6) {
-      const updatedDist = autoCalculateCinemaDistance(text, area, deviceCoords);
-      setDistance(updatedDist);
-    }
-  };
-
-  const handleAutoLocate = async () => {
-    setIsLocating(true);
-    setLocationStatus(null);
-    try {
-      const coords = await getCurrentDeviceLocation();
-      if (coords) {
-        setDeviceCoords(coords);
-        const dist = autoCalculateCinemaDistance(address, area, coords);
-        setDistance(dist);
-        setLocationStatus(`Đã định vị GPS chính xác: ${dist}`);
-      } else {
-        const dist = autoCalculateCinemaDistance(address, area, null);
-        setDistance(dist);
-        setLocationStatus(`Đã tính khoảng cách tự động theo địa chỉ tại ${area}: ${dist}`);
-      }
-    } catch {
-      const dist = autoCalculateCinemaDistance(address, area, null);
-      setDistance(dist);
-      setLocationStatus(`Đã tính khoảng cách tự động theo vị trí rạp tại ${area}: ${dist}`);
-    } finally {
-      setIsLocating(false);
-    }
-  };
-
-  const handleRecalculateFromAddress = () => {
-    const dist = autoCalculateCinemaDistance(address, area, deviceCoords);
-    setDistance(dist);
-    setLocationStatus(`Đã cập nhật tự động theo địa chỉ (${dist})`);
   };
 
   const handleSubmit = async () => {
@@ -170,13 +101,11 @@ export default function CinemaFormModal({
     setIsSaving(true);
 
     try {
-      const resolvedDistance = distance.trim() || autoCalculateCinemaDistance(address, area, deviceCoords);
       const payload: TheaterFormPayload = {
         name: name.trim(),
         shortName: shortName.trim(),
         area: area.trim(),
         address: address.trim(),
-        distance: resolvedDistance,
         hotline: hotline.trim(),
         totalRooms: Number(totalRooms) || 6,
         supportedFormats: selectedFormats,
@@ -253,7 +182,7 @@ export default function CinemaFormModal({
                     <TouchableOpacity
                       key={a}
                       style={[styles.areaChip, isSelected && styles.areaChipActive]}
-                      onPress={() => handleSelectArea(a)}>
+                      onPress={() => setArea(a)}>
                       <Text style={[styles.areaChipText, isSelected && styles.areaChipTextActive]}>
                         {a}
                       </Text>
@@ -269,7 +198,7 @@ export default function CinemaFormModal({
               <TextInput
                 style={[styles.textInput, styles.addressInput]}
                 value={address}
-                onChangeText={handleAddressChange}
+                onChangeText={setAddress}
                 placeholder="Tầng B1, TTTM Vincom Center Landmark 81, 720A Điện Biên Phủ, P.22, Bình Thạnh..."
                 placeholderTextColor="#6B7280"
                 multiline
@@ -277,70 +206,20 @@ export default function CinemaFormModal({
               />
             </View>
 
-            {/* Hotline & Khoảng cách */}
-            <View style={styles.rowTwoCols}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Hotline liên hệ</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={hotline}
-                  onChangeText={setHotline}
-                  placeholder="1900 6017"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1.25 }]}>
-                <View style={styles.labelWithAction}>
-                  <Text style={styles.inputLabel}>Khoảng cách hiển thị</Text>
-                  <TouchableOpacity
-                    style={styles.autoLocateBtn}
-                    onPress={handleAutoLocate}
-                    disabled={isLocating}
-                    activeOpacity={0.75}>
-                    {isLocating ? (
-                      <ActivityIndicator size="small" color="#3B82F6" />
-                    ) : (
-                      <>
-                        <Ionicons name="navigate" size={11} color="#3B82F6" />
-                        <Text style={styles.autoLocateBtnText}>Định vị GPS</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.distanceInputContainer}>
-                  <TextInput
-                    style={[styles.textInput, styles.distanceInput]}
-                    value={distance}
-                    onChangeText={setDistance}
-                    placeholder="Tự động tính từ định vị..."
-                    placeholderTextColor="#6B7280"
-                  />
-                  <TouchableOpacity
-                    style={styles.refreshLocateBtn}
-                    onPress={handleRecalculateFromAddress}
-                    activeOpacity={0.7}>
-                    <Ionicons name="refresh" size={15} color="#9CA3AF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+            {/* Hotline liên hệ */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Hotline liên hệ</Text>
+              <TextInput
+                style={styles.textInput}
+                value={hotline}
+                onChangeText={setHotline}
+                placeholder="Ví dụ: 1900 6017"
+                placeholderTextColor="#6B7280"
+              />
             </View>
 
-            {/* Ghi chú trạng thái định vị */}
-            {locationStatus ? (
-              <View style={styles.locationNotice}>
-                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                <Text style={styles.locationNoticeText}>{locationStatus}</Text>
-              </View>
-            ) : (
-              <Text style={styles.locationHintText}>
-                📍 Khoảng cách được tự động định vị và tính toán chuẩn xác từ tọa độ GPS và địa chỉ cụm rạp.
-              </Text>
-            )}
-
             {/* Định dạng hỗ trợ */}
-            <View style={[styles.inputGroup, { marginTop: 12 }]}>
+            <View style={[styles.inputGroup, { marginTop: 4 }]}>
               <Text style={styles.inputLabel}>Định dạng phòng chiếu hỗ trợ</Text>
               <View style={styles.formatsGrid}>
                 {ALL_FORMAT_OPTIONS.map((fmt) => {
@@ -450,7 +329,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#EF4444',
-    fontSize: 12.5,
+    fontSize: 13,
     flex: 1,
   },
   inputGroup: {
@@ -458,7 +337,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     color: '#E5E7EB',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
   },
@@ -467,13 +346,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#262D3E',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     color: '#FFFFFF',
     fontSize: 13.5,
   },
   addressInput: {
-    minHeight: 60,
+    minHeight: 56,
     textAlignVertical: 'top',
   },
   areaRow: {
@@ -482,10 +361,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   areaChip: {
-    backgroundColor: '#181C28',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
+    backgroundColor: '#181C28',
     borderWidth: 1,
     borderColor: '#262D3E',
   },
@@ -501,76 +380,6 @@ const styles = StyleSheet.create({
   areaChipTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
-  },
-  rowTwoCols: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  labelWithAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  autoLocateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  autoLocateBtnText: {
-    color: '#3B82F6',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  distanceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#181C28',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#262D3E',
-    overflow: 'hidden',
-  },
-  distanceInput: {
-    flex: 1,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    paddingRight: 8,
-  },
-  refreshLocateBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  locationNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  locationNoticeText: {
-    color: '#10B981',
-    fontSize: 11.5,
-    fontWeight: '600',
-  },
-  locationHintText: {
-    color: '#6B7280',
-    fontSize: 11,
-    marginTop: 5,
-    fontStyle: 'italic',
   },
   formatsGrid: {
     flexDirection: 'row',

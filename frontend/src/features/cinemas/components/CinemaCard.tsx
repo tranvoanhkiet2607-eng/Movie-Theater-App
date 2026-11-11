@@ -8,14 +8,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theater } from '../types/cinema.types';
-import { autoCalculateCinemaDistance, Coordinates } from '../utils/locationService';
 
 interface CinemaCardProps {
   theater: Theater;
   onPress: (theater: Theater) => void;
   onViewShowtimes?: (theater: Theater) => void;
   isAdmin?: boolean;
-  userLocation?: Coordinates | null;
   onEditTheater?: (theater: Theater) => void;
   onDeleteTheater?: (theater: Theater) => void;
   onManageRooms?: (theater: Theater) => void;
@@ -27,19 +25,11 @@ export default function CinemaCard({
   onPress,
   onViewShowtimes,
   isAdmin = false,
-  userLocation,
   onEditTheater,
   onDeleteTheater,
   onManageRooms,
   onManageFacilities,
 }: CinemaCardProps) {
-  const displayDistance = userLocation
-    ? autoCalculateCinemaDistance(theater.address, theater.area, userLocation)
-    : theater.distance
-    ? theater.distance.startsWith('Cách')
-      ? theater.distance
-      : `Cách bạn ${theater.distance}`
-    : autoCalculateCinemaDistance(theater.address, theater.area, null);
   return (
     <View style={styles.cardContainer}>
       <TouchableOpacity
@@ -76,21 +66,14 @@ export default function CinemaCard({
             </Text>
           </View>
 
-          <View style={styles.bottomMetaRow}>
-            {theater.hotline ? (
+          {theater.hotline ? (
+            <View style={styles.bottomMetaRow}>
               <View style={styles.metaInline}>
                 <Ionicons name="call-outline" size={13} color="#9CA3AF" />
                 <Text style={styles.metaSubText}>{theater.hotline}</Text>
               </View>
-            ) : null}
-
-            {displayDistance ? (
-              <View style={styles.metaInline}>
-                <Ionicons name="navigate-outline" size={13} color="#3B82F6" />
-                <Text style={[styles.metaSubText, { color: '#3B82F6' }]}>{displayDistance}</Text>
-              </View>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Supported Formats */}
@@ -116,14 +99,14 @@ export default function CinemaCard({
         ) : null}
       </TouchableOpacity>
 
-      {/* Customer Action Bar */}
-      <View style={styles.customerActionRow}>
+      {/* Action Footer */}
+      <View style={styles.cardFooter}>
         <TouchableOpacity
           style={styles.detailBtn}
           onPress={() => onPress(theater)}
           activeOpacity={0.8}>
           <Ionicons name="information-circle-outline" size={15} color="#E5E7EB" />
-          <Text style={styles.detailBtnText}>Chi tiết & Phòng</Text>
+          <Text style={styles.detailBtnText}>Chi tiết rạp</Text>
         </TouchableOpacity>
 
         {onViewShowtimes ? (
@@ -131,163 +114,152 @@ export default function CinemaCard({
             style={styles.showtimesBtn}
             onPress={() => onViewShowtimes(theater)}
             activeOpacity={0.85}>
-            <Ionicons name="calendar-outline" size={15} color="#FFFFFF" />
-            <Text style={styles.showtimesBtnText}>Xem lịch chiếu</Text>
+            <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
+            <Text style={styles.showtimesBtnText}>Lịch chiếu</Text>
           </TouchableOpacity>
         ) : null}
-      </View>
 
-      {/* Admin Management Tools (Chỉ hiển thị khi isAdmin === true) */}
-      {isAdmin ? (
-        <View style={styles.adminBar}>
-          <View style={styles.adminLabelBadge}>
-            <Text style={styles.adminLabelText}>QUẢN TRỊ</Text>
-          </View>
-
-          <View style={styles.adminButtonsGroup}>
+        {isAdmin ? (
+          <View style={styles.adminActionGroup}>
             {onManageRooms ? (
               <TouchableOpacity
-                style={styles.adminBtn}
+                style={styles.adminIconBtn}
                 onPress={() => onManageRooms(theater)}
-                activeOpacity={0.8}>
-                <Ionicons name="albums-outline" size={13} color="#10B981" />
-                <Text style={[styles.adminBtnText, { color: '#10B981' }]}>Phòng chiếu</Text>
+                accessibilityLabel="Quản lý phòng chiếu">
+                <Ionicons name="grid-outline" size={14} color="#60A5FA" />
               </TouchableOpacity>
             ) : null}
 
             {onManageFacilities ? (
               <TouchableOpacity
-                style={styles.adminBtn}
+                style={styles.adminIconBtn}
                 onPress={() => onManageFacilities(theater)}
-                activeOpacity={0.8}>
+                accessibilityLabel="Quản lý tiện ích">
                 <Ionicons name="construct-outline" size={13} color="#F59E0B" />
-                <Text style={[styles.adminBtnText, { color: '#F59E0B' }]}>Tiện ích</Text>
               </TouchableOpacity>
             ) : null}
 
             {onEditTheater ? (
               <TouchableOpacity
-                style={styles.adminBtn}
+                style={styles.adminIconBtn}
                 onPress={() => onEditTheater(theater)}
-                activeOpacity={0.8}>
-                <Ionicons name="create-outline" size={13} color="#3B82F6" />
-                <Text style={[styles.adminBtnText, { color: '#3B82F6' }]}>Sửa</Text>
+                accessibilityLabel="Sửa thông tin rạp">
+                <Ionicons name="create-outline" size={14} color="#E5E7EB" />
               </TouchableOpacity>
             ) : null}
 
             {onDeleteTheater ? (
               <TouchableOpacity
-                style={[styles.adminBtn, styles.deleteBtn]}
+                style={[styles.adminIconBtn, styles.deleteBtn]}
                 onPress={() => {
                   Alert.alert(
-                    'Delete Cinema',
-                    `Are you sure you want to delete "${theater.name}"? This action cannot be undone.`,
+                    'Xác nhận xóa rạp',
+                    `Bạn có chắc chắn muốn xóa rạp "${theater.name}" khỏi hệ thống không?`,
                     [
-                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Hủy', style: 'cancel' },
                       {
-                        text: 'Delete',
+                        text: 'Xóa ngay',
                         style: 'destructive',
                         onPress: () => onDeleteTheater(theater),
                       },
                     ]
                   );
                 }}
-                activeOpacity={0.8}>
-                <Ionicons name="trash-outline" size={13} color="#EF4444" />
-                <Text style={[styles.adminBtnText, { color: '#EF4444' }]}>Xóa</Text>
+                accessibilityLabel="Xóa rạp">
+                <Ionicons name="trash-outline" size={14} color="#EF4444" />
               </TouchableOpacity>
             ) : null}
           </View>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   cardContainer: {
-    backgroundColor: '#151821',
-    borderRadius: 14,
+    backgroundColor: '#161A26',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#242A38',
+    borderColor: '#252C3E',
+    marginBottom: 14,
     overflow: 'hidden',
-    marginBottom: 16,
   },
   cardHeaderArea: {
     padding: 16,
-    gap: 10,
   },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   titleInfo: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 8,
+    gap: 12,
   },
   theaterIconBadge: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#E50914',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   theaterName: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 20,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 3,
   },
   theaterArea: {
-    color: '#828B9E',
-    fontSize: 11.5,
-    marginTop: 2,
+    color: '#9CA3AF',
+    fontSize: 12,
   },
   areaHighlight: {
-    color: '#E5E7EB',
+    color: '#E50914',
     fontWeight: '600',
   },
   roomCountBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(229, 9, 20, 0.12)',
+    backgroundColor: 'rgba(229, 9, 20, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(229, 9, 20, 0.25)',
   },
   roomCountText: {
     color: '#E50914',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   metaBox: {
-    backgroundColor: '#191D2A',
+    marginTop: 12,
+    backgroundColor: '#12151E',
+    borderRadius: 10,
     padding: 10,
-    borderRadius: 8,
     gap: 6,
   },
   metaRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 6,
   },
   metaAddress: {
     color: '#D1D5DB',
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 17,
     flex: 1,
   },
   bottomMetaRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 14,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#252C3E',
   },
   metaInline: {
     flexDirection: 'row',
@@ -302,113 +274,88 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+    marginTop: 10,
   },
   fmtChip: {
-    backgroundColor: '#1E2333',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#1F2637',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#2F384C',
   },
   fmtChipText: {
-    color: '#9CA3AF',
+    color: '#E5E7EB',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   amenitiesPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingTop: 4,
+    marginTop: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   amenityText: {
-    color: '#F59E0B',
-    fontSize: 11.5,
+    color: '#FBBF24',
+    fontSize: 11,
     flex: 1,
   },
-  customerActionRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#202636',
-    backgroundColor: '#141722',
-    gap: 10,
-  },
-  detailBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#1F2432',
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#30394D',
-  },
-  detailBtnText: {
-    color: '#E5E7EB',
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
-  showtimesBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#E50914',
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  showtimesBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-  adminBar: {
+  cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#0F1219',
+    paddingVertical: 10,
+    backgroundColor: '#141824',
     borderTopWidth: 1,
-    borderTopColor: '#202535',
+    borderTopColor: '#202636',
+    gap: 8,
   },
-  adminLabelBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  adminLabelText: {
-    color: '#F59E0B',
-    fontSize: 9.5,
-    fontWeight: '800',
-  },
-  adminButtonsGroup: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  adminBtn: {
+  detailBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#181C28',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#1E2433',
+  },
+  detailBtnText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  showtimesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#E50914',
+  },
+  showtimesBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  adminActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  adminIconBtn: {
+    width: 30,
+    height: 30,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#262D3E',
+    backgroundColor: '#1E2433',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   deleteBtn: {
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
-  },
-  adminBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
   },
 });
