@@ -4,6 +4,10 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Booking = require('../models/Booking');
 const User = require('../models/User');
+const Showtime = require('../models/Showtime');
+const Order = require('../models/Order');
+const Movie = require('../models/Movie');
+const Theater = require('../models/Theater');
 
 // Middleware xác thực token
 async function authUser(req, res, next) {
@@ -33,7 +37,7 @@ async function authUser(req, res, next) {
 // ════════════════════════════════════════════════════════════════════════════
 router.get('/my-bookings', authUser, async (req, res) => {
   try {
-    const bookings = await Booking.find({ userId: req.user._id }).sort({ showtime: -1 });
+    const bookings = await Booking.find({ userId: req.user._id }).sort({ createdAt: -1 });
 
     const upcoming = bookings.filter((b) => b.status === 'upcoming');
     const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled');
@@ -72,6 +76,75 @@ router.post('/:id/cancel', authUser, async (req, res) => {
     booking.status = 'cancelled';
     booking.paymentStatus = 'refunded';
     await booking.save();
+
+    // 1. Giải phóng ghế trong suất chiếu tương ứng để khách hàng khác có thể đặt
+    if (booking.seats && booking.seats.length > 0) {
+      try {
+        let st = null;
+        if (booking.showtimeId) {
+          st = await Showtime.findOne({ code: booking.showtimeId });
+          if (!st && booking.showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+            st = await Showtime.findById(booking.showtimeId);
+          }
+        }
+        if (!st) {
+          const movie = await Movie.findOne({ title: booking.movieTitle });
+          const theater = await Theater.findOne({ name: booking.cinemaName });
+          if (movie && theater) {
+            st = await Showtime.findOne({
+              movieId: movie.code,
+              theaterId: theater.code,
+              room: booking.hallName,
+            });
+          }
+        }
+
+        if (st && st.bookedSeats) {
+          st.bookedSeats = st.bookedSeats.filter((sCode) => !booking.seats.includes(sCode));
+          const totalSeats = st.totalSeats || 66;
+          st.availableSeats = Math.max(0, totalSeats - st.bookedSeats.length);
+
+          if (st.availableSeats === 0) st.status = 'sold_out';
+          else if (st.availableSeats <= 15) st.status = 'almost_full';
+          else if (st.availableSeats <= totalSeats * 0.5) st.status = 'filling_fast';
+          else st.status = 'available';
+
+          await st.save();
+        }
+      } catch (stErr) {
+        console.log('[Release Seats Error on Cancel]', stErr.message);
+      }
+    }
+
+    // 2. Cập nhật Order tương ứng nếu có
+    try {
+      const order = await Order.findOne({ orderCode: booking.bookingCode });
+      if (order) {
+        order.orderStatus = 'cancelled';
+        order.paymentStatus = 'refunded';
+        await order.save();
+      }
+    } catch (orderErr) {
+      console.log('[Update Order on Cancel]', orderErr.message);
+    }
+
+    // 3. Khấu trừ điểm thưởng tích lũy của vé đã hủy
+    try {
+      const deductedPoints = Math.round((booking.totalAmount * 0.08) / 1000);
+      if (deductedPoints > 0) {
+        req.user.loyaltyPoints = Math.max(0, (req.user.loyaltyPoints || 0) - deductedPoints);
+        if (!req.user.pointHistory) req.user.pointHistory = [];
+        req.user.pointHistory.push({
+          date: new Date(),
+          description: `Thu hồi điểm thưởng do hủy vé ${booking.bookingCode}`,
+          pointsChange: -deductedPoints,
+          balanceAfter: req.user.loyaltyPoints,
+        });
+        await req.user.save();
+      }
+    } catch (ptsErr) {
+      console.log('[Deduct Loyalty Points on Cancel]', ptsErr.message);
+    }
 
     return res.json({
       success: true,

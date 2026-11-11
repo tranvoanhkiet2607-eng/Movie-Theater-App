@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 const mongoose = require('mongoose');
 
 const BookingSchema = new mongoose.Schema(
@@ -5,12 +6,20 @@ const BookingSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
     },
     bookingCode: {
       type: String,
       required: true,
       unique: true,
+    },
+    showtimeId: {
+      type: String,
+      default: '',
+    },
+    orderCode: {
+      type: String,
+      default: '',
     },
     movieTitle: {
       type: String,

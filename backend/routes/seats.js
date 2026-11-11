@@ -8,6 +8,8 @@ const Theater = require('../models/Theater');
 const Movie = require('../models/Movie');
 const Showtime = require('../models/Showtime');
 const Booking = require('../models/Booking');
+const Order = require('../models/Order');
+const User = require('../models/User');
 
 const DEFAULT_SEAT_TYPES = [
   {
@@ -1243,8 +1245,10 @@ router.post('/book', async (req, res) => {
     bookingDate.setHours(startH || 19, startM || 0, 0, 0);
 
     const newBooking = await Booking.create({
-      userId: userId || '6ad83e54513aa79a219bb6bf',
+      userId: userId || undefined,
       bookingCode,
+      orderCode: bookingCode,
+      showtimeId: showtime.code || showtimeId,
       movieTitle: movie ? movie.title : 'Phim Chiếu Rạp CineMax',
       moviePoster: movie ? movie.poster : '',
       cinemaName: theater ? theater.name : 'CineMax Cinema',
@@ -1260,6 +1264,71 @@ router.post('/book', async (req, res) => {
       status: 'upcoming',
       qrCodeData: `CINEMAX-TICKET-${bookingCode}-${seatCodes.join('')}`,
     });
+
+    // Đồng bộ tạo bản ghi Order cho báo cáo doanh thu & quản lý đơn
+    try {
+      let bookingUser = null;
+      if (userId && typeof userId === 'string' && userId.match(/^[0-9a-fA-F]{24}$/)) {
+        bookingUser = await User.findById(userId);
+      }
+
+      await Order.create({
+        orderCode: bookingCode,
+        user: {
+          id: userId || 'guest',
+          fullName: bookingUser ? bookingUser.fullName : 'Khách hàng CineMax',
+          email: bookingUser ? bookingUser.email : '',
+          phone: bookingUser ? bookingUser.phone : '',
+        },
+        movie: {
+          id: movie ? movie.code : showtime.movieId,
+          title: movie ? movie.title : 'Phim Chiếu Rạp CineMax',
+          poster: movie ? movie.poster : '',
+          ageRating: movie ? movie.ageRating : 'T13',
+        },
+        theater: {
+          id: theater ? theater.code : showtime.theaterId,
+          name: theater ? theater.name : 'CineMax Cinema',
+          room: showtime.room,
+          showtimeDate: showtime.dateStr || 'Hôm nay',
+          showtimeTime: showtime.startTime || '19:00',
+          format: showtime.format || '2D Phụ đề',
+        },
+        tickets: seatCodes.map((c) => ({
+          seatNumber: c,
+          seatType: mainSeatType,
+          price: Math.round(totalAmount / seatCodes.length),
+        })),
+        foods: [],
+        subtotalTickets: totalAmount,
+        subtotalFoods: 0,
+        promotionCode: '',
+        discountAmount: 0,
+        totalPrice: totalAmount,
+        paymentMethod: paymentMethod || 'Ví MoMo',
+        paymentStatus: 'paid',
+        orderStatus: 'completed',
+        notes: '',
+      });
+
+      // Tích điểm thưởng nếu có tài khoản
+      if (bookingUser) {
+        const earnedPoints = Math.round((totalAmount * 0.08) / 1000);
+        if (earnedPoints > 0) {
+          bookingUser.loyaltyPoints = (bookingUser.loyaltyPoints || 0) + earnedPoints;
+          if (!bookingUser.pointHistory) bookingUser.pointHistory = [];
+          bookingUser.pointHistory.push({
+            date: new Date(),
+            description: `Tích điểm từ vé ${bookingCode} (${movie ? movie.title : 'Phim rạp'})`,
+            pointsChange: earnedPoints,
+            balanceAfter: bookingUser.loyaltyPoints,
+          });
+          await bookingUser.save();
+        }
+      }
+    } catch (orderErr) {
+      console.log('[Sync Order Note]', orderErr.message);
+    }
 
     return res.status(201).json({
       success: true,

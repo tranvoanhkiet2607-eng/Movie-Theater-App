@@ -325,15 +325,15 @@ export default function BookingFoodModal({
           email: user?.email || '',
           phone: user?.phone || '',
         },
-        showtimeId: showtime?.id,
+        showtimeId: showtime?.id || showtime?._id || showtime?.code,
         movie: {
-          id: movie?.id || showtime?.movieId || 'm1',
+          id: movie?.id || movie?._id || movie?.code || showtime?.movieId || 'm1',
           title: movie?.title || 'Phim rạp',
           poster: movie?.poster || '',
           ageRating: movie?.ageRating || 'T13',
         },
         theater: {
-          id: theater?.id || showtime?.theaterId || 'th1',
+          id: theater?.id || theater?._id || theater?.code || showtime?.theaterId || 'th1',
           name: theater?.name || 'CineMax Theater',
           room: showtime?.room || 'Rạp 01',
           showtimeDate: dateLabel,

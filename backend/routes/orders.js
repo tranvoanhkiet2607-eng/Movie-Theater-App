@@ -4,6 +4,8 @@
 const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
+const Booking = require('../models/Booking');
+const User = require('../models/User');
 const Promotion = require('../models/Promotion');
 const Notification = require('../models/Notification');
 const Showtime = require('../models/Showtime');
@@ -30,13 +32,41 @@ router.post('/', optionalAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng chọn ít nhất 1 ghế xem phim.' });
     }
 
-    // Tính tổng tiền vé
+    // 1. Kiểm tra suất chiếu và chống đặt trùng ghế (Double-booking Prevention)
+    let st = null;
+    const requestedSeatCodes = (tickets || [])
+      .map((t) => t.seatNumber || t.seatCode)
+      .filter(Boolean);
+
+    if (showtimeId) {
+      if (typeof showtimeId === 'string' && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+        st = await Showtime.findById(showtimeId);
+      }
+      if (!st) {
+        st = await Showtime.findOne({ code: showtimeId });
+      }
+      if (st) {
+        const alreadyBooked = (st.bookedSeats || []).filter((bCode) =>
+          requestedSeatCodes.includes(bCode)
+        );
+
+        if (alreadyBooked.length > 0) {
+          return res.status(409).json({
+            success: false,
+            conflictSeats: alreadyBooked,
+            message: `Rất tiếc! Ghế [${alreadyBooked.join(', ')}] vừa có khách hàng khác hoàn tất thanh toán. Vui lòng chọn ghế khác!`,
+          });
+        }
+      }
+    }
+
+    // 2. Tính tổng tiền vé
     const subtotalTickets = (tickets || []).reduce(
       (sum, t) => sum + (Number(t.price) || 0),
       0
     );
 
-    // Tính tổng tiền đồ ăn
+    // 3. Tính tổng tiền đồ ăn
     const subtotalFoods = (foods || []).reduce(
       (sum, f) => sum + (Number(f.price) * Number(f.quantity) || 0),
       0
@@ -46,7 +76,7 @@ router.post('/', optionalAuth, async (req, res) => {
     let discountAmount = 0;
     let appliedPromo = null;
 
-    // Áp dụng khuyến mãi nếu có mã
+    // 4. Áp dụng khuyến mãi nếu có mã (UC39)
     if (promotionCode && promotionCode.trim()) {
       const code = promotionCode.trim().toUpperCase();
       const promo = await Promotion.findOne({ code, isActive: true });
@@ -83,36 +113,44 @@ router.post('/', optionalAuth, async (req, res) => {
     const randPart = Math.floor(1000 + Math.random() * 9000);
     const orderCode = `ORD-${dateStr}-${randPart}`;
 
-    // Giảm số ghế khả dụng của suất chiếu nếu có showtimeId
-    if (showtimeId) {
+    // 5. Cập nhật ghế đã đặt vào suất chiếu
+    if (st) {
       try {
-        let st = null;
-        if (typeof showtimeId === 'string' && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
-          st = await Showtime.findById(showtimeId);
-        }
-        if (!st) {
-          st = await Showtime.findOne({ code: showtimeId });
-        }
-        if (st) {
-          const bookedCount = (tickets || []).length;
-          st.availableSeats = Math.max(0, (st.availableSeats !== undefined ? st.availableSeats : st.totalSeats || 66) - bookedCount);
-          if (st.availableSeats === 0) st.status = 'sold_out';
-          else if (st.availableSeats < 20) st.status = 'filling_fast';
+        if (!st.bookedSeats) st.bookedSeats = [];
+        requestedSeatCodes.forEach((code) => {
+          if (!st.bookedSeats.includes(code)) {
+            st.bookedSeats.push(code);
+          }
+        });
 
-          if (!st.bookedSeats) st.bookedSeats = [];
-          (tickets || []).forEach((t) => {
-            const seatCode = t.seatNumber || t.seatCode;
-            if (seatCode && !st.bookedSeats.includes(seatCode)) {
-              st.bookedSeats.push(seatCode);
-            }
-          });
-          await st.save();
-        }
+        // Giải phóng khỏi heldSeats nếu có
+        st.heldSeats = (st.heldSeats || []).filter(
+          (h) => !requestedSeatCodes.includes(h.seatCode)
+        );
+
+        const totalSeats = st.totalSeats || 66;
+        st.availableSeats = Math.max(0, totalSeats - st.bookedSeats.length);
+
+        if (st.availableSeats === 0) st.status = 'sold_out';
+        else if (st.availableSeats <= 15) st.status = 'almost_full';
+        else if (st.availableSeats <= totalSeats * 0.5) st.status = 'filling_fast';
+        else st.status = 'available';
+
+        await st.save();
       } catch (stErr) {
-        console.log('[Update Showtime Seats Note]', stErr.message);
+        console.log('[Update Showtime Seats Error]', stErr.message);
       }
     }
 
+    // Xác định ID người dùng đặt vé (cho tài khoản đăng nhập)
+    let targetUserId = null;
+    if (req.user && req.user._id) {
+      targetUserId = req.user._id;
+    } else if (user?.id && typeof user.id === 'string' && user.id.match(/^[0-9a-fA-F]{24}$/)) {
+      targetUserId = user.id;
+    }
+
+    // 6. Tạo đơn hàng trong collection Order
     const newOrder = await Order.create({
       orderCode,
       user: {
@@ -155,7 +193,60 @@ router.post('/', optionalAuth, async (req, res) => {
       notes: notes || '',
     });
 
-    // Tự động tạo thông báo gửi cho khách hàng (UC43)
+    // 7. Tạo bản ghi Booking đồng bộ cho "Vé của tôi" (My Bookings)
+    try {
+      const [sH, sM] = (theater?.showtimeTime || '19:00').split(':').map(Number);
+      const bDate = new Date();
+      bDate.setHours(sH || 19, sM || 0, 0, 0);
+
+      const foodComboStr = (foods || []).map((f) => `${f.name} x${f.quantity}`).join(', ');
+
+      await Booking.create({
+        userId: targetUserId || undefined,
+        bookingCode: orderCode,
+        orderCode,
+        showtimeId: (st && st.code) || showtimeId || '',
+        movieTitle: movie?.title || 'Phim rạp',
+        moviePoster: movie?.poster || '',
+        cinemaName: theater?.name || 'CineMax Theater',
+        hallName: theater?.room || 'Rạp 01',
+        showtime: bDate,
+        format: theater?.format || '2D Phụ đề',
+        seats: requestedSeatCodes,
+        seatType: tickets[0]?.seatType || 'standard',
+        combos: foodComboStr,
+        totalAmount: totalPrice,
+        paymentMethod: paymentMethod || 'MoMo',
+        paymentStatus: 'paid',
+        status: 'upcoming',
+        qrCodeData: `CINEMAX-TICKET-${orderCode}-${requestedSeatCodes.join('')}`,
+      });
+    } catch (bErr) {
+      console.log('[Sync Booking Note]', bErr.message);
+    }
+
+    // 8. Tích điểm thưởng hội viên nếu có tài khoản người dùng
+    try {
+      const userDoc = req.user || (targetUserId ? await User.findById(targetUserId) : null);
+      if (userDoc) {
+        const earnedPoints = Math.round((totalPrice * 0.08) / 1000);
+        if (earnedPoints > 0) {
+          userDoc.loyaltyPoints = (userDoc.loyaltyPoints || 0) + earnedPoints;
+          if (!userDoc.pointHistory) userDoc.pointHistory = [];
+          userDoc.pointHistory.push({
+            date: new Date(),
+            description: `Tích điểm từ đơn ${orderCode} (${movie?.title || 'Phim rạp'})`,
+            pointsChange: earnedPoints,
+            balanceAfter: userDoc.loyaltyPoints,
+          });
+          await userDoc.save();
+        }
+      }
+    } catch (pErr) {
+      console.log('[Earn Points Note]', pErr.message);
+    }
+
+    // 9. Tự động tạo thông báo gửi cho khách hàng (UC43)
     try {
       const foodSummary = foods && foods.length > 0
         ? ` + ${foods.length} món bắp nước (${foods.map((f) => `${f.name} x${f.quantity}`).join(', ')})`
@@ -165,7 +256,7 @@ router.post('/', optionalAuth, async (req, res) => {
         title: `🎬 Đặt vé thành công: #${orderCode}`,
         message: `Chúc mừng bạn đã đặt thành công ${tickets.length} vé xem phim "${movie?.title || 'Phim'}" tại ${theater?.name || 'CineMax'}${foodSummary}. Vui lòng kiểm tra mã QR đơn hàng tại quầy để nhận vé và đồ ăn.`,
         type: 'order',
-        targetUser: user?.id || 'all',
+        targetUser: (req.user && req.user.id) || user?.id || 'all',
       });
     } catch (notifErr) {
       console.log('[Create Order Notification Error]', notifErr.message);
