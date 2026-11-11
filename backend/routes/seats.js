@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const Seat = require('../models/Seat');
+const Room = require('../models/Room');
 const SeatType = require('../models/SeatType');
 const Theater = require('../models/Theater');
 const Movie = require('../models/Movie');
@@ -135,57 +136,83 @@ router.get('/', async (req, res) => {
       search = '',
     } = req.query;
 
-    // Lấy danh sách cụm rạp để dropdown filter
-    const theaters = await Theater.find().sort({ code: 1 });
+    // Lấy danh sách cụm rạp để dropdown filter (loại bỏ t6 mock nếu có)
+    const theaters = await Theater.find({ code: { $ne: 't6' } }).sort({ code: 1 });
 
-    // Tìm các phòng chiếu đang có ghế của rạp này
-    const distinctRooms = await Seat.distinct('room', { theaterId });
+    // Lấy danh sách phòng chiếu thực tế từ collection Room của rạp này
+    const roomDocs = await Room.find({ theaterId }).sort({ name: 1 });
+    let roomNames = roomDocs.map((r) => r.name);
 
-    // Nếu người dùng chưa chọn room cụ thể, chọn phòng đầu tiên
-    const activeRoom = room || (distinctRooms.length > 0 ? distinctRooms[0] : 'Rạp 01');
+    // Kết hợp thêm các phòng có ghế trong collection Seat (đề phòng)
+    const distinctSeatRooms = await Seat.distinct('room', { theaterId });
+    distinctSeatRooms.forEach((rName) => {
+      if (rName && !roomNames.includes(rName)) {
+        roomNames.push(rName);
+      }
+    });
+    roomNames.sort();
 
-    // Xây dựng điều kiện lọc
-    const filter = { theaterId, room: activeRoom };
+    // Nếu rạp thực sự chưa có phòng chiếu nào: KHÔNG TỰ BỊA 'Rạp 01'
+    const activeRoom = (room && roomNames.includes(room))
+      ? room
+      : (roomNames.length > 0 ? roomNames[0] : '');
 
-    if (type && type !== 'all') {
-      filter.type = type;
-    }
-
-    if (status && status !== 'all') {
-      filter.status = status;
-    }
-
-    if (row && row !== 'all') {
-      filter.row = row.toUpperCase();
-    }
-
-    if (search && search.trim()) {
-      filter.seatCode = { $regex: search.trim(), $options: 'i' };
-    }
-
-    // Truy vấn danh sách ghế
-    const seats = await Seat.find(filter).sort({ row: 1, colNumber: 1 });
-
-    // Tính toán thống kê toàn bộ của phòng chiếu đó (không phụ thuộc vào bộ lọc type/status/search)
-    const allRoomSeats = await Seat.find({ theaterId, room: activeRoom });
-    const summary = {
-      total: allRoomSeats.length,
-      available: allRoomSeats.filter((s) => s.status === 'available').length,
-      maintenance: allRoomSeats.filter((s) => s.status === 'maintenance').length,
-      reserved: allRoomSeats.filter((s) => s.status === 'reserved').length,
-      standardCount: allRoomSeats.filter((s) => s.type === 'standard').length,
-      vipCount: allRoomSeats.filter((s) => s.type === 'vip').length,
-      coupleCount: allRoomSeats.filter((s) => s.type === 'couple').length,
+    let seats = [];
+    let summary = {
+      total: 0,
+      available: 0,
+      maintenance: 0,
+      reserved: 0,
+      standardCount: 0,
+      vipCount: 0,
+      coupleCount: 0,
     };
+    let distinctRows = [];
 
-    // Lấy danh sách các hàng ghế có trong phòng chiếu này
-    const distinctRows = await Seat.distinct('row', { theaterId, room: activeRoom });
-    distinctRows.sort();
+    if (activeRoom) {
+      // Xây dựng điều kiện lọc
+      const filter = { theaterId, room: activeRoom };
+
+      if (type && type !== 'all') {
+        filter.type = type;
+      }
+
+      if (status && status !== 'all') {
+        filter.status = status;
+      }
+
+      if (row && row !== 'all') {
+        filter.row = row.toUpperCase();
+      }
+
+      if (search && search.trim()) {
+        filter.seatCode = { $regex: search.trim(), $options: 'i' };
+      }
+
+      // Truy vấn danh sách ghế
+      seats = await Seat.find(filter).sort({ row: 1, colNumber: 1 });
+
+      // Tính toán thống kê toàn bộ của phòng chiếu đó
+      const allRoomSeats = await Seat.find({ theaterId, room: activeRoom });
+      summary = {
+        total: allRoomSeats.length,
+        available: allRoomSeats.filter((s) => s.status === 'available').length,
+        maintenance: allRoomSeats.filter((s) => s.status === 'maintenance').length,
+        reserved: allRoomSeats.filter((s) => s.status === 'reserved').length,
+        standardCount: allRoomSeats.filter((s) => s.type === 'standard').length,
+        vipCount: allRoomSeats.filter((s) => s.type === 'vip').length,
+        coupleCount: allRoomSeats.filter((s) => s.type === 'couple').length,
+      };
+
+      // Lấy danh sách các hàng ghế có trong phòng chiếu này
+      distinctRows = await Seat.distinct('row', { theaterId, room: activeRoom });
+      distinctRows.sort();
+    }
 
     return res.json({
       success: true,
       theaters,
-      rooms: distinctRooms.length > 0 ? distinctRooms : [activeRoom],
+      rooms: roomNames,
       activeTheaterId: theaterId,
       activeRoom,
       rows: distinctRows,
@@ -209,7 +236,10 @@ router.get('/', async (req, res) => {
 router.get('/rooms', async (req, res) => {
   try {
     const { theaterId = 't1' } = req.query;
-    const roomStats = await Seat.aggregate([
+
+    // Lấy tất cả phòng chiếu thực tế của rạp
+    const roomDocs = await Room.find({ theaterId }).sort({ name: 1 });
+    const seatStats = await Seat.aggregate([
       { $match: { theaterId } },
       {
         $group: {
@@ -232,21 +262,31 @@ router.get('/rooms', async (req, res) => {
           },
         },
       },
-      { $sort: { _id: 1 } },
     ]);
+
+    const statMap = new Map();
+    seatStats.forEach((s) => statMap.set(s._id, s));
+
+    const allRoomNames = new Set(roomDocs.map((r) => r.name));
+    seatStats.forEach((s) => allRoomNames.add(s._id));
+
+    const resultRooms = Array.from(allRoomNames).sort().map((roomName) => {
+      const stat = statMap.get(roomName) || {};
+      return {
+        room: roomName,
+        totalSeats: stat.totalSeats || 0,
+        availableSeats: stat.availableSeats || 0,
+        maintenanceSeats: stat.maintenanceSeats || 0,
+        vipSeats: stat.vipSeats || 0,
+        standardSeats: stat.standardSeats || 0,
+        coupleSeats: stat.coupleSeats || 0,
+      };
+    });
 
     return res.json({
       success: true,
       theaterId,
-      rooms: roomStats.map((r) => ({
-        room: r._id,
-        totalSeats: r.totalSeats,
-        availableSeats: r.availableSeats,
-        maintenanceSeats: r.maintenanceSeats,
-        vipSeats: r.vipSeats,
-        standardSeats: r.standardSeats,
-        coupleSeats: r.coupleSeats,
-      })),
+      rooms: resultRooms,
     });
   } catch (err) {
     console.error('[GET /api/seats/rooms] Lỗi:', err);

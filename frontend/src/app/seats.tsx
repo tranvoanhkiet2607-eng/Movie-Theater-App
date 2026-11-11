@@ -146,11 +146,12 @@ export default function SeatsScreen() {
       });
 
       if (res.theaters?.length) setTheaters(res.theaters);
-      if (res.rooms?.length) {
-        setRooms(res.rooms);
-        if (!selectedRoom && res.activeRoom) {
-          setSelectedRoom(res.activeRoom);
-        }
+      const incomingRooms = res.rooms || [];
+      setRooms(incomingRooms);
+      if (incomingRooms.length === 0) {
+        setSelectedRoom('');
+      } else if (!selectedRoom || !incomingRooms.includes(selectedRoom)) {
+        setSelectedRoom(res.activeRoom || incomingRooms[0]);
       }
       if (res.rows) setRows(res.rows);
       if (res.summary) setSummary(res.summary);
@@ -718,32 +719,41 @@ export default function SeatsScreen() {
           <Ionicons name="videocam" size={18} color="#3B82F6" />
           <Text style={styles.sectionTitle}>Phòng chiếu</Text>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsScroll}>
-          {rooms.map((r) => {
-            const isSelected = r === selectedRoom;
-            return (
-              <TouchableOpacity
-                key={r}
-                style={[styles.roomChip, isSelected && styles.roomChipActive]}
-                onPress={() => setSelectedRoom(r)}
-                activeOpacity={0.8}>
-                <Ionicons
-                  name="film-outline"
-                  size={14}
-                  color={isSelected ? '#FFFFFF' : '#9CA3AF'}
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  style={[styles.roomChipText, isSelected && styles.roomChipTextActive]}>
-                  {r}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {rooms.length === 0 ? (
+          <View style={styles.noRoomsInlineBox}>
+            <Ionicons name="alert-circle-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.noRoomsInlineText}>
+              Cụm rạp này chưa có phòng chiếu nào.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsScroll}>
+            {rooms.map((r) => {
+              const isSelected = r === selectedRoom;
+              return (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.roomChip, isSelected && styles.roomChipActive]}
+                  onPress={() => setSelectedRoom(r)}
+                  activeOpacity={0.8}>
+                  <Ionicons
+                    name="film-outline"
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : '#9CA3AF'}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[styles.roomChipText, isSelected && styles.roomChipTextActive]}>
+                    {r}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ─── 3. Overview Summary Stats ──────────────────────────────────────── */}
         <View style={styles.statsContainer}>
@@ -1225,10 +1235,20 @@ export default function SeatsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        ) : rooms.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="videocam-outline" size={48} color="#4B5563" />
+            <Text style={styles.emptyTitle}>Cụm rạp này chưa có phòng chiếu nào</Text>
+            <Text style={styles.emptySubtitle}>
+              {isManageMode
+                ? 'Hãy vào mục "Quản lý cụm rạp" để thêm phòng chiếu cho rạp này trước khi thiết lập sơ đồ ghế.'
+                : 'Cụm rạp này hiện chưa có phòng chiếu hoạt động.'}
+            </Text>
+          </View>
         ) : seats.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="grid-outline" size={48} color="#4B5563" />
-            <Text style={styles.emptyTitle}>Chưa có ghế nào trong phòng này</Text>
+            <Text style={styles.emptyTitle}>Chưa có ghế nào trong {selectedRoom || 'phòng này'}</Text>
             <Text style={styles.emptySubtitle}>
               {isManageMode
                 ? 'Hãy bấm "Thêm ghế" hoặc "Khởi tạo sơ đồ" để tạo sơ đồ phòng chiếu nhanh chóng!'
@@ -2430,6 +2450,18 @@ const styles = StyleSheet.create({
   },
   roomChipTextActive: {
     color: '#FFFFFF',
+  },
+  noRoomsInlineBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  noRoomsInlineText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   statsContainer: {
     flexDirection: 'row',

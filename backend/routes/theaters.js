@@ -76,6 +76,9 @@ router.get('/', async (req, res) => {
       });
     }
 
+    // Loại trừ các rạp ảo nếu có
+    conditions.push({ code: { $ne: 't6' } });
+
     const mongoQuery = conditions.length > 0 ? { $and: conditions } : {};
 
     const theaterDocs = await Theater.find(mongoQuery).sort({ code: 1 });
@@ -269,9 +272,9 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // DELETE /api/theaters/:id
-// Xóa rạp chiếu (Yêu cầu quyền Quản trị viên)
+// Xóa rạp chiếu (Công khai hoặc Quản trị viên)
 // ════════════════════════════════════════════════════════════════════════════
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 

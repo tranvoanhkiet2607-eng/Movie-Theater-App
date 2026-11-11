@@ -111,6 +111,10 @@ async function connectToMongo() {
       serverSelectionTimeoutMS: 7000,
     });
     console.log(`✅ Kết nối MongoDB Atlas thành công! (Database: ${mongoose.connection.name})`);
+    try {
+      const Theater = require('./models/Theater');
+      await Theater.deleteMany({ code: 't6' });
+    } catch (_) {}
   } catch (err) {
     console.error('\n⚠️ CHƯA THỂ KẾT NỐI MONGODB ATLAS:');
     console.error('Chi tiết lỗi:', err.message);
