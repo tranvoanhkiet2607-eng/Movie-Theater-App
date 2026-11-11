@@ -9,8 +9,6 @@ const User = require('../models/User');
 const Promotion = require('../models/Promotion');
 const Notification = require('../models/Notification');
 const Showtime = require('../models/Showtime');
-const Booking = require('../models/Booking');
-const User = require('../models/User');
 const { requireAdmin, requireStaffOrAdmin, optionalAuth } = require('../middleware/auth');
 
 // ════════════════════════════════════════════════════════════

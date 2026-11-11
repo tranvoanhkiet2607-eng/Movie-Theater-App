@@ -1396,7 +1396,6 @@ router.post('/book', async (req, res) => {
     } catch (notifErr) {
       console.log('[Create Seat Booking Notification Error]', notifErr.message);
     }
-    }
 
     return res.status(201).json({
       success: true,
