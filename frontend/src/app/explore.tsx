@@ -392,17 +392,24 @@ export default function ExploreScreen() {
     return ['all', ...distinct];
   }, [theaters]);
 
-  const currentDateObj = useMemo(
-    () =>
-      dates.find((d) => d.dateKey === selectedDateKey) || {
-        dateKey: 'd0',
-        dayLabel: 'Hôm nay',
-        dateDisplay: '15/10',
-        fullDateLabel: 'Thứ Năm, 15/10/2026',
-        isWeekend: false,
-      },
-    [dates, selectedDateKey]
-  );
+  const currentDateObj = useMemo(() => {
+    const found = dates.find((d) => d.dateKey === selectedDateKey);
+    if (found) return found;
+
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const FULL_DAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+
+    return {
+      dateKey: selectedDateKey || 'd0',
+      dayLabel: selectedDateKey === 'd1' ? 'Ngày mai' : 'Hôm nay',
+      dateDisplay: `${dd}/${mm}`,
+      fullDateLabel: `${FULL_DAYS[now.getDay()]}, ${dd}/${mm}/${yyyy}`,
+      isWeekend: now.getDay() === 0 || now.getDay() === 6,
+    };
+  }, [dates, selectedDateKey]);
 
   // Lọc danh sách rạp hiển thị trên thanh chọn theo khu vực
   const visibleTheatersForPicker = useMemo(() => {

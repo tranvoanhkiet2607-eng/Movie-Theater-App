@@ -83,7 +83,10 @@ export default function MovieFormModal({
       setPoster('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500');
       setTrailerUrl('https://www.youtube.com/watch?v=Way9Dexny3w');
       setBadge('HOT');
-      setReleaseDate('15/10/2026');
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      setReleaseDate(`${dd}/${mm}/${today.getFullYear()}`);
       setDirector('');
       setCastStr('');
       setSynopsis('');

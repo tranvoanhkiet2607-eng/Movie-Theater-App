@@ -9,57 +9,44 @@ const Seat = require('../models/Seat');
 const SeatType = require('../models/SeatType');
 const { requireAdmin } = require('../middleware/auth');
 
-const SHOWTIME_DATES = [
-  {
-    dateKey: 'd0',
-    dayLabel: 'Hôm nay',
-    dateDisplay: '15/10',
-    fullDateLabel: 'Thứ Năm, 15/10/2026',
-    isWeekend: false,
-  },
-  {
-    dateKey: 'd1',
-    dayLabel: 'Ngày mai',
-    dateDisplay: '16/10',
-    fullDateLabel: 'Thứ Sáu, 16/10/2026',
-    isWeekend: false,
-  },
-  {
-    dateKey: 'd2',
-    dayLabel: 'Thứ 7',
-    dateDisplay: '17/10',
-    fullDateLabel: 'Thứ Bảy, 17/10/2026',
-    isWeekend: true,
-  },
-  {
-    dateKey: 'd3',
-    dayLabel: 'Chủ nhật',
-    dateDisplay: '18/10',
-    fullDateLabel: 'Chủ Nhật, 18/10/2026',
-    isWeekend: true,
-  },
-  {
-    dateKey: 'd4',
-    dayLabel: 'Thứ 2',
-    dateDisplay: '19/10',
-    fullDateLabel: 'Thứ Hai, 19/10/2026',
-    isWeekend: false,
-  },
-  {
-    dateKey: 'd5',
-    dayLabel: 'Thứ 3',
-    dateDisplay: '20/10',
-    fullDateLabel: 'Thứ Ba, 20/10/2026',
-    isWeekend: false,
-  },
-  {
-    dateKey: 'd6',
-    dayLabel: 'Thứ 4',
-    dateDisplay: '21/10',
-    fullDateLabel: 'Thứ Tư, 21/10/2026',
-    isWeekend: false,
-  },
-];
+// Sinh danh sách các ngày chiếu thực tế theo thời gian thực (7 ngày kể từ hôm nay)
+function getDynamicShowtimeDates(numDays = 7) {
+  const DAY_LABELS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  const FULL_DAY_LABELS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+
+  const dates = [];
+  const now = new Date();
+
+  for (let i = 0; i < numDays; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+
+    const dayOfWeek = d.getDay();
+    const dateNum = String(d.getDate()).padStart(2, '0');
+    const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+    const yearNum = d.getFullYear();
+
+    let dayLabel = DAY_LABELS[dayOfWeek];
+    if (i === 0) dayLabel = 'Hôm nay';
+    else if (i === 1) dayLabel = 'Ngày mai';
+
+    const dateDisplay = `${dateNum}/${monthNum}`;
+    const fullDateStr = `${dateNum}/${monthNum}/${yearNum}`;
+    const fullDateLabel = `${FULL_DAY_LABELS[dayOfWeek]}, ${fullDateStr}`;
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    dates.push({
+      dateKey: `d${i}`,
+      dayLabel,
+      dateDisplay,
+      fullDateLabel,
+      fullDateStr,
+      isWeekend,
+    });
+  }
+
+  return dates;
+}
 
 const SHOWTIME_FORMATS = [
   '2D Phụ đề',
@@ -117,8 +104,13 @@ function computeSeatStatus(availableSeats, totalSeats) {
 }
 
 function resolveDateStr(dateKey) {
-  const found = SHOWTIME_DATES.find((d) => d.dateKey === dateKey);
-  return found ? `${found.dateDisplay}/2026` : '15/10/2026';
+  const dates = getDynamicShowtimeDates();
+  const found = dates.find((d) => d.dateKey === dateKey);
+  if (found) return found.fullDateStr;
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${now.getFullYear()}`;
 }
 
 // Kiểm tra xem 2 khoảng thời gian [startA, endA] và [startB, endB] có bị chồng lấn không
@@ -371,7 +363,7 @@ router.get('/', async (req, res) => {
           return res.json({
             success: true,
             total: 0,
-            dates: SHOWTIME_DATES,
+            dates: getDynamicShowtimeDates(),
             formats: SHOWTIME_FORMATS,
             movies,
             theaters,
@@ -427,7 +419,7 @@ router.get('/', async (req, res) => {
     return res.json({
       success: true,
       total: showtimes.length,
-      dates: SHOWTIME_DATES,
+      dates: getDynamicShowtimeDates(),
       formats: SHOWTIME_FORMATS,
       movies,
       theaters,
