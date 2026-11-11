@@ -220,20 +220,6 @@ const DEFAULT_PRICING_RULES = [
   },
 ];
 
-async function ensureDefaultPricingRules() {
-  try {
-    const count = await PricingRule.countDocuments();
-    if (count === 0) {
-      console.log('Chưa có quy tắc giá vé trong DB, tiến hành khởi tạo bộ quy tắc chuẩn...');
-      await PricingRule.insertMany(DEFAULT_PRICING_RULES);
-      console.log(`Đã khởi tạo thành công ${DEFAULT_PRICING_RULES.length} quy tắc giá vé.`);
-    }
-  } catch (err) {
-    console.error('Lỗi khi kiểm tra/khởi tạo quy tắc giá vé:', err.message);
-  }
-}
-
 module.exports = {
   DEFAULT_PRICING_RULES,
-  ensureDefaultPricingRules,
 };

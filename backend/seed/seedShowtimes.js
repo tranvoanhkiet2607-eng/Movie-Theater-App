@@ -432,27 +432,8 @@ function buildInitialShowtimes() {
   return results;
 }
 
-async function seedShowtimesData() {
-  const movieCount = await Movie.countDocuments();
-  if (movieCount === 0) {
-    await Movie.insertMany(INITIAL_MOVIES);
-  }
-
-  const theaterCount = await Theater.countDocuments();
-  if (theaterCount === 0) {
-    await Theater.insertMany(INITIAL_THEATERS);
-  }
-
-  const showtimeCount = await Showtime.countDocuments();
-  if (showtimeCount === 0) {
-    const initialShowtimes = buildInitialShowtimes();
-    await Showtime.insertMany(initialShowtimes);
-  }
-}
-
 module.exports = {
   SHOWTIME_DATES,
   SHOWTIME_FORMATS,
-  seedShowtimesData,
 };
 

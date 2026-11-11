@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const PricingRule = require('../models/PricingRule');
-const { DEFAULT_PRICING_RULES, ensureDefaultPricingRules } = require('../seed/seedPricingRules');
+const { DEFAULT_PRICING_RULES } = require('../seed/seedPricingRules');
 
 // Helper định dạng tiền tệ VND
 function formatCurrencyVND(amount) {

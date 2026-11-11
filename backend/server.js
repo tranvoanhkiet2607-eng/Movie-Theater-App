@@ -103,51 +103,6 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 // ─── Kết nối MongoDB Atlas (với cơ chế tự động thử lại) ─────────────────────
-let isSeeded = false;
-
-async function seedInitialData() {
-  if (isSeeded) return;
-  try {
-    const User = require('./models/User');
-
-    const adminExists = await User.findOne({ email: 'admin@cinema.com' });
-    if (!adminExists) {
-      await User.create({
-        fullName: 'Quản Trị Viên CineMax (Admin)',
-        email: 'admin@cinema.com',
-        phone: '0912345678',
-        password: 'password123',
-        role: 'admin',
-        isActive: true,
-        membershipTier: 'VIP',
-        loyaltyPoints: 9999,
-        avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-      });
-      console.log('🌱 Đã seed tài khoản Quản trị viên (admin@cinema.com)');
-    }
-
-    const staffExists = await User.findOne({ email: 'staff@cinema.com' });
-    if (!staffExists) {
-      await User.create({
-        fullName: 'Lê Hoàng Nhân Viên',
-        email: 'staff@cinema.com',
-        phone: '0933445566',
-        password: 'password123',
-        role: 'staff',
-        isActive: true,
-        membershipTier: 'Silver',
-        loyaltyPoints: 150,
-        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      });
-      console.log('🌱 Đã seed tài khoản Nhân viên (staff@cinema.com)');
-    }
-
-    isSeeded = true;
-  } catch (seedErr) {
-    console.error('⚠️ Lỗi khi seed dữ liệu ban đầu:', seedErr.message);
-  }
-}
-
 async function connectToMongo() {
   try {
     await mongoose.connect(MONGODB_URI, {
@@ -155,7 +110,6 @@ async function connectToMongo() {
       serverSelectionTimeoutMS: 7000,
     });
     console.log(`✅ Kết nối MongoDB Atlas thành công! (Database: ${mongoose.connection.name})`);
-    await seedInitialData();
   } catch (err) {
     console.error('\n⚠️ CHƯA THỂ KẾT NỐI MONGODB ATLAS:');
     console.error('Chi tiết lỗi:', err.message);

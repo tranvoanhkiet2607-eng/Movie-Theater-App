@@ -295,25 +295,7 @@ function buildAllInitialSeats() {
   return allSeats;
 }
 
-async function seedSeatTypesData() {
-  const count = await SeatType.countDocuments();
-  if (count === 0) {
-    await SeatType.insertMany(DEFAULT_SEAT_TYPES);
-  }
-}
-
-async function seedSeatsData() {
-  await seedSeatTypesData();
-  const seatCount = await Seat.countDocuments();
-  if (seatCount === 0) {
-    const initialSeats = buildAllInitialSeats();
-    await Seat.insertMany(initialSeats);
-  }
-}
-
 module.exports = {
-  seedSeatsData,
-  seedSeatTypesData,
   buildAllInitialSeats,
   DEFAULT_SEAT_TYPES,
 };
