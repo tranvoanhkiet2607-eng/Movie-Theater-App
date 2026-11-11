@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // UC38: Order Food & Drinks (Food Ordering)
 // UC44: Manage Food Orders (Food Ordering Administration)
 const express = require('express');
@@ -85,12 +86,26 @@ router.post('/', optionalAuth, async (req, res) => {
     // Giảm số ghế khả dụng của suất chiếu nếu có showtimeId
     if (showtimeId) {
       try {
-        const st = await Showtime.findById(showtimeId);
-        if (st && st.availableSeats > 0) {
-          const bookedCount = tickets.length;
-          st.availableSeats = Math.max(0, st.availableSeats - bookedCount);
+        let st = null;
+        if (typeof showtimeId === 'string' && showtimeId.match(/^[0-9a-fA-F]{24}$/)) {
+          st = await Showtime.findById(showtimeId);
+        }
+        if (!st) {
+          st = await Showtime.findOne({ code: showtimeId });
+        }
+        if (st) {
+          const bookedCount = (tickets || []).length;
+          st.availableSeats = Math.max(0, (st.availableSeats !== undefined ? st.availableSeats : st.totalSeats || 66) - bookedCount);
           if (st.availableSeats === 0) st.status = 'sold_out';
           else if (st.availableSeats < 20) st.status = 'filling_fast';
+
+          if (!st.bookedSeats) st.bookedSeats = [];
+          (tickets || []).forEach((t) => {
+            const seatCode = t.seatNumber || t.seatCode;
+            if (seatCode && !st.bookedSeats.includes(seatCode)) {
+              st.bookedSeats.push(seatCode);
+            }
+          });
           await st.save();
         }
       } catch (stErr) {

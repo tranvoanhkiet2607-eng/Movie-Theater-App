@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // UC38: Order Food & Drinks (Food Ordering) & Checkout with Promotions (UC39)
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -13,7 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FoodAPI, PromotionAPI, OrderAPI } from '@/services/api';
+import { FoodAPI, PromotionAPI, OrderAPI, SeatAPI } from '@/services/api';
 import { FoodItem, FoodCategory } from '@/types/food';
 import { Promotion } from '@/types/promotion';
 import { Order } from '@/types/order';
@@ -29,13 +30,6 @@ interface BookingFoodModalProps {
   onBookingComplete?: (order: Order) => void;
 }
 
-const AVAILABLE_SEAT_GRID = [
-  { row: 'E', seats: ['E03', 'E04', 'E05', 'E06', 'E07', 'E08'], type: 'standard', price: 95000 },
-  { row: 'F', seats: ['F03', 'F04', 'F05', 'F06', 'F07', 'F08'], type: 'vip', price: 135000 },
-  { row: 'G', seats: ['G03', 'G04', 'G05', 'G06', 'G07', 'G08'], type: 'vip', price: 135000 },
-  { row: 'H', seats: ['H01-H02', 'H03-H04', 'H05-H06'], type: 'couple', price: 195000 },
-];
-
 export default function BookingFoodModal({
   visible,
   onClose,
@@ -50,11 +44,10 @@ export default function BookingFoodModal({
   // Wizard Step: 1: Seats -> 2: Food & Drinks (UC38) -> 3: Payment & Coupon (UC39) -> 4: Success
   const [currentStep, setCurrentStep] = useState<number>(1);
 
-  // Selected Seats State
-  const [selectedSeats, setSelectedSeats] = useState<{ seatNumber: string; seatType: string; price: number }[]>([
-    { seatNumber: 'F05', seatType: 'vip', price: 135000 },
-    { seatNumber: 'F06', seatType: 'vip', price: 135000 },
-  ]);
+  // Seat States - Dữ liệu ghế thực tế từ Database
+  const [rawSeats, setRawSeats] = useState<any[]>([]);
+  const [loadingSeats, setLoadingSeats] = useState<boolean>(true);
+  const [selectedSeats, setSelectedSeats] = useState<{ seatNumber: string; seatType: string; price: number }[]>([]);
 
   // Food & Drinks State (UC38)
   const [foodMenu, setFoodMenu] = useState<FoodItem[]>([]);
@@ -75,11 +68,53 @@ export default function BookingFoodModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  // Load Food Menu on Modal Open
+  // Sơ đồ ghế thực tế nhóm theo hàng A, B, C...
+  const seatsByRow = useMemo(() => {
+    if (!rawSeats || rawSeats.length === 0) return [];
+    const map: Record<string, any[]> = {};
+    rawSeats.forEach((seat) => {
+      const r = (seat.row || '').toUpperCase();
+      if (!map[r]) map[r] = [];
+      map[r].push(seat);
+    });
+
+    Object.keys(map).forEach((r) => {
+      map[r].sort((a, b) => (Number(a.colNumber) || 0) - (Number(b.colNumber) || 0));
+    });
+
+    const sortedRows = Object.keys(map).sort();
+    return sortedRows.map((r) => ({
+      row: r,
+      items: map[r],
+    }));
+  }, [rawSeats]);
+
+  // Tính giá vé động cho các loại ghế
+  const seatPricing = useMemo(() => {
+    let std = 0;
+    let vip = 0;
+    let cpl = 0;
+    rawSeats.forEach((s) => {
+      const p = s.price || s.basePrice || 0;
+      if (s.type === 'standard' && (!std || p < std)) std = p;
+      if (s.type === 'vip' && (!vip || p < vip)) vip = p;
+      if (s.type === 'couple' && (!cpl || p < cpl)) cpl = p;
+    });
+    return {
+      standard: std || (showtime?.price || 90000),
+      vip: vip || Math.round((showtime?.price || 90000) * 1.3),
+      couple: cpl || Math.round((showtime?.price || 90000) * 2.2),
+    };
+  }, [rawSeats, showtime?.price]);
+
+  // Load Real Seats & Food Menu on Modal Open
   useEffect(() => {
     if (visible) {
       setCurrentStep(1);
       setCompletedOrder(null);
+      setSelectedSeats([]);
+
+      // 1. Tải thực đơn bắp nước (UC38)
       setLoadingFoods(true);
       FoodAPI.getFoods({ availableOnly: true })
         .then((res) => {
@@ -89,17 +124,66 @@ export default function BookingFoodModal({
         })
         .catch((err) => console.log('[Load Food Error]', err))
         .finally(() => setLoadingFoods(false));
+
+      // 2. Tải sơ đồ ghế thực tế từ DB của Suất chiếu & Phòng chiếu
+      const showtimeId = showtime?.id || showtime?._id || showtime?.code;
+      const theaterId = theater?.id || theater?.code || showtime?.theaterId;
+      const room = showtime?.room;
+
+      setLoadingSeats(true);
+      if (showtimeId) {
+        SeatAPI.getShowtimeSeatMap(showtimeId)
+          .then((res) => {
+            if (res.success && res.seatMap && res.seatMap.length > 0) {
+              setRawSeats(res.seatMap);
+            } else if (theaterId && room) {
+              SeatAPI.getSeats({ theaterId, room })
+                .then((seatRes) => {
+                  if (seatRes.success && seatRes.seats) {
+                    setRawSeats(seatRes.seats);
+                  } else {
+                    setRawSeats([]);
+                  }
+                })
+                .catch(() => setRawSeats([]));
+            } else {
+              setRawSeats([]);
+            }
+          })
+          .catch(async () => {
+            if (theaterId && room) {
+              try {
+                const seatRes = await SeatAPI.getSeats({ theaterId, room });
+                if (seatRes.success && seatRes.seats) {
+                  setRawSeats(seatRes.seats);
+                  return;
+                }
+              } catch (_) {}
+            }
+            setRawSeats([]);
+          })
+          .finally(() => setLoadingSeats(false));
+      } else if (theaterId && room) {
+        SeatAPI.getSeats({ theaterId, room })
+          .then((res) => {
+            if (res.success && res.seats) {
+              setRawSeats(res.seats);
+            } else {
+              setRawSeats([]);
+            }
+          })
+          .catch(() => setRawSeats([]))
+          .finally(() => setLoadingSeats(false));
+      } else {
+        setLoadingSeats(false);
+      }
     }
-  }, [visible]);
+  }, [visible, showtime?.id, showtime?.code, theater?.id, theater?.code, showtime?.theaterId, showtime?.room]);
 
   // Seat toggle handler
   const toggleSeat = (seatNumber: string, seatType: string, price: number) => {
     const exists = selectedSeats.some((s) => s.seatNumber === seatNumber);
     if (exists) {
-      if (selectedSeats.length === 1) {
-        Alert.alert('Thông báo', 'Bạn cần chọn ít nhất 1 ghế.');
-        return;
-      }
       setSelectedSeats((prev) => prev.filter((s) => s.seatNumber !== seatNumber));
     } else {
       if (selectedSeats.length >= 8) {
@@ -108,6 +192,17 @@ export default function BookingFoodModal({
       }
       setSelectedSeats((prev) => [...prev, { seatNumber, seatType, price }]);
     }
+  };
+
+  // Step 1 -> Step 2 validation handler
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (selectedSeats.length === 0) {
+        Alert.alert('Chưa chọn ghế', 'Vui lòng chọn ít nhất 1 ghế xem phim để tiếp tục.');
+        return;
+      }
+    }
+    setCurrentStep((s) => s + 1);
   };
 
   // Food quantity handlers (UC38)
@@ -306,7 +401,7 @@ export default function BookingFoodModal({
             </View>
           )}
 
-          {/* Step 1: Chọn Ghế */}
+          {/* Step 1: Chọn Ghế Thực Tế Từ DB */}
           {currentStep === 1 && (
             <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
               <View style={styles.screenIndicator}>
@@ -317,63 +412,135 @@ export default function BookingFoodModal({
               {/* Seat Types Legend */}
               <View style={styles.legendRow}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.seatBox, styles.seatBoxStandard]} />
-                  <Text style={styles.legendText}>Thường (95k)</Text>
+                  <View style={[styles.legendColorBox, { backgroundColor: '#E5E7EB' }]} />
+                  <Text style={styles.legendText}>
+                    Thường ({Math.round(seatPricing.standard / 1000)}k)
+                  </Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.seatBox, styles.seatBoxVip]} />
-                  <Text style={styles.legendText}>VIP (135k)</Text>
+                  <View style={[styles.legendColorBox, { backgroundColor: '#F59E0B' }]} />
+                  <Text style={styles.legendText}>
+                    VIP ({Math.round(seatPricing.vip / 1000)}k)
+                  </Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.seatBox, styles.seatBoxCouple]} />
-                  <Text style={styles.legendText}>Ghế Đôi (195k)</Text>
+                  <View style={[styles.legendColorBox, { backgroundColor: '#EC4899' }]} />
+                  <Text style={styles.legendText}>
+                    Sweetbox ({Math.round(seatPricing.couple / 1000)}k)
+                  </Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColorBox, { backgroundColor: '#374151' }]} />
+                  <Text style={styles.legendText}>Đã đặt</Text>
                 </View>
               </View>
 
-              {/* Seat Grid */}
-              <View style={styles.seatGrid}>
-                {AVAILABLE_SEAT_GRID.map((row) => (
-                  <View key={row.row} style={styles.gridRow}>
-                    <Text style={styles.rowLabel}>{row.row}</Text>
-                    <View style={styles.rowSeats}>
-                      {row.seats.map((seat) => {
-                        const isSelected = selectedSeats.some((s) => s.seatNumber === seat);
-                        const isCouple = row.type === 'couple';
+              {/* Real Seat Grid / Matrix */}
+              {loadingSeats ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator size="large" color="#E50914" />
+                  <Text style={styles.loadingText}>Đang tải sơ đồ ghế phòng chiếu...</Text>
+                </View>
+              ) : seatsByRow.length === 0 ? (
+                <View style={styles.emptySeatsBox}>
+                  <Ionicons name="grid-outline" size={40} color="#6B7280" />
+                  <Text style={styles.emptySeatsTitle}>Chưa có sơ đồ ghế cho phòng chiếu này</Text>
+                  <Text style={styles.emptySeatsDesc}>
+                    Vui lòng liên hệ quản trị viên hoặc chọn phòng chiếu khác đã được cấu hình sơ đồ ghế.
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  contentContainerStyle={styles.seatHorizontalScroll}>
+                  <View style={styles.seatGrid}>
+                    {seatsByRow.map((group) => (
+                      <View key={group.row} style={styles.gridRow}>
+                        <Text style={styles.rowLabel}>{group.row}</Text>
+                        <View style={styles.rowSeats}>
+                          {group.items.map((seat) => {
+                            const seatCode =
+                              seat.seatCode ||
+                              `${seat.row}${String(seat.colNumber).padStart(2, '0')}`;
+                            const isSelected = selectedSeats.some(
+                              (s) => s.seatNumber === seatCode
+                            );
+                            const isCouple = seat.type === 'couple';
+                            const isVip = seat.type === 'vip';
+                            const isBooked =
+                              seat.status === 'booked' || seat.status === 'reserved';
+                            const isHolding = seat.status === 'holding';
+                            const isMaint = seat.status === 'maintenance';
+                            const isDisabled = isBooked || isHolding || isMaint;
 
-                        return (
-                          <TouchableOpacity
-                            key={seat}
-                            onPress={() => toggleSeat(seat, row.type, row.price)}
-                            activeOpacity={0.7}
-                            style={[
-                              styles.seatBox,
-                              row.type === 'standard' && styles.seatBoxStandard,
-                              row.type === 'vip' && styles.seatBoxVip,
-                              row.type === 'couple' && styles.seatBoxCouple,
-                              isCouple && styles.seatBoxCoupleWidth,
-                              isSelected && styles.seatBoxSelected,
-                            ]}>
-                            <Text
-                              style={[
-                                styles.seatNumberText,
-                                isSelected && styles.seatNumberTextSelected,
-                              ]}>
-                              {seat}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                            let seatBg = '#E5E7EB'; // standard default
+                            if (isVip) seatBg = '#F59E0B';
+                            if (isCouple) seatBg = '#EC4899';
+                            if (isHolding) seatBg = '#78350F';
+                            if (isBooked) seatBg = '#374151';
+                            if (isMaint) seatBg = '#1F2937';
+                            if (isSelected) seatBg = '#E50914';
+
+                            const seatPrice =
+                              seat.price ||
+                              (isCouple
+                                ? seatPricing.couple
+                                : isVip
+                                ? seatPricing.vip
+                                : seatPricing.standard);
+
+                            return (
+                              <TouchableOpacity
+                                key={seat.id || seat.code || seatCode}
+                                disabled={isDisabled}
+                                onPress={() => toggleSeat(seatCode, seat.type, seatPrice)}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.seatBox,
+                                  isCouple && styles.seatBoxCoupleWidth,
+                                  { backgroundColor: seatBg },
+                                  isSelected && styles.seatBoxSelectedBorder,
+                                ]}>
+                                {isSelected ? (
+                                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                                ) : isBooked ? (
+                                  <Ionicons name="person" size={10} color="#9CA3AF" />
+                                ) : isMaint ? (
+                                  <Ionicons name="construct" size={10} color="#EF4444" />
+                                ) : isHolding ? (
+                                  <Ionicons name="time" size={10} color="#FBBF24" />
+                                ) : (
+                                  <Text
+                                    style={[
+                                      styles.seatNumberText,
+                                      (isCouple || isSelected) && { color: '#FFFFFF' },
+                                      (isVip || (!isCouple && !isSelected && !isDisabled)) && {
+                                        color: '#1F2937',
+                                      },
+                                    ]}>
+                                    {seat.colNumber}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                        <Text style={styles.rowLabel}>{group.row}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
+                </ScrollView>
+              )}
 
               {/* Selected Seats Summary */}
               <View style={styles.selectedSeatsBox}>
                 <View style={styles.selectedSeatsRow}>
                   <Text style={styles.selectedSeatsTitle}>Ghế đang chọn ({selectedSeats.length}):</Text>
                   <Text style={styles.selectedSeatsValue}>
-                    {selectedSeats.map((s) => s.seatNumber).join(', ')}
+                    {selectedSeats.length > 0
+                      ? selectedSeats.map((s) => s.seatNumber).join(', ')
+                      : 'Chưa chọn ghế'}
                   </Text>
                 </View>
                 <Text style={styles.selectedSeatsPrice}>
@@ -700,7 +867,7 @@ export default function BookingFoodModal({
                 {currentStep < 3 ? (
                   <TouchableOpacity
                     style={styles.nextStepBtn}
-                    onPress={() => setCurrentStep((s) => s + 1)}>
+                    onPress={handleNextStep}>
                     <Text style={styles.nextStepBtnText}>
                       {currentStep === 1 ? 'Chọn bắp nước' : 'Tiếp tục thanh toán'}
                     </Text>
@@ -866,66 +1033,83 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  legendColorBox: {
+    width: 13,
+    height: 13,
+    borderRadius: 3,
+  },
   legendText: {
     fontSize: 11,
     color: '#9CA3AF',
   },
+  seatHorizontalScroll: {
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    minWidth: '100%',
+  },
   seatGrid: {
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
     marginVertical: 10,
   },
   gridRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
   },
   rowLabel: {
     width: 20,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     color: '#9CA3AF',
     textAlign: 'center',
   },
   rowSeats: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 5,
   },
   seatBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
   },
   seatBoxCoupleWidth: {
-    width: 78,
+    width: 58,
   },
-  seatBoxStandard: {
-    backgroundColor: '#1F2937',
-    borderColor: '#374151',
-  },
-  seatBoxVip: {
-    backgroundColor: '#312E81',
-    borderColor: '#6366F1',
-  },
-  seatBoxCouple: {
-    backgroundColor: '#831843',
-    borderColor: '#DB2777',
-  },
-  seatBoxSelected: {
-    backgroundColor: '#E50914',
-    borderColor: '#EF4444',
+  seatBoxSelectedBorder: {
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   seatNumberText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#D1D5DB',
-  },
-  seatNumberTextSelected: {
-    color: '#FFFFFF',
     fontWeight: '700',
+    color: '#1F2937',
+  },
+  emptySeatsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#161922',
+    borderRadius: 12,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: '#262626',
+  },
+  emptySeatsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F3F4F6',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  emptySeatsDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   selectedSeatsBox: {
     backgroundColor: '#1A1D24',
