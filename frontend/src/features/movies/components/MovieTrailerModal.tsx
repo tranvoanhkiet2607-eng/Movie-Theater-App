@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // UC16: View Movie Trailer - MovieTrailerModal Component
 // Phát trailer YouTube ngay trong app dùng react-native-youtube-iframe
 // Phân quyền: Guest/Member không thấy các nút YouTube khi trailer chưa cập nhật

@@ -1,3 +1,4 @@
+// Nguyễn Minh Quân - CE180048
 // Quản lý thông tin và danh sách phòng chiếu của cụm rạp CineMax (Admin)
 
 import React, { useState, useEffect } from 'react';
